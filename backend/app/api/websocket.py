@@ -1,14 +1,17 @@
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, Query
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import SQLAlchemyError
 from typing import Dict
 from datetime import datetime
 import json
-from app.database import get_db
+import logging
+from app.database import get_db, SessionLocal
 from app.models.user import User
 from app.schemas import MessageCreate, WSMessage
 from app.services.message_service import MessageService
 from app.utils.security import decode_token
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
@@ -34,7 +37,8 @@ class ConnectionManager:
         if user_id in self.active_connections:
             try:
                 await self.active_connections[user_id].send_json(message)
-            except:
+            except Exception as e:
+                logger.error(f"Error sending message to user {user_id}: {e}")
                 self.disconnect(user_id)
     
     async def broadcast_to_conversation(
@@ -72,8 +76,7 @@ async def get_current_user_ws(
 @router.websocket("/ws")
 async def websocket_endpoint(
     websocket: WebSocket,
-    token: str = Query(...),
-    db: Session = Depends(get_db)
+    token: str = Query(...)
 ):
     """
     WebSocket endpoint for real-time messaging.
@@ -97,16 +100,39 @@ async def websocket_endpoint(
         "timestamp": "2024-01-01T12:00:00"
     }
     """
+    # Create dedicated session for this WebSocket connection
+    db = SessionLocal()
+    current_user = None
+    user_id = None
+    
     try:
-        # Authenticate user
-        current_user = await get_current_user_ws(token, db)
+        # Authenticate user with dedicated session
+        try:
+            payload = decode_token(token)
+            username = payload.get("sub")
+            current_user = db.query(User).filter(User.username == username).first()
+            if not current_user:
+                await websocket.close(code=1008, reason="User not found")
+                return
+            user_id = current_user.id
+        except Exception as e:
+            logger.error(f"WebSocket authentication failed: {e}")
+            await websocket.close(code=1008, reason="Authentication failed")
+            return
         
         # Connect
         await manager.connect(current_user.id, websocket)
         
-        # Mark user as online
-        current_user.is_online = True
-        db.commit()
+        # Mark user as online with proper transaction
+        try:
+            db.refresh(current_user)  # Ensure fresh state
+            current_user.is_online = True
+            db.commit()
+        except SQLAlchemyError as e:
+            logger.error(f"Failed to update user online status: {e}")
+            db.rollback()
+            await websocket.close(code=1011, reason="Database error")
+            return
         
         # Broadcast online status
         await manager.broadcast_to_conversation(
@@ -116,7 +142,7 @@ async def websocket_endpoint(
                 "username": current_user.username
             },
             conversation_id=None,
-            participant_ids=[conn_id for conn_id in manager.active_connections.keys()]
+            participant_ids=list(manager.active_connections.keys())
         )
         
         try:
@@ -125,86 +151,134 @@ async def websocket_endpoint(
                 data = await websocket.receive_json()
                 
                 if data.get("type") == "message":
-                    # Create and save message
-                    message_data = MessageCreate(
-                        content=data["content"],
-                        conversation_id=data["conversation_id"]
-                    )
-                    
-                    message_response = MessageService.create_message(
-                        db, message_data, current_user
-                    )
-                    
-                    # Get conversation participants
-                    from app.models.conversation import Conversation
-                    conversation = db.query(Conversation).filter(
-                        Conversation.id == data["conversation_id"]
-                    ).first()
-                    
-                    participant_ids = [p.id for p in conversation.participants]
-                    
-                    # Broadcast to conversation participants
-                    ws_message = {
-                        "type": "message",
-                        "conversation_id": message_response.conversation_id,
-                        "content": message_response.content,
-                        "sender_id": message_response.sender_id,
-                        "sender_username": message_response.sender_username,
-                        "message_id": message_response.id,
-                        "timestamp": message_response.created_at.isoformat()
-                    }
-                    
-                    await manager.broadcast_to_conversation(
-                        ws_message,
-                        data["conversation_id"],
-                        participant_ids
-                    )
+                    try:
+                        # Create and save message
+                        message_data = MessageCreate(
+                            content=data["content"],
+                            conversation_id=data["conversation_id"]
+                        )
+                        
+                        # Refresh user to avoid stale state
+                        db.refresh(current_user)
+                        message_response = MessageService.create_message(
+                            db, message_data, current_user
+                        )
+                        
+                        # Get conversation participants
+                        from app.models.conversation import Conversation
+                        conversation = db.query(Conversation).filter(
+                            Conversation.id == data["conversation_id"]
+                        ).first()
+                        
+                        if conversation:
+                            participant_ids = [p.id for p in conversation.participants]
+                            
+                            # Broadcast to conversation participants
+                            ws_message = {
+                                "type": "message",
+                                "conversation_id": message_response.conversation_id,
+                                "content": message_response.content,
+                                "sender_id": message_response.sender_id,
+                                "sender_username": message_response.sender_username,
+                                "message_id": message_response.id,
+                                "timestamp": message_response.created_at.isoformat()
+                            }
+                            
+                            await manager.broadcast_to_conversation(
+                                ws_message,
+                                data["conversation_id"],
+                                participant_ids
+                            )
+                    except SQLAlchemyError as e:
+                        logger.error(f"Database error processing message: {e}")
+                        db.rollback()
+                        await websocket.send_json({
+                            "type": "error",
+                            "message": "Failed to send message"
+                        })
+                    except Exception as e:
+                        logger.error(f"Error processing message: {e}")
+                        await websocket.send_json({
+                            "type": "error",
+                            "message": "Failed to process message"
+                        })
                 
                 elif data.get("type") == "typing":
-                    # Broadcast typing indicator
-                    from app.models.conversation import Conversation
-                    conversation = db.query(Conversation).filter(
-                        Conversation.id == data["conversation_id"]
-                    ).first()
+                    try:
+                        # Broadcast typing indicator
+                        from app.models.conversation import Conversation
+                        conversation = db.query(Conversation).filter(
+                            Conversation.id == data["conversation_id"]
+                        ).first()
+                        
+                        if conversation:
+                            participant_ids = [p.id for p in conversation.participants]
+                            await manager.broadcast_to_conversation(
+                                {
+                                    "type": "typing",
+                                    "conversation_id": data["conversation_id"],
+                                    "user_id": current_user.id,
+                                    "username": current_user.username
+                                },
+                                data["conversation_id"],
+                                participant_ids,
+                                exclude_user_id=current_user.id
+                            )
+                    except Exception as e:
+                        logger.error(f"Error processing typing indicator: {e}")
+        
+        except WebSocketDisconnect:
+            logger.info(f"WebSocket disconnected for user {user_id}")
+    
+    except Exception as e:
+        logger.error(f"Unexpected WebSocket error: {e}")
+        if websocket.client_state.name == "CONNECTED":
+            try:
+                await websocket.close(code=1011, reason="Internal error")
+            except Exception:
+                pass
+    
+    finally:
+        # Cleanup connection
+        if user_id:
+            manager.disconnect(user_id)
+        
+        # Mark user as offline with proper transaction and error handling
+        if current_user:
+            try:
+                # Create a new session for cleanup to avoid using closed/invalid session
+                cleanup_db = SessionLocal()
+                try:
+                    # Get fresh user instance
+                    user_to_update = cleanup_db.query(User).filter(
+                        User.id == current_user.id
+                    ).with_for_update().first()
                     
-                    if conversation:
-                        participant_ids = [p.id for p in conversation.participants]
+                    if user_to_update:
+                        user_to_update.is_online = False
+                        user_to_update.last_seen = datetime.utcnow()
+                        cleanup_db.commit()
+                        
+                        # Broadcast offline status
                         await manager.broadcast_to_conversation(
                             {
-                                "type": "typing",
-                                "conversation_id": data["conversation_id"],
+                                "type": "user_offline",
                                 "user_id": current_user.id,
                                 "username": current_user.username
                             },
-                            data["conversation_id"],
-                            participant_ids,
-                            exclude_user_id=current_user.id
+                            conversation_id=None,
+                            participant_ids=list(manager.active_connections.keys())
                         )
+                except SQLAlchemyError as e:
+                    logger.error(f"Failed to update user offline status: {e}")
+                    cleanup_db.rollback()
+                finally:
+                    cleanup_db.close()
+            except Exception as e:
+                logger.error(f"Error during WebSocket cleanup: {e}")
         
-        except WebSocketDisconnect:
-            pass
-    
-    except Exception as e:
-        if websocket.client_state.name == "CONNECTED":
-            await websocket.close(code=1008)
-        return
-    
-    finally:
-        # Cleanup
-        manager.disconnect(current_user.id)
-        
-        # Mark user as offline
-        current_user.is_online = False
-        current_user.last_seen = datetime.utcnow()
-        db.commit()
-        
-        # Broadcast offline status
-        await manager.broadcast_to_conversation(
-            {
-                "type": "user_offline",
-                "user_id": current_user.id,
-                "username": current_user.username
-            },
-            conversation_id=None,
-            participant_ids=[conn_id for conn_id in manager.active_connections.keys()]
-        )
+        # Close the main session
+        try:
+            db.close()
+        except Exception as e:
+            logger.error(f"Error closing WebSocket database session: {e}")
