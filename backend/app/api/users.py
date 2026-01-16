@@ -1,23 +1,56 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
-from ..database import get_db
-from ..schemas.user import UserCreate, UserResponse
-from ..services.user_service import create_user, get_user, get_users
+from app.database import get_db
+from app.schemas import UserResponse
+from app.utils.security import get_current_user
+from app.models.user import User
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
-@router.post("/", response_model=UserResponse)
-async def register_user(user: UserCreate, db: Session = Depends(get_db)):
-    return create_user(db, user)
-
-@router.get("/{user_id}", response_model=UserResponse)
-async def read_user(user_id: int, db: Session = Depends(get_db)):
-    user = get_user(db, user_id)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    return user
 
 @router.get("/", response_model=List[UserResponse])
-async def list_users(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    return get_users(db, skip=skip, limit=limit)
+async def get_all_users(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Get list of all registered users.
+    """
+    users = db.query(User).filter(User.is_active == True).all()
+    return [UserResponse.from_orm(user) for user in users]
+
+
+@router.get("/online", response_model=List[UserResponse])
+async def get_online_users(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Get list of currently online users.
+    """
+    users = db.query(User).filter(
+        User.is_active == True,
+        User.is_online == True
+    ).all()
+    return [UserResponse.from_orm(user) for user in users]
+
+
+@router.get("/{user_id}", response_model=UserResponse)
+async def get_user(
+    user_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Get a specific user by ID.
+    """
+    user = db.query(User).filter(User.id == user_id).first()
+    
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    
+    return UserResponse.from_orm(user)
