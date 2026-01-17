@@ -1,6 +1,5 @@
 """
-Chat Application Backend
-A production-ready chat system with real-time messaging.
+Zchat Application Backend
 """
 
 __version__ = "1.0.0"

@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import get_settings
-from app.database import init_db
+from app.db_init import init_database
 from app.api import auth, users, conversations, websocket
 
 settings = get_settings()
@@ -32,10 +32,14 @@ app.include_router(websocket.router)
 @app.on_event("startup")
 async def startup_event():
     """Initialize database on startup."""
-    init_db()
-    print("✓ Database initialized")
+    print("=" * 60)
+    print("Starting Zchat Application")
+    print("=" * 60)
+    init_database()
+    print("=" * 60)
     print(f"✓ Server running on http://localhost:8000")
     print(f"✓ API docs available at http://localhost:8000/docs")
+    print("=" * 60)
 
 
 @app.get("/")
