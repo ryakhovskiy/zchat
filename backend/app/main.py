@@ -9,7 +9,7 @@ settings = get_settings()
 # Initialize FastAPI app
 app = FastAPI(
     title=settings.APP_NAME,
-    description="Production-ready chat application with real-time messaging",
+    description="Zchat with real-time messaging",
     version="1.0.0"
 )
 
@@ -61,4 +61,5 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=8000,
         reload=settings.DEBUG
+
     )
