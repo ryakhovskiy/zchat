@@ -44,6 +44,12 @@ class Token(BaseModel):
 class MessageCreate(BaseModel):
     content: str = Field(..., min_length=1, max_length=5000)
     conversation_id: int
+    
+    @validator('content')
+    def content_not_whitespace(cls, v):
+        if not v.strip():
+            raise ValueError('Content cannot be only whitespace')
+        return v
 
 
 class MessageResponse(BaseModel):

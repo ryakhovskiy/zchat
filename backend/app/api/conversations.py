@@ -1,6 +1,7 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, status, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
+from pydantic import ValidationError
 from app.database import get_db
 from app.schemas import (
     ConversationCreate,
@@ -82,5 +83,8 @@ async def send_message(
     
     - **content**: Message text (1-5000 chars)
     """
-    message_data = MessageCreate(content=content, conversation_id=conversation_id)
+    try:
+        message_data = MessageCreate(content=content, conversation_id=conversation_id)
+    except (ValueError, ValidationError) as e:
+        raise HTTPException(status_code=422, detail=str(e))
     return MessageService.create_message(db, message_data, current_user)

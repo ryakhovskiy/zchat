@@ -32,14 +32,15 @@ client = TestClient(app)
 @pytest.fixture(autouse=True)
 def setup_and_teardown():
     """Setup and teardown for each test."""
-    # Setup: Create tables
+    # Drop and recreate to ensure clean state
+    Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
     yield
-    # Teardown: Drop all tables
+    # Clean up after test
     Base.metadata.drop_all(bind=engine)
 
 
-@pytest.fixture
+@pytest.fixture(scope="function")
 def test_user():
     """Create a test user and return credentials."""
     response = client.post(
@@ -50,6 +51,7 @@ def test_user():
             "email": "test@example.com"
         }
     )
+    assert response.status_code == 201, f"Failed to create testuser: {response.json()}"
     return response.json()
 
 

@@ -10,7 +10,15 @@ from app.database import get_db
 from app.models.user import User
 
 settings = get_settings()
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+# Configure password hashing with bcrypt
+# Set truncate_error=False to automatically truncate passwords >72 bytes
+pwd_context = CryptContext(
+    schemes=["bcrypt"],
+    deprecated="auto",
+    bcrypt__truncate_error=False  # Automatically handle >72 byte passwords
+)
+
 security = HTTPBearer()
 
 

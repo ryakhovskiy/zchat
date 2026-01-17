@@ -30,23 +30,33 @@ client = TestClient(app)
 @pytest.fixture(autouse=True)
 def setup_and_teardown():
     """Setup and teardown for each test."""
+    # Drop and recreate to ensure clean state
+    Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
     yield
+    # Clean up: close all connections and drop all tables
+    TestingSessionLocal.close_all()
+    engine.dispose()
     Base.metadata.drop_all(bind=engine)
 
 
-@pytest.fixture
+@pytest.fixture(scope="function")
 def test_users():
     """Create two test users."""
-    user1 = client.post(
+    # Clean slate for each test
+    response1 = client.post(
         "/api/auth/register",
         json={"username": "user1", "password": "pass123"}
-    ).json()
+    )
+    assert response1.status_code == 201, f"Failed to create user1: {response1.json()}"
+    user1 = response1.json()
     
-    user2 = client.post(
+    response2 = client.post(
         "/api/auth/register",
         json={"username": "user2", "password": "pass123"}
-    ).json()
+    )
+    assert response2.status_code == 201, f"Failed to create user2: {response2.json()}"
+    user2 = response2.json()
     
     return {
         "user1": user1,
