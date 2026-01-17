@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 24 hours
     
     # Database
-    DATABASE_URL: str = "sqlite:///./chat.db"
+    DATABASE_URL: str = "sqlite:///./zchat.db"
     ENCRYPTION_KEY: str = "your-encryption-key-change-in-production"  # Must be 32 bytes base64
     
     # CORS

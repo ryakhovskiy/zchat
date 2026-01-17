@@ -1,12 +1,36 @@
-"""Utility script to inspect the database schema."""
+"""Database management utility script.
+
+Usage:
+    python scripts/db_manager.py init      # Initialize database
+    python scripts/db_manager.py inspect   # Inspect database schema
+    python scripts/db_manager.py reset     # Reset database (drops all tables)
+"""
 import sqlite3
 import sys
+import argparse
 from pathlib import Path
 
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from app.db_init import DatabaseInitializer
+
+
+def init_database():
+    """Initialize the database."""
+    print("Initializing database...")
+    initializer = DatabaseInitializer()
+    
+    print(f"\nDatabase path: {initializer.db_path}")
+    print(f"SQL directory: {initializer.sql_dir}")
+    print(f"\nTable files to process:")
+    for i, file in enumerate(initializer.table_files, 1):
+        print(f"  {i}. {file}")
+    
+    print("\n" + "=" * 60)
+    initializer.initialize()
+    print("=" * 60)
+    print("\n✓ Database initialization completed!")
 
 
 def inspect_database():
@@ -16,7 +40,7 @@ def inspect_database():
     
     if not Path(db_path).exists():
         print(f"✗ Database does not exist: {db_path}")
-        print("Run the application or test_db_init.py to create it.")
+        print("Run 'python scripts/db_manager.py init' to create it.")
         return
     
     print(f"Database: {db_path}")
@@ -95,5 +119,64 @@ def inspect_database():
         conn.close()
 
 
+def reset_database():
+    """Reset database by dropping all tables and recreating them."""
+    initializer = DatabaseInitializer()
+    
+    if not Path(initializer.db_path).exists():
+        print(f"✗ Database does not exist: {initializer.db_path}")
+        print("Nothing to reset.")
+        return
+    
+    # Ask for confirmation
+    print("⚠️  WARNING: This will delete ALL data in the database!")
+    response = input("Type 'yes' to continue: ")
+    
+    if response.lower() != 'yes':
+        print("Reset cancelled.")
+        return
+    
+    print("\n" + "=" * 60)
+    initializer.reset_database()
+    print("=" * 60)
+    print("\n✓ Database reset completed!")
+
+
+def main():
+    """Main entry point for the database manager."""
+    parser = argparse.ArgumentParser(
+        description="Database management utility for Zchat",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  python scripts/db_manager.py init      # Initialize database
+  python scripts/db_manager.py inspect   # Inspect database schema
+  python scripts/db_manager.py reset     # Reset database (with confirmation)
+        """
+    )
+    
+    parser.add_argument(
+        'action',
+        choices=['init', 'inspect', 'reset'],
+        help='Action to perform on the database'
+    )
+    
+    args = parser.parse_args()
+    
+    try:
+        if args.action == 'init':
+            init_database()
+        elif args.action == 'inspect':
+            inspect_database()
+        elif args.action == 'reset':
+            reset_database()
+    except KeyboardInterrupt:
+        print("\n\nOperation cancelled by user.")
+        sys.exit(1)
+    except Exception as e:
+        print(f"\n✗ Error: {e}")
+        sys.exit(1)
+
+
 if __name__ == "__main__":
-    inspect_database()
+    main()
