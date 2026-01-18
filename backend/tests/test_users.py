@@ -23,21 +23,26 @@ def override_get_db():
         db.close()
 
 
-app.dependency_overrides[get_db] = override_get_db
+# Create tables initially
 Base.metadata.create_all(bind=engine)
-
-client = TestClient(app)
 
 
 @pytest.fixture(autouse=True)
 def setup_and_teardown():
     """Setup and teardown for each test."""
+    # Set the override for THIS test module's database
+    app.dependency_overrides[get_db] = override_get_db
+    
     # Drop and recreate to ensure clean state
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
     yield
     # Clean up after test
     Base.metadata.drop_all(bind=engine)
+
+
+# Module-level client
+client = TestClient(app)
 
 
 @pytest.fixture(scope="function")

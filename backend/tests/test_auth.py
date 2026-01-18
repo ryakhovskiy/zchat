@@ -7,7 +7,7 @@ from app.database import Base, get_db
 from app.config import get_settings
 
 # Test database
-SQLALCHEMY_DATABASE_URL = "sqlite:///./test.db"
+SQLALCHEMY_DATABASE_URL = "sqlite:///./test_auth.db"
 engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
@@ -24,11 +24,25 @@ def override_get_db():
         db.close()
 
 
-app.dependency_overrides[get_db] = override_get_db
-
-# Create tables
+# Create tables initially
 Base.metadata.create_all(bind=engine)
 
+
+@pytest.fixture(autouse=True)
+def setup_and_teardown():
+    """Setup and teardown for each test."""
+    # Set the override for THIS test module's database
+    app.dependency_overrides[get_db] = override_get_db
+    
+    # Drop and recreate to ensure clean state
+    Base.metadata.drop_all(bind=engine)
+    Base.metadata.create_all(bind=engine)
+    yield
+    # Clean up after test
+    Base.metadata.drop_all(bind=engine)
+
+
+# Module-level client
 client = TestClient(app)
 
 
@@ -52,6 +66,16 @@ class TestAuthentication:
     
     def test_register_duplicate_username(self):
         """Test registration with duplicate username."""
+        # First, register a user
+        client.post(
+            "/api/auth/register",
+            json={
+                "username": "testuser",
+                "password": "testpass123"
+            }
+        )
+        
+        # Try to register again with same username
         response = client.post(
             "/api/auth/register",
             json={
@@ -75,6 +99,16 @@ class TestAuthentication:
     
     def test_login_success(self):
         """Test successful login."""
+        # First, register a user
+        client.post(
+            "/api/auth/register",
+            json={
+                "username": "testuser",
+                "password": "testpass123"
+            }
+        )
+        
+        # Now login
         response = client.post(
             "/api/auth/login",
             json={
@@ -89,6 +123,16 @@ class TestAuthentication:
     
     def test_login_wrong_password(self):
         """Test login with wrong password."""
+        # First, register a user
+        client.post(
+            "/api/auth/register",
+            json={
+                "username": "testuser",
+                "password": "testpass123"
+            }
+        )
+        
+        # Try to login with wrong password
         response = client.post(
             "/api/auth/login",
             json={
@@ -111,7 +155,16 @@ class TestAuthentication:
     
     def test_get_current_user(self):
         """Test getting current user info."""
-        # Login first
+        # First, register a user
+        client.post(
+            "/api/auth/register",
+            json={
+                "username": "testuser",
+                "password": "testpass123"
+            }
+        )
+        
+        # Login to get token
         login_response = client.post(
             "/api/auth/login",
             json={
