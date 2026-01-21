@@ -271,6 +271,39 @@
   border-top: 1px solid #e1e8ed;
   display: flex;
   gap: 1rem;
+  align-items: flex-end;
+}
+
+.emoji-picker-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.emoji-button {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: 2px solid #e1e8ed;
+  background-color: white;
+  font-size: 1.5rem;
+  cursor: pointer;
+  transition: border-color 0.2s, transform 0.2s;
+}
+
+.emoji-button:hover {
+  border-color: #667eea;
+  transform: translateY(-1px);
+}
+
+.emoji-picker {
+  position: absolute;
+  bottom: 60px;
+  left: 0;
+  z-index: 10;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.15);
+  border-radius: 16px;
+  overflow: hidden;
 }
 
 .message-input {

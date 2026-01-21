@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
+import Picker from '@emoji-mart/react';
+import data from '@emoji-mart/data';
 import { useChat } from '../../contexts/ChatContext';
 import { useAuth } from '../../contexts/AuthContext';
 import './Chat.css';
@@ -7,7 +9,9 @@ export const ChatWindow = () => {
   const { selectedConversation, messages, sendMessage } = useChat();
   const { user } = useAuth();
   const [inputValue, setInputValue] = useState('');
+  const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
   const messagesEndRef = useRef(null);
+  const emojiPickerRef = useRef(null);
 
   const conversationMessages = selectedConversation
     ? messages[selectedConversation.id] || []
@@ -16,6 +20,19 @@ export const ChatWindow = () => {
   useEffect(() => {
     scrollToBottom();
   }, [conversationMessages]);
+
+  useEffect(() => {
+    if (!isEmojiPickerOpen) return;
+
+    const handleClickOutside = (event) => {
+      if (emojiPickerRef.current && !emojiPickerRef.current.contains(event.target)) {
+        setIsEmojiPickerOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isEmojiPickerOpen]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -27,6 +44,13 @@ export const ChatWindow = () => {
 
     sendMessage(selectedConversation.id, inputValue);
     setInputValue('');
+    setIsEmojiPickerOpen(false);
+  };
+
+  const handleEmojiSelect = (emoji) => {
+    if (!emoji || !emoji.native) return;
+    setInputValue((prev) => `${prev}${emoji.native}`);
+    setIsEmojiPickerOpen(false);
   };
 
   const formatTime = (dateString) => {
@@ -109,6 +133,21 @@ export const ChatWindow = () => {
       </div>
 
       <form className="message-input-container" onSubmit={handleSubmit}>
+        <div className="emoji-picker-wrapper" ref={emojiPickerRef}>
+            <button
+              type="button"
+              className="emoji-button"
+              onClick={() => setIsEmojiPickerOpen((prev) => !prev)}
+              aria-label="Toggle emoji picker"
+            >
+              😊
+            </button>
+            {isEmojiPickerOpen && (
+              <div className="emoji-picker">
+                <Picker data={data} onEmojiSelect={handleEmojiSelect} theme="light" previewPosition="none" />
+              </div>
+            )}
+        </div>
         <input
           type="text"
           value={inputValue}
