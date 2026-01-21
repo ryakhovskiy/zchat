@@ -74,7 +74,7 @@ class ConversationCreate(BaseModel):
     def validate_participants(cls, v, values):
         if values.get('is_group', False) and len(v) < 2:
             raise ValueError('Group conversations must have at least 2 participants')
-        if not values.get('is_group', False) and len(v) != 1:
+        if values.get('is_group', True) and len(v) < 2:
             raise ValueError('Direct conversations must have exactly 1 other participant')
         return v
 

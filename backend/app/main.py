@@ -1,9 +1,13 @@
-from fastapi import FastAPI
+import logging
+from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from app.config import get_settings
 from app.db_init import init_database
 from app.api import auth, users, conversations, websocket
 
+logger = logging.getLogger(__name__)
 settings = get_settings()
 
 # Initialize FastAPI app
@@ -21,6 +25,22 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Add custom exception handler for validation errors
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """Log and handle validation errors with detailed information."""
+    logger.error(f"Validation error on {request.method} {request.url.path}")
+    logger.error(f"Request body: {await request.body()}")
+    logger.error(f"Validation errors: {exc.errors()}")
+    
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        content={
+            "detail": exc.errors(),
+            "body": exc.body
+        }
+    )
 
 # Include routers
 app.include_router(auth.router, prefix="/api")

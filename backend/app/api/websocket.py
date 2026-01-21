@@ -110,9 +110,12 @@ async def websocket_endpoint(
         try:
             payload = decode_token(token)
             username = payload.get("sub")
-            current_user = db.query(User).filter(User.username == username).first()
+            current_user = db.query(User).filter(
+                User.username == username,
+                User.is_active == True
+            ).first()
             if not current_user:
-                await websocket.close(code=1008, reason="User not found")
+                await websocket.close(code=1008, reason="User not found or inactive")
                 return
             user_id = current_user.id
         except Exception as e:

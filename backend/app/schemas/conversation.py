@@ -1,6 +1,6 @@
 """Conversation-related Pydantic schemas."""
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, validator, root_validator
 from datetime import datetime
 from typing import Optional, List
 from app.schemas.user import UserResponse
@@ -17,32 +17,29 @@ class ConversationCreate(ConversationBase):
     """Schema for creating a conversation."""
     participant_ids: List[int] = Field(..., min_items=1)
     
-    @validator('participant_ids')
-    def validate_participants(cls, v, values):
-        """Validate participant requirements based on conversation type."""
+    @root_validator
+    def validate_conversation(cls, values):
+        """Validate conversation requirements based on type."""
         is_group = values.get('is_group', False)
+        participant_ids = values.get('participant_ids', [])
+        name = values.get('name')
         
-        # Remove duplicates
-        unique_ids = list(set(v))
+        # Remove duplicates from participant_ids
+        unique_ids = list(set(participant_ids))
+        values['participant_ids'] = unique_ids
         
+        # Validate participant count based on conversation type
         if is_group and len(unique_ids) < 2:
             raise ValueError('Group conversations must have at least 2 other participants')
         
         if not is_group and len(unique_ids) != 1:
             raise ValueError('Direct conversations must have exactly 1 other participant')
         
-        return unique_ids
-    
-    @validator('name')
-    def validate_group_name(cls, v, values):
-        """Validate group name if it's a group conversation."""
-        is_group = values.get('is_group', False)
+        # Clear name for direct conversations
+        if name and not is_group:
+            values['name'] = None
         
-        if v and not is_group:
-            # Name provided for direct message, ignore it
-            return None
-        
-        return v
+        return values
 
 
 class ConversationUpdate(BaseModel):

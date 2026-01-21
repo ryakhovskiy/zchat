@@ -45,7 +45,10 @@ async def get_user(
     """
     Get a specific user by ID.
     """
-    user = db.query(User).filter(User.id == user_id).first()
+    user = db.query(User).filter(
+        User.id == user_id,
+        User.is_active == True
+    ).first()
     
     if not user:
         raise HTTPException(

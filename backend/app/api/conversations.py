@@ -1,3 +1,4 @@
+import logging
 from fastapi import APIRouter, Depends, status, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
@@ -14,6 +15,8 @@ from app.services.message_service import MessageService
 from app.utils.security import get_current_user
 from app.models.user import User
 
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 router = APIRouter(prefix="/conversations", tags=["Conversations"])
 
 
@@ -30,7 +33,24 @@ async def create_conversation(
     - **is_group**: Whether this is a group conversation
     - **name**: Optional name for group conversations
     """
-    return ConversationService.create_conversation(db, conversation_data, current_user)
+    logger.info(
+        f"API request: Create conversation by user {current_user.id} "
+        f"(is_group={conversation_data.is_group}, participants={conversation_data.participant_ids})"
+    )
+    logger.debug(f"Conversation data: {conversation_data.dict()}")
+    try:
+        result = ConversationService.create_conversation(db, conversation_data, current_user)
+        logger.info(f"API response: Created conversation {result.id} for user {current_user.id}")
+        return result
+    except HTTPException as e:
+        logger.error(
+            f"API error: Failed to create conversation for user {current_user.id}: "
+            f"{e.status_code} - {e.detail}"
+        )
+        raise
+    except Exception as e:
+        logger.exception(f"API unexpected error: Failed to create conversation for user {current_user.id}: {str(e)}")
+        raise
 
 
 @router.get("/", response_model=List[ConversationResponse])
@@ -41,7 +61,14 @@ async def get_conversations(
     """
     Get all conversations for the current user.
     """
-    return ConversationService.get_user_conversations(db, current_user)
+    logger.info(f"API request: Get all conversations for user {current_user.id}")
+    try:
+        result = ConversationService.get_user_conversations(db, current_user)
+        logger.info(f"API response: Returning {len(result)} conversation(s) for user {current_user.id}")
+        return result
+    except Exception as e:
+        logger.exception(f"API unexpected error: Failed to get conversations for user {current_user.id}: {str(e)}")
+        raise
 
 
 @router.get("/{conversation_id}", response_model=ConversationResponse)
@@ -53,7 +80,20 @@ async def get_conversation(
     """
     Get a specific conversation by ID.
     """
-    return ConversationService.get_conversation(db, conversation_id, current_user)
+    logger.info(f"API request: Get conversation {conversation_id} for user {current_user.id}")
+    try:
+        result = ConversationService.get_conversation(db, conversation_id, current_user)
+        logger.info(f"API response: Returning conversation {conversation_id} for user {current_user.id}")
+        return result
+    except HTTPException as e:
+        logger.error(
+            f"API error: Failed to get conversation {conversation_id} for user {current_user.id}: "
+            f"{e.status_code} - {e.detail}"
+        )
+        raise
+    except Exception as e:
+        logger.exception(f"API unexpected error: Failed to get conversation {conversation_id}: {str(e)}")
+        raise
 
 
 @router.get("/{conversation_id}/messages", response_model=List[MessageResponse])
@@ -66,9 +106,29 @@ async def get_conversation_messages(
     """
     Get messages for a conversation (last N messages, max 1000).
     """
-    return MessageService.get_conversation_messages(
-        db, conversation_id, current_user, limit
+    logger.info(
+        f"API request: Get messages for conversation {conversation_id} by user {current_user.id} (limit={limit})"
     )
+    try:
+        result = MessageService.get_conversation_messages(
+            db, conversation_id, current_user, limit
+        )
+        logger.info(
+            f"API response: Returning {len(result)} message(s) from conversation {conversation_id} "
+            f"for user {current_user.id}"
+        )
+        return result
+    except HTTPException as e:
+        logger.error(
+            f"API error: Failed to get messages for conversation {conversation_id}: "
+            f"{e.status_code} - {e.detail}"
+        )
+        raise
+    except Exception as e:
+        logger.exception(
+            f"API unexpected error: Failed to get messages for conversation {conversation_id}: {str(e)}"
+        )
+        raise
 
 
 @router.post("/{conversation_id}/messages", response_model=MessageResponse, status_code=status.HTTP_201_CREATED)
@@ -83,8 +143,34 @@ async def send_message(
     
     - **content**: Message text (1-5000 chars)
     """
+    logger.info(
+        f"API request: Send message in conversation {conversation_id} by user {current_user.id} "
+        f"(content_length={len(content)})"
+    )
     try:
         message_data = MessageCreate(content=content, conversation_id=conversation_id)
     except (ValueError, ValidationError) as e:
+        logger.warning(
+            f"API validation error: Invalid message data for conversation {conversation_id} "
+            f"by user {current_user.id}: {str(e)}"
+        )
         raise HTTPException(status_code=422, detail=str(e))
-    return MessageService.create_message(db, message_data, current_user)
+    
+    try:
+        result = MessageService.create_message(db, message_data, current_user)
+        logger.info(
+            f"API response: Created message {result.id} in conversation {conversation_id} "
+            f"by user {current_user.id}"
+        )
+        return result
+    except HTTPException as e:
+        logger.error(
+            f"API error: Failed to send message in conversation {conversation_id}: "
+            f"{e.status_code} - {e.detail}"
+        )
+        raise
+    except Exception as e:
+        logger.exception(
+            f"API unexpected error: Failed to send message in conversation {conversation_id}: {str(e)}"
+        )
+        raise
