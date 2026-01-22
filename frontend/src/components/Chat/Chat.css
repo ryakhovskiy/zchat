@@ -145,11 +145,45 @@
   white-space: nowrap;
 }
 
+.conversation-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
 .conversation-time {
   font-size: 0.75rem;
   color: #999;
   flex-shrink: 0;
-  margin-left: 0.5rem;
+}
+
+.unread-badge {
+  background-color: #667eea;
+  color: white;
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.125rem 0.4rem;
+  border-radius: 10px;
+  min-width: 18px;
+  text-align: center;
+  line-height: 1.2;
+}
+
+/* Unread conversation styling */
+.conversation-item.unread .conversation-details h4 {
+  font-weight: 700;
+  color: #1a1a1a;
+}
+
+.conversation-item.unread .conversation-preview {
+  color: #333;
+  font-weight: 500;
+}
+
+.conversation-item.unread .conversation-time {
+  color: #667eea;
+  font-weight: 500;
 }
 
 .conversation-preview {

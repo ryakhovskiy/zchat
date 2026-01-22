@@ -1,9 +1,12 @@
 import logging
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from fastapi import HTTPException, status
 from typing import List, Optional
+from datetime import datetime
 from app.models.conversation import Conversation
-from app.models.user import User
+from app.models.message import Message
+from app.models.user import User, conversation_participants
 from app.schemas import ConversationCreate, ConversationResponse, MessageResponse, UserResponse
 from app.services.message_service import MessageService
 
@@ -49,7 +52,7 @@ class ConversationService:
             )
             if existing:
                 logger.info(f"Found existing direct conversation {existing.id}, returning it")
-                return ConversationService._conversation_to_response(db, existing)
+                return ConversationService._conversation_to_response(db, existing, creator.id)
         
         # Create new conversation
         new_conversation = Conversation(
@@ -68,7 +71,7 @@ class ConversationService:
             f"participants={[p.id for p in participants]}"
         )
         
-        return ConversationService._conversation_to_response(db, new_conversation)
+        return ConversationService._conversation_to_response(db, new_conversation, creator.id)
     
     @staticmethod
     def get_user_conversations(db: Session, user: User) -> List[ConversationResponse]:
@@ -77,7 +80,7 @@ class ConversationService:
         conversations = user.conversations
         logger.info(f"Retrieved {len(conversations)} conversation(s) for user {user.id}")
         return [
-            ConversationService._conversation_to_response(db, conv)
+            ConversationService._conversation_to_response(db, conv, user.id)
             for conv in conversations
         ]
     
@@ -110,7 +113,7 @@ class ConversationService:
             )
         
         logger.info(f"Successfully retrieved conversation {conversation_id} for user {user.id}")
-        return ConversationService._conversation_to_response(db, conversation)
+        return ConversationService._conversation_to_response(db, conversation, user.id)
     
     @staticmethod
     def _find_existing_direct_conversation(
@@ -157,9 +160,76 @@ class ConversationService:
         return None
     
     @staticmethod
+    def _get_unread_count(db: Session, conversation_id: int, user_id: int) -> int:
+        """Calculate unread message count for a user in a conversation."""
+        # Get the user's last_read_at timestamp for this conversation
+        result = db.execute(
+            conversation_participants.select().where(
+                (conversation_participants.c.user_id == user_id) &
+                (conversation_participants.c.conversation_id == conversation_id)
+            )
+        ).fetchone()
+        
+        if not result:
+            return 0
+        
+        last_read_at = result.last_read_at
+        
+        # Count messages after last_read_at (excluding user's own messages)
+        query = db.query(func.count(Message.id)).filter(
+            Message.conversation_id == conversation_id,
+            Message.sender_id != user_id  # Don't count user's own messages as unread
+        )
+        
+        if last_read_at:
+            query = query.filter(Message.created_at > last_read_at)
+        
+        return query.scalar() or 0
+    
+    @staticmethod
+    def mark_conversation_as_read(db: Session, conversation_id: int, user: User) -> dict:
+        """Mark all messages in a conversation as read for the user."""
+        logger.debug(f"User {user.id} marking conversation {conversation_id} as read")
+        
+        # Verify user is participant
+        conversation = db.query(Conversation).filter(
+            Conversation.id == conversation_id
+        ).first()
+        
+        if not conversation:
+            logger.warning(f"Conversation {conversation_id} not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Conversation not found"
+            )
+        
+        if user not in conversation.participants:
+            logger.warning(f"User {user.id} not a participant in conversation {conversation_id}")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You are not a participant in this conversation"
+            )
+        
+        # Update last_read_at timestamp
+        now = datetime.utcnow()
+        db.execute(
+            conversation_participants.update()
+            .where(
+                (conversation_participants.c.user_id == user.id) &
+                (conversation_participants.c.conversation_id == conversation_id)
+            )
+            .values(last_read_at=now)
+        )
+        db.commit()
+        
+        logger.info(f"User {user.id} marked conversation {conversation_id} as read at {now}")
+        return {"status": "success", "last_read_at": now.isoformat()}
+    
+    @staticmethod
     def _conversation_to_response(
         db: Session,
-        conversation: Conversation
+        conversation: Conversation,
+        user_id: Optional[int] = None
     ) -> ConversationResponse:
         """Convert Conversation model to response."""
         logger.debug(f"Converting conversation {conversation.id} to response format")
@@ -168,6 +238,11 @@ class ConversationService:
         if conversation.messages:
             last_msg = conversation.messages[-1]
             last_message = MessageService._message_to_response(last_msg)
+        
+        # Calculate unread count if user_id provided
+        unread_count = 0
+        if user_id:
+            unread_count = ConversationService._get_unread_count(db, conversation.id, user_id)
         
         return ConversationResponse(
             id=conversation.id,
@@ -178,5 +253,6 @@ class ConversationService:
             participants=[
                 UserResponse.from_orm(p) for p in conversation.participants
             ],
-            last_message=last_message
+            last_message=last_message,
+            unread_count=unread_count
         )
