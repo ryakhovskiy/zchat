@@ -4,7 +4,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import './Chat.css';
 
 export const ConversationList = ({ onNewChat }) => {
-  const { conversations, selectedConversation, selectConversation, loading } = useChat();
+  const { conversations, selectedConversation, selectConversation, loading, unreadCounts } = useChat();
   const { user } = useAuth();
 
   const getConversationTitle = (conversation) => {
@@ -69,30 +69,40 @@ export const ConversationList = ({ onNewChat }) => {
         ) : (
           conversations
             .sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at))
-            .map((conversation) => (
-              <div
-                key={conversation.id}
-                className={`conversation-item ${
-                  selectedConversation?.id === conversation.id ? 'active' : ''
-                }`}
-                onClick={() => selectConversation(conversation)}
-              >
-                <div className="conversation-avatar">
-                  {getConversationTitle(conversation).charAt(0).toUpperCase()}
-                </div>
-                <div className="conversation-details">
-                  <div className="conversation-header-row">
-                    <h4>{getConversationTitle(conversation)}</h4>
-                    {conversation.last_message && (
-                      <span className="conversation-time">
-                        {formatTime(conversation.updated_at)}
-                      </span>
-                    )}
+            .map((conversation) => {
+              const unreadCount = unreadCounts[conversation.id] || 0;
+              const isUnread = unreadCount > 0 && selectedConversation?.id !== conversation.id;
+              
+              return (
+                <div
+                  key={conversation.id}
+                  className={`conversation-item ${
+                    selectedConversation?.id === conversation.id ? 'active' : ''
+                  }${isUnread ? ' unread' : ''}`}
+                  onClick={() => selectConversation(conversation)}
+                >
+                  <div className="conversation-avatar">
+                    {getConversationTitle(conversation).charAt(0).toUpperCase()}
                   </div>
-                  <p className="conversation-preview">{getLastMessage(conversation)}</p>
+                  <div className="conversation-details">
+                    <div className="conversation-header-row">
+                      <h4>{getConversationTitle(conversation)}</h4>
+                      <div className="conversation-meta">
+                        {isUnread && (
+                          <span className="unread-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>
+                        )}
+                        {conversation.last_message && (
+                          <span className="conversation-time">
+                            {formatTime(conversation.updated_at)}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <p className="conversation-preview">{getLastMessage(conversation)}</p>
+                  </div>
                 </div>
-              </div>
-            ))
+              );
+            })
         )}
       </div>
     </div>

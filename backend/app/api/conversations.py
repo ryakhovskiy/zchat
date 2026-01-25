@@ -96,6 +96,34 @@ async def get_conversation(
         raise
 
 
+@router.post("/{conversation_id}/read", status_code=status.HTTP_200_OK)
+async def mark_conversation_as_read(
+    conversation_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Mark all messages in a conversation as read for the current user.
+    Updates the last_read_at timestamp to the current time.
+    """
+    logger.info(f"API request: Mark conversation {conversation_id} as read by user {current_user.id}")
+    try:
+        result = ConversationService.mark_conversation_as_read(db, conversation_id, current_user)
+        logger.info(f"API response: Conversation {conversation_id} marked as read for user {current_user.id}")
+        return result
+    except HTTPException as e:
+        logger.error(
+            f"API error: Failed to mark conversation {conversation_id} as read: "
+            f"{e.status_code} - {e.detail}"
+        )
+        raise
+    except Exception as e:
+        logger.exception(
+            f"API unexpected error: Failed to mark conversation {conversation_id} as read: {str(e)}"
+        )
+        raise
+
+
 @router.get("/{conversation_id}/messages", response_model=List[MessageResponse])
 async def get_conversation_messages(
     conversation_id: int,

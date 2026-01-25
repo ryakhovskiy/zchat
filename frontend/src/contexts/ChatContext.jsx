@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { useAuth } from './AuthContext';
 import { conversationsAPI, usersAPI } from '../services/api';
 
@@ -20,6 +20,15 @@ export const ChatProvider = ({ children }) => {
   const [selectedConversation, setSelectedConversation] = useState(null);
   const [messages, setMessages] = useState({});
   const [loading, setLoading] = useState(false);
+  const [unreadCounts, setUnreadCounts] = useState({});
+  
+  // Ref to track selected conversation ID for use in WebSocket handler
+  const selectedConversationRef = useRef(null);
+  
+  // Keep ref in sync with state
+  useEffect(() => {
+    selectedConversationRef.current = selectedConversation?.id || null;
+  }, [selectedConversation]);
 
   // Load initial data
   useEffect(() => {
@@ -49,14 +58,29 @@ export const ChatProvider = ({ children }) => {
         ],
       }));
 
-      // Update conversation's last message
+      // Update conversation's last message and updated_at
       setConversations((prev) =>
         prev.map((conv) =>
           conv.id === data.conversation_id
-            ? { ...conv, updated_at: data.timestamp }
+            ? {
+                ...conv,
+                updated_at: data.timestamp,
+                last_message: {
+                  content: data.content,
+                  sender_id: data.sender_id,
+                },
+              }
             : conv
         )
       );
+
+      // Increment unread count only if message is not in currently selected conversation
+      if (data.conversation_id !== selectedConversationRef.current) {
+        setUnreadCounts((prev) => ({
+          ...prev,
+          [data.conversation_id]: (prev[data.conversation_id] || 0) + 1,
+        }));
+      }
     };
 
     const handleUserOnline = (data) => {
@@ -100,6 +124,15 @@ export const ChatProvider = ({ children }) => {
       setLoading(true);
       const response = await conversationsAPI.getAll();
       setConversations(response.data);
+      
+      // Initialize unread counts from backend data
+      const counts = {};
+      response.data.forEach((conv) => {
+        if (conv.unread_count > 0) {
+          counts[conv.id] = conv.unread_count;
+        }
+      });
+      setUnreadCounts(counts);
     } catch (error) {
       console.error('Failed to load conversations:', error);
     } finally {
@@ -164,7 +197,19 @@ export const ChatProvider = ({ children }) => {
 
   const selectConversation = async (conversation) => {
     setSelectedConversation(conversation);
+    // Reset unread count for this conversation locally
+    setUnreadCounts((prev) => ({
+      ...prev,
+      [conversation.id]: 0,
+    }));
     await loadMessages(conversation.id);
+    
+    // Mark conversation as read on the backend
+    try {
+      await conversationsAPI.markAsRead(conversation.id);
+    } catch (error) {
+      console.error('Failed to mark conversation as read:', error);
+    }
   };
 
   const value = {
@@ -174,6 +219,7 @@ export const ChatProvider = ({ children }) => {
     selectedConversation,
     messages,
     loading,
+    unreadCounts,
     loadConversations,
     createConversation,
     sendMessage,

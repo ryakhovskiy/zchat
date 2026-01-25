@@ -4,12 +4,14 @@ from datetime import datetime
 from app.database import Base
 
 
-# Association table for conversation participants
+# Association table for conversation participants with read tracking
 conversation_participants = Table(
     'conversation_participants',
     Base.metadata,
     Column('user_id', Integer, ForeignKey('users.id'), primary_key=True),
-    Column('conversation_id', Integer, ForeignKey('conversations.id'), primary_key=True)
+    Column('conversation_id', Integer, ForeignKey('conversations.id'), primary_key=True),
+    Column('last_read_at', DateTime, nullable=True),
+    Column('joined_at', DateTime, default=datetime.utcnow)
 )
 
 

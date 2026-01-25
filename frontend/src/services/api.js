@@ -59,6 +59,7 @@ export const conversationsAPI = {
     api.get(`/conversations/${id}/messages?limit=${limit}`),
   sendMessage: (id, content) => 
     api.post(`/conversations/${id}/messages`, null, { params: { content } }),
+  markAsRead: (id) => api.post(`/conversations/${id}/read`),
 };
 
 // WebSocket connection

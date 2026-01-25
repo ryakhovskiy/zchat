@@ -1,6 +1,6 @@
 CREATE TABLE messages (
     id INTEGER PRIMARY KEY,
-    content TEXT NOT NULL,  -- Encrypted
+    content TEXT NOT NULL,  
     conversation_id INTEGER NOT NULL,
     sender_id INTEGER NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,

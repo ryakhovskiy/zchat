@@ -1,0 +1,44 @@
+.theme-toggle {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: none;
+  background-color: transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1001;
+  transition: background-color 0.3s ease, transform 0.2s ease;
+}
+
+.theme-toggle:hover {
+  background-color: var(--toggle-hover-bg);
+  transform: scale(1.1);
+}
+
+.theme-toggle:active {
+  transform: scale(0.95);
+}
+
+.theme-toggle svg {
+  width: 24px;
+  height: 24px;
+  color: var(--toggle-icon-color);
+  transition: color 0.3s ease;
+}
+
+/* Dark theme toggle styling */
+[data-theme="dark"] .theme-toggle {
+  --toggle-hover-bg: rgba(95, 149, 152, 0.2);
+  --toggle-icon-color: #5F9598;
+}
+
+/* Light theme toggle styling */
+[data-theme="light"] .theme-toggle {
+  --toggle-hover-bg: rgba(120, 134, 199, 0.2);
+  --toggle-icon-color: #7886C7;
+}

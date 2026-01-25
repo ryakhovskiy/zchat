@@ -1,7 +1,9 @@
 """Database initialization using raw SQL queries."""
 import sqlite3
 import os
+import re
 from pathlib import Path
+from typing import Dict, List, Tuple, Optional
 from app.config import get_settings
 
 settings = get_settings()
@@ -47,6 +49,102 @@ class DatabaseInitializer:
             (table_name,)
         )
         return cursor.fetchone() is not None
+    
+    def _get_existing_columns(self, cursor: sqlite3.Cursor, table_name: str) -> Dict[str, str]:
+        """Get existing columns and their types for a table."""
+        cursor.execute(f"PRAGMA table_info({table_name})")
+        columns = {}
+        for row in cursor.fetchall():
+            # row: (cid, name, type, notnull, dflt_value, pk)
+            col_name = row[1].lower()
+            col_type = row[2].upper() if row[2] else ""
+            columns[col_name] = col_type
+        return columns
+    
+    def _parse_columns_from_sql(self, sql_content: str) -> List[Tuple[str, str, str]]:
+        """
+        Parse column definitions from CREATE TABLE SQL.
+        Returns list of (column_name, column_type, full_definition).
+        """
+        columns = []
+        
+        # Find the content between parentheses
+        match = re.search(r'CREATE\s+TABLE\s+\w+\s*\((.*)\)', sql_content, re.IGNORECASE | re.DOTALL)
+        if not match:
+            return columns
+        
+        content = match.group(1)
+        
+        # Split by comma, but be careful with nested parentheses
+        parts = []
+        current = ""
+        paren_depth = 0
+        
+        for char in content:
+            if char == '(':
+                paren_depth += 1
+                current += char
+            elif char == ')':
+                paren_depth -= 1
+                current += char
+            elif char == ',' and paren_depth == 0:
+                parts.append(current.strip())
+                current = ""
+            else:
+                current += char
+        
+        if current.strip():
+            parts.append(current.strip())
+        
+        for part in parts:
+            part = part.strip()
+            # Skip constraints (PRIMARY KEY, FOREIGN KEY, UNIQUE, CHECK, etc.)
+            upper_part = part.upper()
+            if any(upper_part.startswith(kw) for kw in ['PRIMARY KEY', 'FOREIGN KEY', 'UNIQUE', 'CHECK', 'CONSTRAINT']):
+                continue
+            
+            # Parse column definition: name type [constraints...]
+            tokens = part.split()
+            if len(tokens) >= 2:
+                col_name = tokens[0].lower()
+                col_type = tokens[1].upper()
+                # Get the full definition after the column name (type + constraints)
+                full_def = ' '.join(tokens[1:])
+                columns.append((col_name, col_type, full_def))
+        
+        return columns
+    
+    def _add_missing_columns(
+        self, 
+        cursor: sqlite3.Cursor, 
+        conn: sqlite3.Connection,
+        table_name: str, 
+        sql_content: str
+    ) -> bool:
+        """
+        Check for missing columns and add them to the table.
+        Returns True if any columns were added.
+        """
+        existing_columns = self._get_existing_columns(cursor, table_name)
+        expected_columns = self._parse_columns_from_sql(sql_content)
+        
+        columns_added = False
+        
+        for col_name, col_type, full_def in expected_columns:
+            if col_name not in existing_columns:
+                # Column is missing, add it
+                # For SQLite, we need to handle DEFAULT values carefully
+                alter_sql = f"ALTER TABLE {table_name} ADD COLUMN {col_name} {full_def}"
+                print(f"  → Adding column '{col_name}' to table '{table_name}'")
+                try:
+                    cursor.execute(alter_sql)
+                    conn.commit()
+                    print(f"  ✓ Column '{col_name}' added successfully")
+                    columns_added = True
+                except sqlite3.Error as e:
+                    print(f"  ⚠ Warning: Could not add column '{col_name}': {e}")
+        
+        return columns_added
     
     def _get_table_name_from_sql(self, sql_content: str) -> str:
         """Extract table name from CREATE TABLE statement."""
@@ -130,6 +228,8 @@ class DatabaseInitializer:
                 # Check if table exists
                 if self._table_exists(cursor, table_name):
                     print(f"✓ Table '{table_name}' already exists")
+                    # Check for missing columns and add them
+                    self._add_missing_columns(cursor, conn, table_name, sql_content)
                 else:
                     print(f"→ Creating table '{table_name}'")
                     cursor.execute(sql_content)
