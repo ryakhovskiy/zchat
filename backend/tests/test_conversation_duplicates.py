@@ -282,13 +282,14 @@ class TestGroupConversationDuplicates:
         user1_id = test_users["users"][0]["user"]["id"]
         user2_id = test_users["users"][1]["user"]["id"]
         user3_id = test_users["users"][2]["user"]["id"]
-        
+        user4_id = test_users["users"][3]["user"]["id"]
+
         # Create group with user1, user2, user3
         response1 = client.post(
             "/api/conversations",
             headers=test_users["headers"][0],
             json={
-                "participant_ids": [user2_id, user3_id],
+                "participant_ids": [user1_id, user2_id, user3_id],
                 "is_group": True,
                 "name": "Full Group"
             }
@@ -296,12 +297,12 @@ class TestGroupConversationDuplicates:
         assert response1.status_code == 201
         conv1 = response1.json()
         
-        # Create group with only user1, user2
+        # Create group with only user1, user2, user4
         response2 = client.post(
             "/api/conversations",
             headers=test_users["headers"][0],
             json={
-                "participant_ids": [user2_id],
+                "participant_ids": [user1_id, user2_id, user4_id],
                 "is_group": True,
                 "name": "Subset Group"
             }
@@ -311,6 +312,23 @@ class TestGroupConversationDuplicates:
         
         # Should be different conversations
         assert conv1["id"] != conv2["id"], "Subset of participants should create separate conversation"
+
+
+        # Create group with again same participants user1, user2, user4
+        response3 = client.post(
+            "/api/conversations",
+            headers=test_users["headers"][0],
+            json={
+                "participant_ids": [user1_id, user2_id, user4_id],
+                "is_group": True,
+                "name": "Subset Group"
+            }
+        )
+        assert response3.status_code == 201
+        conv3 = response3.json()
+        
+        # Should be same conversations
+        assert conv2["id"] == conv3["id"], "Subset of participants should create same conversation"
 
 
 class TestConversationCount:
