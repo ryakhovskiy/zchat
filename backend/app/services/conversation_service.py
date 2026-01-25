@@ -44,14 +44,26 @@ class ConversationService:
                 detail="One or more participants not found"
             )
         
-        # For direct conversations, check if one already exists
+        # Check if conversation already exists with these exact participants
+        participant_id_list = [p.id for p in participants]
+        
         if not conversation_data.is_group and len(participants) == 2:
-            logger.debug(f"Checking for existing direct conversation between users {[p.id for p in participants]}")
+            # For direct (1:1) conversations
+            logger.debug(f"Checking for existing 1:1 conversation between users {participant_id_list}")
             existing = ConversationService._find_existing_direct_conversation(
-                db, [p.id for p in participants]
+                db, participant_id_list
             )
             if existing:
-                logger.info(f"Found existing direct conversation {existing.id}, returning it")
+                logger.info(f"Found existing 1:1 conversation {existing.id}, returning it")
+                return ConversationService._conversation_to_response(db, existing, creator.id)
+        elif conversation_data.is_group:
+            # For group conversations
+            logger.debug(f"Checking for existing group conversation with participants {participant_id_list}")
+            existing = ConversationService._find_existing_group_conversation(
+                db, participant_id_list
+            )
+            if existing:
+                logger.info(f"Found existing group conversation {existing.id}, returning it")
                 return ConversationService._conversation_to_response(db, existing, creator.id)
         
         # Create new conversation
@@ -157,6 +169,57 @@ class ConversationService:
                 return conversation
         
         logger.debug(f"No existing direct conversation found for users {participant_ids}")
+        return None
+    
+    @staticmethod
+    def _find_existing_group_conversation(
+        db: Session,
+        participant_ids: List[int]
+    ) -> Optional[Conversation]:
+        """Find existing group conversation with the exact same set of participants."""
+        logger.debug(f"Searching for existing group conversation with participants {participant_ids}")
+        
+        if len(participant_ids) < 2:
+            return None
+        
+        # Import here to avoid circular imports
+        from app.models.user import conversation_participants
+        from sqlalchemy import func
+        
+        # Find group conversations where all users are participants
+        # and the conversation has exactly the same number of participants
+        num_participants = len(participant_ids)
+        
+        # First, find conversations that have all the specified participants
+        subquery = (
+            db.query(
+                conversation_participants.c.conversation_id,
+                func.count(conversation_participants.c.user_id).label('participant_count')
+            )
+            .filter(conversation_participants.c.user_id.in_(participant_ids))
+            .group_by(conversation_participants.c.conversation_id)
+            .having(func.count(conversation_participants.c.user_id) == num_participants)
+            .subquery()
+        )
+        
+        # Then find group conversations that match
+        conversations = (
+            db.query(Conversation)
+            .join(subquery, Conversation.id == subquery.c.conversation_id)
+            .filter(Conversation.is_group == True)
+            .all()
+        )
+        
+        # Verify each conversation has exactly the same participants (no extras)
+        for conversation in conversations:
+            if len(conversation.participants) == num_participants:
+                # Check if the participant IDs match exactly
+                conv_participant_ids = set(p.id for p in conversation.participants)
+                if conv_participant_ids == set(participant_ids):
+                    logger.debug(f"Found existing group conversation {conversation.id}")
+                    return conversation
+        
+        logger.debug(f"No existing group conversation found for participants {participant_ids}")
         return None
     
     @staticmethod
