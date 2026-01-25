@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ChatProvider } from './contexts/ChatContext';
+import { ThemeProvider } from './contexts/ThemeContext';
 import { Login } from './components/Auth/Login';
 import { Register } from './components/Auth/Register';
 import { ChatWindow } from './components/Chat/ChatWindow';
 import { ConversationList } from './components/Chat/ConversationList';
 import { UserList } from './components/UserList/UserList';
+import { ThemeToggle } from './components/Common/ThemeToggle';
 import './App.css';
 
 const ChatApp = () => {
@@ -61,9 +63,12 @@ const AuthFlow = () => {
 
 function App() {
   return (
-    <AuthProvider>
-      <ChatApp />
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <ThemeToggle />
+        <ChatApp />
+      </AuthProvider>
+    </ThemeProvider>
   );
 }
 
