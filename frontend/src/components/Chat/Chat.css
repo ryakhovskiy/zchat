@@ -408,3 +408,96 @@
 .btn-secondary:hover {
   background-color: var(--active-bg);
 }
+
+/* Attachment styles */
+.attachment-button-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 0.5rem;
+}
+
+.attachment-button {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  color: var(--text-muted);
+  transition: color 0.2s;
+}
+
+.attachment-button:hover {
+  color: var(--text-primary);
+}
+
+.selected-file-preview {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  right: 0;
+  background-color: var(--card-bg);
+  border: 1px solid var(--border-color);
+  padding: 0.5rem 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-radius: 8px 8px 0 0;
+  font-size: 0.9rem;
+  color: var(--text-primary);
+  z-index: 10;
+}
+
+.clear-file-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 1.25rem;
+  cursor: pointer;
+  padding: 0 0.25rem;
+}
+
+.clear-file-btn:hover {
+  color: var(--text-danger);
+}
+
+.message-attachment {
+  margin-bottom: 0.5rem;
+  max-width: 100%;
+}
+
+.attachment-image {
+  max-width: 300px;
+  max-height: 300px;
+  border-radius: 8px;
+  object-fit: contain;
+  cursor: pointer;
+}
+
+.attachment-file {
+  background-color: rgba(0, 0, 0, 0.05);
+  padding: 0.75rem;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+}
+
+.attachment-file a {
+  color: var(--text-primary);
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.attachment-file a:hover {
+  text-decoration: underline;
+}
+
+.message-sent .attachment-file {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+.message-sent .attachment-file a {
+  color: white;
+}

@@ -62,6 +62,20 @@ export const conversationsAPI = {
   markAsRead: (id) => api.post(`/conversations/${id}/read`),
 };
 
+// Files API
+export const filesAPI = {
+  upload: (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post('/uploads/', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+  },
+  getFileUrl: (filename) => `${API_BASE_URL}/uploads/${filename}`,
+};
+
 // WebSocket connection
 export class WebSocketClient {
   constructor(token) {

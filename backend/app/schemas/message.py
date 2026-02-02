@@ -13,10 +13,18 @@ class MessageBase(BaseModel):
 class MessageCreate(MessageBase):
     """Schema for creating a message."""
     conversation_id: int
+    file_path: Optional[str] = None
+    file_type: Optional[str] = None
     
     @validator('content')
-    def content_not_empty(cls, v):
-        """Validate content is not just whitespace."""
+    def content_not_empty(cls, v, values):
+        """Validate content is not empty unless a file is attached."""
+        # Note: 'file_path' might not be in values if validation failed for it,
+        # but here we assuming simple check.
+        # If file_path is present, content can be empty or just a placeholder.
+        if 'file_path' in values and values['file_path']:
+             return v
+             
         if not v.strip():
             raise ValueError('Message content cannot be empty')
         return v.strip()
@@ -35,6 +43,9 @@ class MessageResponse(BaseModel):
     sender_id: int
     sender_username: str
     created_at: datetime
+    file_path: Optional[str] = None
+    file_type: Optional[str] = None
+    is_deleted: bool = False
     
     class Config:
         from_attributes = True

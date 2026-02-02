@@ -162,30 +162,22 @@ async def get_conversation_messages(
 @router.post("/{conversation_id}/messages", response_model=MessageResponse, status_code=status.HTTP_201_CREATED)
 async def send_message(
     conversation_id: int,
-    content: str,
+    message_in: MessageCreate,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
     Send a message in a conversation.
-    
-    - **content**: Message text (1-5000 chars)
     """
+    # Ensure conversation_id in URL matches or is set
+    message_in.conversation_id = conversation_id
+    
     logger.info(
         f"API request: Send message in conversation {conversation_id} by user {current_user.id} "
-        f"(content_length={len(content)})"
     )
-    try:
-        message_data = MessageCreate(content=content, conversation_id=conversation_id)
-    except (ValueError, ValidationError) as e:
-        logger.warning(
-            f"API validation error: Invalid message data for conversation {conversation_id} "
-            f"by user {current_user.id}: {str(e)}"
-        )
-        raise HTTPException(status_code=422, detail=str(e))
     
     try:
-        result = MessageService.create_message(db, message_data, current_user)
+        result = MessageService.create_message(db, message_in, current_user)
         logger.info(
             f"API response: Created message {result.id} in conversation {conversation_id} "
             f"by user {current_user.id}"

@@ -15,6 +15,12 @@ class Message(Base):
     sender_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
     
+    # File attachment fields
+    file_path = Column(Text, nullable=True)
+    file_type = Column(String, nullable=True)
+    fully_read_at = Column(DateTime, nullable=True)
+    is_deleted = Column(Integer, default=0) # SQLite uses Integer for Boolean
+    
     # Relationships
     conversation = relationship("Conversation", back_populates="messages")
     sender = relationship("User", back_populates="messages")

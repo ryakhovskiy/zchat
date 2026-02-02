@@ -284,6 +284,26 @@ class ConversationService:
             .values(last_read_at=now)
         )
         db.commit()
+
+        # Check for messages that are now fully read by all participants
+        # 1. Get the minimum last_read_at among all participants
+        min_read_at = db.query(func.min(conversation_participants.c.last_read_at)).filter(
+            conversation_participants.c.conversation_id == conversation_id
+        ).scalar()
+
+        if min_read_at:
+            # 2. Mark unread file messages as fully read if they are older than min_read_at
+            # We only care about messages with files that haven't started their retention timer yet
+            db.query(Message).filter(
+                Message.conversation_id == conversation_id,
+                Message.file_path.isnot(None),
+                Message.fully_read_at.is_(None),
+                Message.created_at <= min_read_at
+            ).update(
+                {Message.fully_read_at: now}, 
+                synchronize_session=False
+            )
+            db.commit()
         
         logger.info(f"User {user.id} marked conversation {conversation_id} as read at {now}")
         return {"status": "success", "last_read_at": now.isoformat()}
