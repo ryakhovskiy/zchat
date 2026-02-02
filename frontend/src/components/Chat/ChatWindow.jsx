@@ -3,6 +3,7 @@ import Picker from '@emoji-mart/react';
 import data from '@emoji-mart/data';
 import { useChat } from '../../contexts/ChatContext';
 import { useAuth } from '../../contexts/AuthContext';
+import { textToEmoji } from '../../utils/emojiUtils';
 import './Chat.css';
 
 export const ChatWindow = () => {
@@ -123,7 +124,7 @@ export const ChatWindow = () => {
                 {message.sender_id !== user.id && (
                   <div className="message-sender">{message.sender_username}</div>
                 )}
-                <div className="message-text">{message.content}</div>
+                <div className="message-text">{textToEmoji(message.content)}</div>
                 <div className="message-time">{formatTime(message.created_at)}</div>
               </div>
             </div>

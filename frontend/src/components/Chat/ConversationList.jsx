@@ -1,6 +1,7 @@
 import React from 'react';
 import { useChat } from '../../contexts/ChatContext';
 import { useAuth } from '../../contexts/AuthContext';
+import { textToEmoji } from '../../utils/emojiUtils';
 import './Chat.css';
 
 export const ConversationList = ({ onNewChat }) => {
@@ -20,7 +21,7 @@ export const ConversationList = ({ onNewChat }) => {
     if (!conversation.last_message) return 'No messages yet';
     
     const prefix = conversation.last_message.sender_id === user.id ? 'You: ' : '';
-    const content = conversation.last_message.content;
+    const content = textToEmoji(conversation.last_message.content);
     return prefix + (content.length > 40 ? content.substring(0, 40) + '...' : content);
   };
 
