@@ -17,3 +17,4 @@ chrome-user-data
 *.swo
 .env
 .env.local
+.env.production
