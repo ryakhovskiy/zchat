@@ -1,7 +1,7 @@
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
-const WS_BASE_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:8000/ws';
+const API_BASE_URL = import.meta.env.VITE_API_URL;
+const WS_BASE_URL = import.meta.env.VITE_WS_URL;
 
 // Create axios instance
 const api = axios.create({
@@ -60,6 +60,20 @@ export const conversationsAPI = {
   sendMessage: (id, content) => 
     api.post(`/conversations/${id}/messages`, null, { params: { content } }),
   markAsRead: (id) => api.post(`/conversations/${id}/read`),
+};
+
+// Files API
+export const filesAPI = {
+  upload: (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post('/uploads/', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+  },
+  getFileUrl: (filename) => `${API_BASE_URL}/uploads/${filename}`,
 };
 
 // WebSocket connection

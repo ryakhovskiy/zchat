@@ -26,7 +26,10 @@ chrome-user-data
 /tmp
 .env
 .env.local
-
+.env.production
+assets
+dist
+vite.svg
 package-lock.json
 
 packages/react-devtools-core/dist

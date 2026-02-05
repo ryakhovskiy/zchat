@@ -54,6 +54,9 @@ export const ChatProvider = ({ children }) => {
             sender_username: data.sender_username,
             conversation_id: data.conversation_id,
             created_at: data.timestamp,
+            file_path: data.file_path,
+            file_type: data.file_type,
+            is_deleted: data.is_deleted,
           },
         ],
       }));
@@ -185,14 +188,22 @@ export const ChatProvider = ({ children }) => {
     }
   };
 
-  const sendMessage = (conversationId, content) => {
-    if (!wsClient || !content.trim()) return;
+  const sendMessage = (conversationId, content, fileData = null) => {
+    if (!wsClient) return;
+    if (!content && !fileData) return;
 
-    wsClient.send({
+    const message = {
       type: 'message',
       conversation_id: conversationId,
-      content: content.trim(),
-    });
+      content: content ? content.trim() : (fileData ? 'File attachment' : ''),
+    };
+
+    if (fileData) {
+      message.file_path = fileData.file_path;
+      message.file_type = fileData.file_type;
+    }
+
+    wsClient.send(message);
   };
 
   const selectConversation = async (conversation) => {

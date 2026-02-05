@@ -4,6 +4,7 @@ import data from '@emoji-mart/data';
 import { useChat } from '../../contexts/ChatContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { textToEmoji } from '../../utils/emojiUtils';
+import { filesAPI } from '../../services/api';
 import './Chat.css';
 
 export const ChatWindow = () => {
@@ -11,8 +12,12 @@ export const ChatWindow = () => {
   const { user } = useAuth();
   const [inputValue, setInputValue] = useState('');
   const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [uploading, setUploading] = useState(false);
+
   const messagesEndRef = useRef(null);
   const emojiPickerRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   const conversationMessages = selectedConversation
     ? messages[selectedConversation.id] || []
@@ -39,13 +44,40 @@ export const ChatWindow = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!inputValue.trim() || !selectedConversation) return;
+    if ((!inputValue.trim() && !selectedFile) || !selectedConversation) return;
 
-    sendMessage(selectedConversation.id, inputValue);
-    setInputValue('');
-    setIsEmojiPickerOpen(false);
+    try {
+      let fileData = null;
+      if (selectedFile) {
+        setUploading(true);
+        const response = await filesAPI.upload(selectedFile);
+        fileData = response.data;
+        setUploading(false);
+      }
+
+      sendMessage(selectedConversation.id, inputValue, fileData);
+      setInputValue('');
+      setSelectedFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      setIsEmojiPickerOpen(false);
+    } catch (error) {
+      console.error('Failed to send message:', error);
+      setUploading(false);
+      alert('Failed to send message');
+    }
+  };
+
+  const handleFileSelect = (e) => {
+    if (e.target.files && e.target.files[0]) {
+      setSelectedFile(e.target.files[0]);
+    }
+  };
+
+  const clearFile = () => {
+    setSelectedFile(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const handleEmojiSelect = (emoji) => {
@@ -124,6 +156,27 @@ export const ChatWindow = () => {
                 {message.sender_id !== user.id && (
                   <div className="message-sender">{message.sender_username}</div>
                 )}
+                {message.file_path && !message.is_deleted && (
+                  <div className="message-attachment">
+                    {message.file_type === 'image' ? (
+                      <img 
+                        src={filesAPI.getFileUrl(message.file_path.split('\\').pop().split('/').pop())} 
+                        alt="Attachment" 
+                        className="attachment-image" 
+                      />
+                    ) : (
+                      <div className="attachment-file">
+                        <a 
+                          href={filesAPI.getFileUrl(message.file_path.split('\\').pop().split('/').pop())}
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                        >
+                          📄 {message.file_path.split('\\').pop().split('/').pop()}
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                )}
                 <div className="message-text">{textToEmoji(message.content)}</div>
                 <div className="message-time">{formatTime(message.created_at)}</div>
               </div>
@@ -134,6 +187,22 @@ export const ChatWindow = () => {
       </div>
 
       <form className="message-input-container" onSubmit={handleSubmit}>
+        <div className="attachment-button-wrapper">
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileSelect}
+            style={{ display: 'none' }}
+          />
+          <button
+            type="button"
+            className="attachment-button"
+            onClick={() => fileInputRef.current?.click()}
+            aria-label="Attach file"
+          >
+            📎
+          </button>
+        </div>
         <div className="emoji-picker-wrapper" ref={emojiPickerRef}>
             <button
               type="button"
@@ -149,16 +218,25 @@ export const ChatWindow = () => {
               </div>
             )}
         </div>
-        <input
-          type="text"
-          value={inputValue}
-          onChange={(e) => setInputValue(e.target.value)}
-          placeholder="Type a message..."
-          maxLength={5000}
-          className="message-input"
-        />
-        <button type="submit" className="send-button" disabled={!inputValue.trim()}>
-          Send
+        <div className="input-field-wrapper" style={{ flex: 1, position: 'relative' }}>
+          {selectedFile && (
+            <div className="selected-file-preview">
+              <span>{selectedFile.name}</span>
+              <button type="button" onClick={clearFile} className="clear-file-btn">×</button>
+            </div>
+          )}
+          <input
+            type="text"
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            placeholder={uploading ? "Uploading..." : "Type a message..."}
+            maxLength={5000}
+            className="message-input"
+            disabled={uploading}
+          />
+        </div>
+        <button type="submit" className="send-button" disabled={(!inputValue.trim() && !selectedFile) || uploading}>
+          {uploading ? '...' : 'Send'}
         </button>
       </form>
     </div>

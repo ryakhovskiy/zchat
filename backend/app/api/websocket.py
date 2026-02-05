@@ -158,7 +158,9 @@ async def websocket_endpoint(
                         # Create and save message
                         message_data = MessageCreate(
                             content=data["content"],
-                            conversation_id=data["conversation_id"]
+                            conversation_id=data["conversation_id"],
+                            file_path=data.get("file_path"),
+                            file_type=data.get("file_type")
                         )
                         
                         # Refresh user to avoid stale state
@@ -184,7 +186,10 @@ async def websocket_endpoint(
                                 "sender_id": message_response.sender_id,
                                 "sender_username": message_response.sender_username,
                                 "message_id": message_response.id,
-                                "timestamp": message_response.created_at.isoformat()
+                                "timestamp": message_response.created_at.isoformat(),
+                                "file_path": message_response.file_path,
+                                "file_type": message_response.file_type,
+                                "is_deleted": getattr(message_response, "is_deleted", False)
                             }
                             
                             await manager.broadcast_to_conversation(

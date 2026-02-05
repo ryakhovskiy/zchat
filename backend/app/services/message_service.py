@@ -46,7 +46,9 @@ class MessageService:
         new_message = Message(
             content=encrypted_content,
             conversation_id=message_data.conversation_id,
-            sender_id=sender.id
+            sender_id=sender.id,
+            file_path=message_data.file_path,
+            file_type=message_data.file_type
         )
         
         db.add(new_message)
@@ -129,5 +131,8 @@ class MessageService:
             conversation_id=message.conversation_id,
             sender_id=message.sender_id,
             sender_username=message.sender.username,
-            created_at=message.created_at
+            created_at=message.created_at,
+            file_path=message.file_path,
+            file_type=message.file_type,
+            is_deleted=bool(message.is_deleted)
         )

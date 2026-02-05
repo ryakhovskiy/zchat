@@ -45,3 +45,16 @@ python scripts/db_manager.py inspect
 # Start over (will ask for confirmation)
 python scripts/db_manager.py reset
 ```
+
+## cleanup_files.py
+
+Enforces the data retention policy for file attachments. Deletes files 7 days after they have been seen by all participants.
+
+### Usage
+
+**Run cleanup job:**
+```bash
+python scripts/cleanup_files.py
+```
+
+This script is intended to be run periodically (e.g., via cron job or Windows Task Scheduler).
