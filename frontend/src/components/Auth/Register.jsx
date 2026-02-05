@@ -73,7 +73,7 @@ export const Register = ({ onSwitchToLogin }) => {
   return (
     <div className="auth-container">
       <div className="auth-card">
-        <h1>Chat Application</h1>
+        <h1>zChat Application</h1>
         <h2>Create Account</h2>
 
         {error && <div className="error-message">{error}</div>}
