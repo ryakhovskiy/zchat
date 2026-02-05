@@ -1,26 +1,28 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { useChat } from '../../contexts/ChatContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { textToEmoji } from '../../utils/emojiUtils';
 import './Chat.css';
 
 export const ConversationList = ({ onNewChat }) => {
+  const { t } = useTranslation();
   const { conversations, selectedConversation, selectConversation, loading, unreadCounts } = useChat();
   const { user } = useAuth();
 
   const getConversationTitle = (conversation) => {
     if (conversation.is_group) {
-      return conversation.name || 'Group Chat';
+      return conversation.name || t('chat.group_chat_default');
     }
     
     const otherUser = conversation.participants.find((p) => p.id !== user.id);
-    return otherUser?.username || 'Unknown';
+    return otherUser?.username || t('chat.unknown_user');
   };
 
   const getLastMessage = (conversation) => {
-    if (!conversation.last_message) return 'No messages yet';
+    if (!conversation.last_message) return t('chat.no_messages');
     
-    const prefix = conversation.last_message.sender_id === user.id ? 'You: ' : '';
+    const prefix = conversation.last_message.sender_id === user.id ? `${t('chat.you')}: ` : '';
     const content = textToEmoji(conversation.last_message.content);
     return prefix + (content.length > 40 ? content.substring(0, 40) + '...' : content);
   };
@@ -40,7 +42,7 @@ export const ConversationList = ({ onNewChat }) => {
     return (
       <div className="conversation-list">
         <div className="conversation-list-header">
-          <h2>Chats</h2>
+          <h2>{t('user_list.chats_header')}</h2>
           <button className="new-chat-button" onClick={onNewChat}>
             +
           </button>
@@ -53,8 +55,8 @@ export const ConversationList = ({ onNewChat }) => {
   return (
     <div className="conversation-list">
       <div className="conversation-list-header">
-        <h2>Chats</h2>
-        <button className="new-chat-button" onClick={onNewChat} title="New conversation">
+        <h2>{t('user_list.chats_header')}</h2>
+        <button className="new-chat-button" onClick={onNewChat} title={t('user_list.new_chat_button_title')}>
           +
         </button>
       </div>
@@ -62,9 +64,9 @@ export const ConversationList = ({ onNewChat }) => {
       <div className="conversations">
         {conversations.length === 0 ? (
           <div className="empty-conversations">
-            <p>No conversations yet</p>
+            <p>{t('user_list.no_conversations')}</p>
             <button className="btn-secondary" onClick={onNewChat}>
-              Start a new chat
+              {t('user_list.start_new_chat')}
             </button>
           </div>
         ) : (

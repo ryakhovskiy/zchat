@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Picker from '@emoji-mart/react';
 import data from '@emoji-mart/data';
+import { useTranslation } from 'react-i18next';
 import { useChat } from '../../contexts/ChatContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { textToEmoji } from '../../utils/emojiUtils';
@@ -8,6 +9,7 @@ import { filesAPI } from '../../services/api';
 import './Chat.css';
 
 export const ChatWindow = () => {
+  const { t } = useTranslation();
   const { selectedConversation, messages, sendMessage } = useChat();
   const { user } = useAuth();
   const [inputValue, setInputValue] = useState('');
@@ -65,15 +67,14 @@ export const ChatWindow = () => {
     } catch (error) {
       console.error('Failed to send message:', error);
       setUploading(false);
-      
-      let errorMessage = 'Failed to send message';
+      let errorMessage = t('chat.failed_to_send');
       
       if (error.response) {
         // Backend returned an error response
         if (error.response.data && error.response.data.detail) {
            errorMessage = error.response.data.detail;
         } else if (error.response.status === 413) {
-           errorMessage = "File is too large. Maximum size is 50MB.";
+           errorMessage = t('chat.file_too_large');
         }
       } else if (error.request) {
         // Request was made but no response received
@@ -96,14 +97,14 @@ export const ChatWindow = () => {
       ];
 
       if (file.size > MAX_SIZE) {
-        alert("File is too large. Maximum size is 50MB.");
+        alert(t('chat.file_too_large'));
         if (fileInputRef.current) fileInputRef.current.value = '';
         return;
       }
       
       const ext = '.' + file.name.split('.').pop().toLowerCase();
       if (FORBIDDEN_EXTENSIONS.includes(ext)) {
-        alert("File type not allowed (executable/installer).");
+        alert(t('chat.file_type_not_allowed'));
         if (fileInputRef.current) fileInputRef.current.value = '';
         return;
       }
@@ -132,7 +133,7 @@ export const ChatWindow = () => {
     if (!selectedConversation) return '';
     
     if (selectedConversation.is_group) {
-      return selectedConversation.name || 'Group Chat';
+      return selectedConversation.name || t('chat.group_chat_default');
     }
     
     const otherUser = selectedConversation.participants.find(
@@ -154,8 +155,8 @@ export const ChatWindow = () => {
     return (
       <div className="chat-window">
         <div className="empty-state">
-          <h2>Welcome to Chat</h2>
-          <p>Select a conversation or start a new one to begin messaging</p>
+          <h2>{t('chat.welcome_title')}</h2>
+          <p>{t('chat.welcome_subtitle')}</p>
         </div>
       </div>
     );
@@ -170,7 +171,7 @@ export const ChatWindow = () => {
           <h3>{getConversationTitle()}</h3>
           {isOnline !== null && (
             <span className={`status-indicator ${isOnline ? 'online' : 'offline'}`}>
-              {isOnline ? 'Online' : 'Offline'}
+              {isOnline ? t('chat.online') : t('chat.offline')}
             </span>
           )}
         </div>
@@ -179,7 +180,7 @@ export const ChatWindow = () => {
       <div className="messages-container">
         {conversationMessages.length === 0 ? (
           <div className="no-messages">
-            <p>No messages yet. Start the conversation!</p>
+            <p>{t('chat.no_messages')}</p>
           </div>
         ) : (
           conversationMessages.map((message) => (
@@ -198,7 +199,7 @@ export const ChatWindow = () => {
                     {message.file_type === 'image' ? (
                       <img 
                         src={filesAPI.getFileUrl(message.file_path.split('\\').pop().split('/').pop())} 
-                        alt="Attachment" 
+                        alt={t('chat.attachment')} 
                         className="attachment-image" 
                       />
                     ) : (
@@ -235,7 +236,7 @@ export const ChatWindow = () => {
             type="button"
             className="attachment-button"
             onClick={() => fileInputRef.current?.click()}
-            aria-label="Attach file"
+            aria-label={t('chat.attach_file')}
           >
             📎
           </button>
@@ -245,7 +246,7 @@ export const ChatWindow = () => {
               type="button"
               className="emoji-button"
               onClick={() => setIsEmojiPickerOpen((prev) => !prev)}
-              aria-label="Toggle emoji picker"
+              aria-label={t('chat.toggle_emoji')}
             >
               😊
             </button>
@@ -266,14 +267,14 @@ export const ChatWindow = () => {
             type="text"
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
-            placeholder={uploading ? "Uploading..." : "Type a message..."}
+            placeholder={uploading ? t('chat.uploading') : t('chat.type_message')}
             maxLength={5000}
             className="message-input"
             disabled={uploading}
           />
         </div>
         <button type="submit" className="send-button" disabled={(!inputValue.trim() && !selectedFile) || uploading}>
-          {uploading ? '...' : 'Send'}
+          {uploading ? '...' : t('chat.send')}
         </button>
       </form>
     </div>

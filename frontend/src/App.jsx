@@ -8,6 +8,7 @@ import { ChatWindow } from './components/Chat/ChatWindow';
 import { ConversationList } from './components/Chat/ConversationList';
 import { UserList } from './components/UserList/UserList';
 import { ThemeToggle } from './components/Common/ThemeToggle';
+import { LanguageSwitcher } from './components/Common/LanguageSwitcher';
 import './App.css';
 
 const ChatApp = () => {
@@ -66,6 +67,7 @@ function App() {
     <ThemeProvider>
       <AuthProvider>
         <ThemeToggle />
+        <LanguageSwitcher />
         <ChatApp />
       </AuthProvider>
     </ThemeProvider>

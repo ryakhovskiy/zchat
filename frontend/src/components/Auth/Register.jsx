@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../contexts/AuthContext';
 import './Auth.css';
 
 export const Register = ({ onSwitchToLogin }) => {
+  const { t } = useTranslation();
   const { register } = useAuth();
   const [formData, setFormData] = useState({
     username: '',
@@ -21,30 +23,30 @@ export const Register = ({ onSwitchToLogin }) => {
 
     // Validation
     if (formData.password !== formData.confirmPassword) {
-      setError('Passwords do not match');
+      setError(t('auth.password_match_error'));
       return;
     }
 
     // Password complexity check
     const password = formData.password;
     if (password.length < 10) {
-      setError('Password must be at least 10 characters');
+      setError(t('auth.password_length_error'));
       return;
     }
     if (!/[a-z]/.test(password)) {
-      setError('Password must contain at least one lowercase letter');
+      setError(t('auth.password_char_error'));
       return;
     }
     if (!/[A-Z]/.test(password)) {
-      setError('Password must contain at least one uppercase letter');
+      setError(t('auth.password_char_error'));
       return;
     }
     if (!/\d/.test(password)) {
-      setError('Password must contain at least one digit');
+      setError(t('auth.password_char_error'));
       return;
     }
     if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
-      setError('Password must contain at least one special character');
+      setError(t('auth.password_char_error'));
       return;
     }
 
@@ -73,14 +75,14 @@ export const Register = ({ onSwitchToLogin }) => {
   return (
     <div className="auth-container">
       <div className="auth-card">
-        <h1>zChat Application</h1>
-        <h2>Create Account</h2>
+        <h1>{t('auth.app_title')}</h1>
+        <h2>{t('auth.sign_up_header')}</h2>
 
         {error && <div className="error-message">{error}</div>}
 
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label htmlFor="username">Username</label>
+            <label htmlFor="username">{t('auth.username')}</label>
             <input
               type="text"
               id="username"
@@ -96,7 +98,7 @@ export const Register = ({ onSwitchToLogin }) => {
           </div>
 
           <div className="form-group">
-            <label htmlFor="email">Email (optional)</label>
+            <label htmlFor="email">{t('auth.email_optional')}</label>
             <input
               type="email"
               id="email"
@@ -109,7 +111,7 @@ export const Register = ({ onSwitchToLogin }) => {
           </div>
 
           <div className="form-group">
-            <label htmlFor="password">Password</label>
+            <label htmlFor="password">{t('auth.password')}</label>
             <div className="password-wrapper">
               <input
                 type={showPassword ? "text" : "password"}
@@ -126,7 +128,7 @@ export const Register = ({ onSwitchToLogin }) => {
                 type="button"
                 className="password-toggle"
                 onClick={() => setShowPassword(!showPassword)}
-                aria-label={showPassword ? "Hide password" : "Show password"}
+                aria-label={showPassword ? t('auth.toggle_hide') : t('auth.toggle_show')}
               >
                 {showPassword ? (
                   <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
@@ -136,12 +138,12 @@ export const Register = ({ onSwitchToLogin }) => {
               </button>
             </div>
             <small style={{ display: 'block', marginTop: '5px', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-              10+ chars, uppercase, lowercase, number, special char
+              {t('auth.password_requirements')}
             </small>
           </div>
 
           <div className="form-group">
-            <label htmlFor="confirmPassword">Confirm Password</label>
+            <label htmlFor="confirmPassword">{t('auth.confirm_password')}</label>
             <div className="password-wrapper">
               <input
                 type={showConfirmPassword ? "text" : "password"}
@@ -158,7 +160,7 @@ export const Register = ({ onSwitchToLogin }) => {
                 type="button"
                 className="password-toggle"
                 onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                aria-label={showConfirmPassword ? "Hide password" : "Show password"}
+                aria-label={showConfirmPassword ? t('auth.toggle_hide') : t('auth.toggle_show')}
               >
                 {showConfirmPassword ? (
                   <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
@@ -170,14 +172,14 @@ export const Register = ({ onSwitchToLogin }) => {
           </div>
 
           <button type="submit" className="btn-primary" disabled={loading}>
-            {loading ? 'Creating account...' : 'Sign Up'}
+            {loading ? t('auth.signing_up') : t('auth.sign_up_button')}
           </button>
         </form>
 
         <p className="auth-switch">
-          Already have an account?{' '}
+          {t('auth.has_account')}{' '}
           <button onClick={onSwitchToLogin} className="link-button">
-            Sign In
+            {t('auth.sign_in_button')}
           </button>
         </p>
       </div>
