@@ -37,7 +37,7 @@ sudo ufw enable
 ## 2. User Configuration
 
 ### Create Non-Root User
-Instead of using root, create a dedicated user (example: `kr`):
+Instead of using root, create a dedicated user `kr`:
 
 ```bash
 # As root user
@@ -45,6 +45,9 @@ adduser kr
 
 # Add to sudo group
 usermod -aG sudo kr
+
+#Change password
+passwd kr
 
 # Switch to new user
 su - kr
@@ -59,21 +62,13 @@ su - kr
 Generate a new SSH key pair:
 
 ```bash
-ssh-keygen -t ed25519 -C "kr@your-server"
+ssh-keygen -t ed25519 -C "kr@server-ip"
 ```
 
-Follow the prompts:
-- Save location: default (`~/.ssh/id_ed25519`) or custom path
-- Passphrase: recommended for security
+Follow the prompts
 
 ### Copy Public Key to Server
 
-**Option A: Using ssh-copy-id (easiest)**
-```bash
-ssh-copy-id -i ~/.ssh/id_ed25519.pub kr@your-server-ip
-```
-
-**Option B: Manual method**
 ```bash
 # On local machine - copy your public key
 cat ~/.ssh/id_ed25519.pub
@@ -82,7 +77,7 @@ cat ~/.ssh/id_ed25519.pub
 Then on the server (as root):
 ```bash
 mkdir -p /home/kr/.ssh
-nano /home/kr/.ssh/authorized_keys
+vi /home/kr/.ssh/authorized_keys
 # Paste the public key, save and exit
 
 # Set proper permissions
@@ -93,44 +88,28 @@ chmod 600 /home/kr/.ssh/authorized_keys
 
 ### Test SSH Connection
 ```bash
-ssh kr@your-server-ip
+ssh kr@server-ip
 ```
 
-### Optional: Create SSH Config (Local Machine)
+### Create SSH Config (Local Machine)
 Edit `~/.ssh/config`:
 ```
 Host myserver
-    HostName your-server-ip
+    HostName server-ip
     User kr
     IdentityFile ~/.ssh/id_ed25519
 ```
 
 Then connect with: `ssh myserver`
 
-### Optional: Disable Root SSH Login
-After confirming your user works:
-```bash
-sudo nano /etc/ssh/sshd_config
-```
-
-Change:
-```
-PermitRootLogin no
-```
-
-Restart SSH:
-```bash
-sudo systemctl restart sshd
-```
-
 ---
 
 ## 4. Domain Configuration
 
 ### Purchase Domain
-Use any domain registrar (Namecheap, Cloudflare, GoDaddy, etc.)
+Use any domain registrar (Namecheap)
 
-Example domain: `zchat.space`
+Domain: `zchat.space`
 
 ### Configure DNS Records
 
@@ -140,19 +119,19 @@ In your domain registrar's DNS management panel, add:
 ```
 Type: A
 Host: @
-Value: your-server-ip-address
-TTL: Automatic (or 300-3600)
+Value: server-ip-address
+TTL: Automatic 
 ```
 
 **A Record for www subdomain:**
 ```
 Type: A
 Host: www
-Value: your-server-ip-address
-TTL: Automatic (or 300-3600)
+Value: server-ip-address
+TTL: Automatic
 ```
 
-**Wait for DNS propagation** (usually 10-30 minutes, can take up to 48 hours)
+**Wait for DNS propagation** 
 
 Test DNS propagation:
 ```bash
@@ -184,7 +163,7 @@ echo "<h1>zchat.space - Coming Soon</h1>" > /var/www/zchat.space/index.html
 
 ### Create Basic Nginx Config (Temporary - HTTP Only)
 ```bash
-sudo nano /etc/nginx/sites-available/zchat.space
+sudo vi /etc/nginx/sites-available/zchat.space
 ```
 
 Add:
@@ -228,11 +207,6 @@ Follow the prompts:
 - Agree to terms
 - Certbot will automatically configure HTTPS
 
-**Auto-renewal is configured automatically!** Test it with:
-```bash
-sudo certbot renew --dry-run
-```
-
 ---
 
 ## 6. Nginx Configuration
@@ -240,7 +214,7 @@ sudo certbot renew --dry-run
 ### Final Nginx Configuration with Redirects
 
 ```bash
-sudo nano /etc/nginx/sites-available/zchat.space
+sudo vi /etc/nginx/sites-available/zchat.space
 ```
 
 Replace with:
@@ -329,12 +303,12 @@ sudo systemctl reload nginx
 ```
 
 **What this configuration does:**
-- ✅ `http://your-ip` → `https://zchat.space`
-- ✅ `https://your-ip` → `https://zchat.space`
-- ✅ `http://zchat.space` → `https://zchat.space`
-- ✅ `http://www.zchat.space` → `https://www.zchat.space`
-- ✅ Proxies `/api/*` requests to backend on port 8000
-- ✅ Serves frontend from `/var/www/zchat.space`
+- `http://server-ip` → `https://zchat.space`
+- `https://server-ip` → `https://zchat.space`
+- `http://zchat.space` → `https://zchat.space`
+- `http://www.zchat.space` → `https://www.zchat.space`
+- Proxies `/api/*` requests to backend on port 8000
+- Serves frontend from `/var/www/zchat.space`
 
 ---
 
@@ -355,7 +329,7 @@ sudo usermod -aG docker $USER
 
 ### Prepare Backend
 
-**Example directory structure:**
+**Directory structure:**
 ```
 ~/backend/
 ├── Dockerfile
@@ -368,16 +342,16 @@ sudo usermod -aG docker $USER
 
 Create `.env` file for your backend:
 ```bash
-nano ~/backend/.env
+vi ~/backend/.env
 ```
 
-**Important:** Update CORS origins to include your domain:
+**CORS:** Update CORS origins to include your domain:
 ```env
 # Backend configuration
 PORT=8000
 
 # CORS - Allow your domain
-CORS_ORIGINS=["https://zchat.space", "https://www.zchat.space", "http://localhost:5173"]
+CORS_ORIGINS=["https://zchat.space", "https://www.zchat.space"]
 
 # Database and other configs...
 DATABASE_URL=postgresql://user:password@db:5432/dbname
@@ -461,7 +435,7 @@ VITE_API_URL=/api
 VITE_WS_URL=/ws
 ```
 
-**Important:** The production URLs are relative (`/api` and `/ws`) because Nginx proxies them!
+**Nginx proxy:** The production URLs are relative (`/api` and `/ws`) because Nginx proxies them
 
 ### Update Your Code
 
@@ -470,36 +444,9 @@ Make sure your code uses the environment variables:
 **For API calls:**
 ```javascript
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
-
-// Use it in your API calls
-fetch(`${API_BASE_URL}/auth/login`, {
-  method: 'POST',
-  // ...
-});
 ```
 
-**For WebSocket connections:**
-```javascript
-const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:8000/ws';
-
-// Helper to convert relative URLs to absolute WebSocket URLs
-const getWebSocketUrl = (path) => {
-  if (path.startsWith('ws://') || path.startsWith('wss://')) {
-    return path; // Already a full URL (local dev)
-  }
-  
-  // For production - use current page protocol
-  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const host = window.location.host;
-  return `${protocol}//${host}${path}`;
-};
-
-// Create WebSocket connection
-const wsUrl = getWebSocketUrl(WS_URL);
-const socket = new WebSocket(wsUrl);
-```
-
-### Optional: Vite Proxy for Local Development
+### Vite Proxy for Local Development
 
 Add to `vite.config.js` to use `/api` in development too:
 ```javascript
@@ -510,54 +457,27 @@ export default {
         target: 'http://localhost:8000',
         changeOrigin: true,
       }
+      'ws': { ... }
     }
   }
 }
 ```
 
-This way you can use `VITE_API_URL=/api` everywhere!
-
 ### Build for Production
 
 ```bash
-# Clean previous builds
-rm -rf dist node_modules/.vite
-
 # Build
 npm run build
 # or
 npx vite build --mode production
 ```
 
-### Verify Build
-```bash
-# Make sure localhost:8000 is NOT in the build
-grep -r "localhost:8000" dist/
-
-# Should return nothing if VITE_API_URL is properly set
-```
-
 ### Deploy to Server
 
-**Option A: Build locally, upload to server**
+**Build locally, upload to server**
 ```bash
 # From your local machine
-scp -r dist/* kr@your-server-ip:/var/www/zchat.space/
-```
-
-**Option B: Build on server**
-```bash
-# Clone your repo on the server
-cd ~
-git clone https://github.com/yourusername/your-frontend.git
-cd your-frontend
-
-# Install dependencies and build
-npm install
-npm run build
-
-# Copy to web directory
-sudo cp -r dist/* /var/www/zchat.space/
+scp -r dist/* kr@server-ip:/var/www/zchat.space/
 ```
 
 ### Set Proper Permissions
@@ -576,10 +496,10 @@ sudo systemctl reload nginx
 ## 9. Final Testing
 
 ### Test All Redirects
-- `http://your-server-ip` → should redirect to `https://zchat.space`
-- `https://your-server-ip` → should redirect to `https://zchat.space`
-- `http://zchat.space` → should redirect to `https://zchat.space`
-- `http://www.zchat.space` → should redirect to `https://www.zchat.space`
+- `http://your-server-ip` -> should redirect to `https://zchat.space`
+- `https://your-server-ip` -> should redirect to `https://zchat.space`
+- `http://zchat.space` -> should redirect to `https://zchat.space`
+- `http://www.zchat.space` -> should redirect to `https://www.zchat.space`
 
 ### Test Frontend
 - Visit `https://zchat.space`
@@ -596,7 +516,7 @@ sudo systemctl reload nginx
 - Open browser console (F12)
 - Check Console tab for WebSocket connection messages
 - Verify WebSocket connects to `wss://zchat.space/ws` (not `ws://zchat.space:8000/ws`)
-- Check Network tab → WS filter to see WebSocket connection
+- Check Network tab -> WS filter to see WebSocket connection
 - Connection should show as "101 Switching Protocols"
 - WebSocket messages should appear in the Frames tab
 
@@ -687,7 +607,6 @@ docker-compose logs -f
 ```
 
 ### SSL Certificate Renewal
-Automatic! But you can manually renew:
 ```bash
 sudo certbot renew
 sudo systemctl reload nginx
@@ -726,16 +645,6 @@ sudo systemctl reload nginx
 
 ---
 
-## Budget-Friendly Hosting Options
-
-- **Hetzner**: €4.15/month (~$4.50) - Best value
-- **DigitalOcean**: $6/month - Beginner-friendly
-- **Vultr**: $6/month - Similar to DigitalOcean
-- **Linode**: $5/month - Reliable
-- **Oracle Cloud**: FREE tier available (1GB RAM)
-
----
-
 ## Support and Resources
 
 - Nginx docs: https://nginx.org/en/docs/
@@ -749,3 +658,4 @@ sudo systemctl reload nginx
 **Last Updated:** 2026-02-05  
 **Domain Example:** zchat.space  
 **Includes:** WebSocket configuration and proxying
+**Author:** Konstantin Ryakhovskiy

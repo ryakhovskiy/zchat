@@ -65,13 +65,50 @@ export const ChatWindow = () => {
     } catch (error) {
       console.error('Failed to send message:', error);
       setUploading(false);
-      alert('Failed to send message');
+      
+      let errorMessage = 'Failed to send message';
+      
+      if (error.response) {
+        // Backend returned an error response
+        if (error.response.data && error.response.data.detail) {
+           errorMessage = error.response.data.detail;
+        } else if (error.response.status === 413) {
+           errorMessage = "File is too large. Maximum size is 50MB.";
+        }
+      } else if (error.request) {
+        // Request was made but no response received
+        errorMessage = "Network error. Please check your connection.";
+      }
+
+      alert(errorMessage);
     }
   };
 
   const handleFileSelect = (e) => {
     if (e.target.files && e.target.files[0]) {
-      setSelectedFile(e.target.files[0]);
+      const file = e.target.files[0];
+      const MAX_SIZE = 50 * 1024 * 1024; // 50MB
+      
+      const FORBIDDEN_EXTENSIONS = [
+        '.exe', '.dll', '.bat', '.cmd', '.sh', '.cgi', '.jar', '.js', '.vbs', 
+        '.ps1', '.py', '.php', '.msi', '.com', '.scr', '.pif', '.reg', '.app',
+        '.bin', '.wsf', '.vb', '.iso', '.dmg', '.pkg'
+      ];
+
+      if (file.size > MAX_SIZE) {
+        alert("File is too large. Maximum size is 50MB.");
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        return;
+      }
+      
+      const ext = '.' + file.name.split('.').pop().toLowerCase();
+      if (FORBIDDEN_EXTENSIONS.includes(ext)) {
+        alert("File type not allowed (executable/installer).");
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        return;
+      }
+
+      setSelectedFile(file);
     }
   };
 

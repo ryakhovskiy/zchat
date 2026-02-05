@@ -69,11 +69,14 @@ export const filesAPI = {
     formData.append('file', file);
     return api.post('/uploads/', formData, {
       headers: {
-        'Content-Type': 'multipart/form-data',
+        'Content-Type': undefined,
       },
     });
   },
-  getFileUrl: (filename) => `${API_BASE_URL}/uploads/${filename}`,
+  getFileUrl: (filename) => {
+    const token = localStorage.getItem('token');
+    return `${API_BASE_URL}/uploads/${filename}?token=${token}`;
+  },
 };
 
 // WebSocket connection
