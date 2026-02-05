@@ -3,9 +3,11 @@ import shutil
 import uuid
 from pathlib import Path
 from typing import List
-from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
+from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Query
 from fastapi.responses import FileResponse
-from app.utils.security import get_current_user
+from sqlalchemy.orm import Session
+from app.database import get_db
+from app.utils.security import get_current_user, decode_token
 from app.models.user import User
 
 router = APIRouter(prefix="/uploads", tags=["Uploads"])
@@ -54,11 +56,22 @@ async def upload_file(
 @router.get("/{filename}")
 async def get_file(
     filename: str,
-    current_user: User = Depends(get_current_user)
+    token: str = Query(...),
+    db: Session = Depends(get_db)
 ):
     """Serve an uploaded file."""
-    # In a real app, you should check if the user has access to the conversation 
-    # where this file was sent. For now, we just check if they are authenticated.
+    # Verify token
+    try:
+        payload = decode_token(token)
+        username = payload.get("sub")
+        if not username:
+            raise HTTPException(401, "Invalid token")
+            
+        user = db.query(User).filter(User.username == username).first()
+        if not user:
+            raise HTTPException(401, "User not found")
+    except Exception:
+        raise HTTPException(401, "Invalid token")
     
     file_path = UPLOAD_DIR / filename
     if not file_path.exists():
