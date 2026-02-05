@@ -88,9 +88,22 @@ export const ChatWindow = () => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       const MAX_SIZE = 50 * 1024 * 1024; // 50MB
+      
+      const FORBIDDEN_EXTENSIONS = [
+        '.exe', '.dll', '.bat', '.cmd', '.sh', '.cgi', '.jar', '.js', '.vbs', 
+        '.ps1', '.py', '.php', '.msi', '.com', '.scr', '.pif', '.reg', '.app',
+        '.bin', '.wsf', '.vb', '.iso', '.dmg', '.pkg'
+      ];
 
       if (file.size > MAX_SIZE) {
         alert("File is too large. Maximum size is 50MB.");
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        return;
+      }
+      
+      const ext = '.' + file.name.split('.').pop().toLowerCase();
+      if (FORBIDDEN_EXTENSIONS.includes(ext)) {
+        alert("File type not allowed (executable/installer).");
         if (fileInputRef.current) fileInputRef.current.value = '';
         return;
       }

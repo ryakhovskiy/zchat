@@ -16,10 +16,18 @@ UPLOAD_DIR = Path("uploads")
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 ALLOWED_EXTENSIONS = {
-    'image': ['.jpg', '.jpeg', '.png', '.gif', '.webp'],
-    'document': ['.pdf', '.doc', '.docx', '.txt', '.xls', '.xlsx']
+    'image': ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg'],
+    'document': ['.pdf', '.doc', '.docx', '.txt', '.xls', '.xlsx', '.ppt', '.pptx', '.csv', '.rtf', '.odt'],
+    'archive': ['.zip', '.rar', '.7z', '.tar', '.gz'],
+    'audio': ['.mp3', '.wav', '.ogg', '.m4a'],
+    'video': ['.mp4', '.avi', '.mov', '.webm', '.mkv']
 }
 
+FORBIDDEN_EXTENSIONS = {
+    '.exe', '.dll', '.bat', '.cmd', '.sh', '.cgi', '.jar', '.js', '.vbs', 
+    '.ps1', '.py', '.php', '.msi', '.com', '.scr', '.pif', '.reg', '.app',
+    '.bin', '.wsf', '.vb', '.iso', '.dmg', '.pkg'
+}
 
 MAX_UPLOAD_SIZE = 50 * 1024 * 1024  # 50MB
 
@@ -31,14 +39,22 @@ async def upload_file(
     """Upload a file (image or document)."""
     # Validate extension
     ext = Path(file.filename).suffix.lower()
-    file_type = None
+    
+    if ext in FORBIDDEN_EXTENSIONS:
+         raise HTTPException(400, "File type not allowed (executable/installer)")
+    
+    file_type = 'file' # Default type
     
     if ext in ALLOWED_EXTENSIONS['image']:
         file_type = 'image'
     elif ext in ALLOWED_EXTENSIONS['document']:
         file_type = 'document'
-    else:
-        raise HTTPException(400, "File type not allowed")
+    elif ext in ALLOWED_EXTENSIONS['video']:
+        file_type = 'video'
+    elif ext in ALLOWED_EXTENSIONS['audio']:
+        file_type = 'audio'
+    elif ext in ALLOWED_EXTENSIONS['archive']:
+        file_type = 'archive'
     
     # Generate unique filename
     filename = f"{uuid.uuid4()}{ext}"
