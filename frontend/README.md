@@ -1,6 +1,6 @@
-# Chat Application Frontend
+# zChat Application Frontend
 
-React-based frontend for a real-time chat application.
+React-based frontend for a real-time zChat application.
 
 ## Setup
 

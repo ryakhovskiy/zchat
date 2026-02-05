@@ -26,18 +26,17 @@ def cleanup_files():
     db = SessionLocal()
     
     try:
-        # Retention policy: 7 days after being seen by all
-        retention_period = timedelta(days=7)
+        # Retention policy: 10 days since creation
+        retention_period = timedelta(days=10)
         cutoff_date = datetime.utcnow() - retention_period
         
-        logger.info(f"Checking for files completely read before {cutoff_date}")
+        logger.info(f"Checking for files created before {cutoff_date}")
         
-        # Find expired messages
+        # Find expired messages with files
         expired_messages = db.query(Message).filter(
             Message.file_path.isnot(None),
             Message.is_deleted == False, # or 0
-            Message.fully_read_at.isnot(None),
-            Message.fully_read_at < cutoff_date
+            Message.created_at < cutoff_date
         ).all()
         
         logger.info(f"Found {len(expired_messages)} expired files to delete")
@@ -58,6 +57,16 @@ def cleanup_files():
             
             try:
                 # Update message
+                message.content = "[File expired]"
+                message.file_path = None
+                message.file_type = None
+                db.add(message)
+                logger.info(f"Updated message {message.id} to remove file reference")
+            except Exception as e:
+                logger.error(f"Error updating message {message.id}: {e}")
+        
+        db.commit()
+    except Exception as e:
                 placeholder_text = "picture has been deleted due to data retention policy"
                 # If it was a document, maybe say "document has been deleted..."? 
                 # Requirement says "picture needs to be shown", "picture has been deleted..."

@@ -1,6 +1,6 @@
-# Chat Application Backend
+# zChat Application Backend
 
-FastAPI-based backend for a real-time chat application.
+FastAPI-based backend for a real-time zChat application.
 
 ## Setup
 

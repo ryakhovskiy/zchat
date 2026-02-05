@@ -6,7 +6,7 @@ class Settings(BaseSettings):
     """Application configuration using environment variables."""
     
     # Application
-    APP_NAME: str = "Chat Application"
+    APP_NAME: str = "zChat Application"
     DEBUG: bool = False
     
     # Security

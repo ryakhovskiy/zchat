@@ -62,7 +62,7 @@ app.include_router(websocket.router)
 async def startup_event():
     """Initialize database on startup."""
     print("=" * 60)
-    print("Starting Zchat Application")
+    print("Starting zChat Application")
     print("=" * 60)
     init_database()
     print("=" * 60)
@@ -75,7 +75,7 @@ async def startup_event():
 async def root():
     """Root endpoint."""
     return {
-        "message": "Chat Application API",
+        "message": "zChat Application API",
         "version": "1.0.0",
         "docs": "/docs"
     }
