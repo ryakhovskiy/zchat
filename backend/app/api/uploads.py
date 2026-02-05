@@ -20,6 +20,9 @@ ALLOWED_EXTENSIONS = {
     'document': ['.pdf', '.doc', '.docx', '.txt', '.xls', '.xlsx']
 }
 
+
+MAX_UPLOAD_SIZE = 50 * 1024 * 1024  # 50MB
+
 @router.post("/", response_model=dict)
 async def upload_file(
     file: UploadFile = File(...),
@@ -42,9 +45,23 @@ async def upload_file(
     file_path = UPLOAD_DIR / filename
     
     try:
+        size = 0
         with file_path.open("wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+            while True:
+                chunk = await file.read(1024 * 1024)  # Read 1MB chunks
+                if not chunk:
+                    break
+                size += len(chunk)
+                if size > MAX_UPLOAD_SIZE:
+                    buffer.close()
+                    file_path.unlink()  # Delete partial file
+                    raise HTTPException(413, "File too large (max 50MB)")
+                buffer.write(chunk)
+    except HTTPException:
+        raise
     except Exception as e:
+        if file_path.exists():
+            file_path.unlink()
         raise HTTPException(500, f"Could not save file: {e}")
         
     return {
