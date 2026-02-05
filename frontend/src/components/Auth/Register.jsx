@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../contexts/AuthContext';
 import './Auth.css';
 
 export const Register = ({ onSwitchToLogin }) => {
+  const { t } = useTranslation();
   const { register } = useAuth();
   const [formData, setFormData] = useState({
     username: '',
@@ -19,12 +21,12 @@ export const Register = ({ onSwitchToLogin }) => {
 
     // Validation
     if (formData.password !== formData.confirmPassword) {
-      setError('Passwords do not match');
+      setError(t('auth.password_match_error'));
       return;
     }
 
     if (formData.password.length < 6) {
-      setError('Password must be at least 6 characters');
+      setError(t('auth.password_length_error'));
       return;
     }
 
@@ -53,14 +55,14 @@ export const Register = ({ onSwitchToLogin }) => {
   return (
     <div className="auth-container">
       <div className="auth-card">
-        <h1>Chat Application</h1>
-        <h2>Create Account</h2>
+        <h1>{t('auth.app_title')}</h1>
+        <h2>{t('auth.sign_up_header')}</h2>
 
         {error && <div className="error-message">{error}</div>}
 
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label htmlFor="username">Username</label>
+            <label htmlFor="username">{t('auth.username')}</label>
             <input
               type="text"
               id="username"
@@ -76,7 +78,7 @@ export const Register = ({ onSwitchToLogin }) => {
           </div>
 
           <div className="form-group">
-            <label htmlFor="email">Email (optional)</label>
+            <label htmlFor="email">{t('auth.email_optional')}</label>
             <input
               type="email"
               id="email"
@@ -89,7 +91,7 @@ export const Register = ({ onSwitchToLogin }) => {
           </div>
 
           <div className="form-group">
-            <label htmlFor="password">Password</label>
+            <label htmlFor="password">{t('auth.password')}</label>
             <input
               type="password"
               id="password"
@@ -104,7 +106,7 @@ export const Register = ({ onSwitchToLogin }) => {
           </div>
 
           <div className="form-group">
-            <label htmlFor="confirmPassword">Confirm Password</label>
+            <label htmlFor="confirmPassword">{t('auth.confirm_password')}</label>
             <input
               type="password"
               id="confirmPassword"
@@ -119,14 +121,14 @@ export const Register = ({ onSwitchToLogin }) => {
           </div>
 
           <button type="submit" className="btn-primary" disabled={loading}>
-            {loading ? 'Creating account...' : 'Sign Up'}
+            {loading ? t('auth.signing_up') : t('auth.sign_up_button')}
           </button>
         </form>
 
         <p className="auth-switch">
-          Already have an account?{' '}
+          {t('auth.has_account')}{' '}
           <button onClick={onSwitchToLogin} className="link-button">
-            Sign In
+            {t('auth.sign_in_button')}
           </button>
         </p>
       </div>

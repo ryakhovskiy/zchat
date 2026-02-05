@@ -1,0 +1,40 @@
+.language-switcher {
+  position: fixed;
+  top: 1rem;
+  right: 5rem;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: none;
+  background-color: transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1001;
+  font-weight: bold;
+  font-size: 0.9rem;
+  font-family: inherit;
+  transition: background-color 0.3s ease, transform 0.2s ease;
+  color: var(--toggle-icon-color);
+}
+
+.language-switcher:hover {
+  background-color: var(--toggle-hover-bg);
+  transform: scale(1.1);
+}
+
+.language-switcher:active {
+  transform: scale(0.95);
+}
+
+/* Dark theme toggle styling (reusing theme variables if possible, otherwise defining) */
+[data-theme="dark"] .language-switcher {
+  --toggle-hover-bg: rgba(95, 149, 152, 0.2);
+  --toggle-icon-color: #5F9598;
+}
+
+[data-theme="light"] .language-switcher {
+  --toggle-hover-bg: rgba(120, 134, 199, 0.2);
+  --toggle-icon-color: #7886C7;
+}

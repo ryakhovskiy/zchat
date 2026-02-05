@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../contexts/AuthContext';
 import './Auth.css';
 
 export const Login = ({ onSwitchToRegister }) => {
+  const { t } = useTranslation();
   const { login } = useAuth();
   const [formData, setFormData] = useState({
     username: '',
@@ -35,14 +37,14 @@ export const Login = ({ onSwitchToRegister }) => {
   return (
     <div className="auth-container">
       <div className="auth-card">
-        <h1>Chat Application</h1>
-        <h2>Sign In</h2>
+        <h1>{t('auth.app_title')}</h1>
+        <h2>{t('auth.sign_in_header')}</h2>
 
         {error && <div className="error-message">{error}</div>}
 
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label htmlFor="username">Username</label>
+            <label htmlFor="username">{t('auth.username')}</label>
             <input
               type="text"
               id="username"
@@ -56,7 +58,7 @@ export const Login = ({ onSwitchToRegister }) => {
           </div>
 
           <div className="form-group">
-            <label htmlFor="password">Password</label>
+            <label htmlFor="password">{t('auth.password')}</label>
             <input
               type="password"
               id="password"
@@ -70,14 +72,14 @@ export const Login = ({ onSwitchToRegister }) => {
           </div>
 
           <button type="submit" className="btn-primary" disabled={loading}>
-            {loading ? 'Signing in...' : 'Sign In'}
+            {loading ? t('auth.signing_in') : t('auth.sign_in_button')}
           </button>
         </form>
 
         <p className="auth-switch">
-          Don't have an account?{' '}
+          {t('auth.no_account')}{' '}
           <button onClick={onSwitchToRegister} className="link-button">
-            Sign Up
+            {t('auth.sign_up_button')}
           </button>
         </p>
       </div>
