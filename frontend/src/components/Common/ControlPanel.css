@@ -1,0 +1,57 @@
+.control-panel {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.control-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  cursor: pointer;
+  padding: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  transition: background-color 0.2s;
+}
+
+.control-btn:hover {
+  background-color: var(--hover-bg);
+}
+
+.control-btn svg {
+  width: 20px;
+  height: 20px;
+}
+
+.lang-btn {
+  font-weight: bold;
+  font-size: 0.8rem;
+}
+
+.logout-btn {
+  color: var(--error-color);
+}
+
+.settings-popover {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  padding: 1rem;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px var(--shadow-color);
+  z-index: 1000;
+  width: 200px;
+}
+
+/* Variant styles if needed */
+.control-panel.mobile {
+  /* specific adjustments for mobile layout if needed */
+}

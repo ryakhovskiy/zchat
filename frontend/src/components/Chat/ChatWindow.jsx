@@ -6,11 +6,12 @@ import { useChat } from '../../contexts/ChatContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { textToEmoji } from '../../utils/emojiUtils';
 import { filesAPI } from '../../services/api';
+import { ControlPanel } from '../Common/ControlPanel';
 import './Chat.css';
 
 export const ChatWindow = () => {
   const { t } = useTranslation();
-  const { selectedConversation, messages, sendMessage } = useChat();
+  const { selectedConversation, messages, sendMessage, selectConversation } = useChat();
   const { user } = useAuth();
   const [inputValue, setInputValue] = useState('');
   const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
@@ -168,12 +169,21 @@ export const ChatWindow = () => {
     <div className="chat-window">
       <div className="chat-header">
         <div className="chat-header-info">
-          <h3>{getConversationTitle()}</h3>
-          {isOnline !== null && (
-            <span className={`status-indicator ${isOnline ? 'online' : 'offline'}`}>
-              {isOnline ? t('chat.online') : t('chat.offline')}
-            </span>
-          )}
+          <button 
+            className="mobile-back-button"
+            onClick={() => selectConversation(null)}
+            aria-label="Back to conversations"
+          >
+            ←
+          </button>
+          <div className="chat-info-text">
+            <h3>{getConversationTitle()}</h3>
+            {isOnline !== null && (
+              <span className={`status-indicator ${isOnline ? 'online' : 'offline'}`}>
+                {isOnline ? t('chat.online') : t('chat.offline')}
+              </span>
+            )}
+          </div>
         </div>
       </div>
 
@@ -237,8 +247,11 @@ export const ChatWindow = () => {
             className="attachment-button"
             onClick={() => fileInputRef.current?.click()}
             aria-label={t('chat.attach_file')}
+            title={t('chat.attach_file')}
           >
-            📎
+            <svg viewBox="0 0 24 24" fill="none" class="paperclip-icon" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path>
+            </svg>
           </button>
         </div>
         <div className="emoji-picker-wrapper" ref={emojiPickerRef}>

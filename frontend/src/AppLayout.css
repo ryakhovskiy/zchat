@@ -1,0 +1,36 @@
+.app-layout {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+  background-color: var(--bg-primary);
+}
+
+.top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 1rem;
+  background-color: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+  height: 60px;
+  flex-shrink: 0;
+  z-index: 100;
+}
+
+.top-bar-branding h1 {
+  margin: 0;
+  font-size: 1.25rem;
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+/* Adjust chat-container to fill remaining space */
+.chat-container {
+  display: flex;
+  flex: 1;
+  overflow: hidden; /* Prevent body scroll */
+  position: relative;
+  height: calc(100vh - 60px); /* Explicit height calculation */
+}
