@@ -21,6 +21,7 @@ export const ChatWindow = () => {
   const messagesEndRef = useRef(null);
   const emojiPickerRef = useRef(null);
   const fileInputRef = useRef(null);
+  const textareaRef = useRef(null);
 
   const conversationMessages = selectedConversation
     ? messages[selectedConversation.id] || []
@@ -29,6 +30,23 @@ export const ChatWindow = () => {
   useEffect(() => {
     scrollToBottom();
   }, [conversationMessages]);
+
+  useEffect(() => {
+    if (textareaRef.current) {
+        // Reset height to auto to correctly calculate scrollHeight for shrinking
+        textareaRef.current.style.height = 'auto';
+        const scrollHeight = textareaRef.current.scrollHeight;
+        // Max height approx 120px (4-5 lines)
+        textareaRef.current.style.height = `${Math.min(scrollHeight, 120)}px`;
+    }
+  }, [inputValue]);
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey && !e.altKey) {
+        e.preventDefault();
+        handleSubmit(e);
+    }
+  };
 
   useEffect(() => {
     if (!isEmojiPickerOpen) return;
@@ -276,14 +294,16 @@ export const ChatWindow = () => {
               <button type="button" onClick={clearFile} className="clear-file-btn">×</button>
             </div>
           )}
-          <input
-            type="text"
+          <textarea
+            ref={textareaRef}
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
+            onKeyDown={handleKeyDown}
             placeholder={uploading ? t('chat.uploading') : t('chat.type_message')}
             maxLength={5000}
             className="message-input"
             disabled={uploading}
+            rows={1}
           />
         </div>
         <button type="submit" className="send-button" disabled={(!inputValue.trim() && !selectedFile) || uploading}>

@@ -319,6 +319,7 @@
 
 .message-text {
   word-wrap: break-word;
+  white-space: pre-wrap;
   line-height: 1.4;
 }
 
@@ -374,12 +375,26 @@
   flex: 1;
   padding: 0.875rem 1rem;
   border: 2px solid var(--input-border);
-  border-radius: 24px;
+  border-radius: 20px;
   font-size: 1rem;
+  font-family: inherit;
   outline: none;
   transition: border-color 0.2s, background-color 0.3s ease;
   background-color: var(--input-bg);
   color: var(--text-primary);
+  resize: none;
+  min-height: 50px;
+  max-height: 120px;
+  width: 100%;
+  line-height: 1.5;
+  /* Hide scrollbar for IE, Edge and Firefox */
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Hide scrollbar for Chrome, Safari and Opera */
+.message-input::-webkit-scrollbar {
+  display: none;
 }
 
 .message-input::placeholder {
