@@ -6,11 +6,12 @@ import { useChat } from '../../contexts/ChatContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { textToEmoji } from '../../utils/emojiUtils';
 import { filesAPI } from '../../services/api';
+import { ControlPanel } from '../Common/ControlPanel';
 import './Chat.css';
 
 export const ChatWindow = () => {
   const { t } = useTranslation();
-  const { selectedConversation, messages, sendMessage } = useChat();
+  const { selectedConversation, messages, sendMessage, selectConversation } = useChat();
   const { user } = useAuth();
   const [inputValue, setInputValue] = useState('');
   const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
@@ -20,6 +21,7 @@ export const ChatWindow = () => {
   const messagesEndRef = useRef(null);
   const emojiPickerRef = useRef(null);
   const fileInputRef = useRef(null);
+  const textareaRef = useRef(null);
 
   const conversationMessages = selectedConversation
     ? messages[selectedConversation.id] || []
@@ -28,6 +30,23 @@ export const ChatWindow = () => {
   useEffect(() => {
     scrollToBottom();
   }, [conversationMessages]);
+
+  useEffect(() => {
+    if (textareaRef.current) {
+        // Reset height to auto to correctly calculate scrollHeight for shrinking
+        textareaRef.current.style.height = 'auto';
+        const scrollHeight = textareaRef.current.scrollHeight;
+        // Max height approx 120px (4-5 lines)
+        textareaRef.current.style.height = `${Math.min(scrollHeight, 120)}px`;
+    }
+  }, [inputValue]);
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey && !e.altKey) {
+        e.preventDefault();
+        handleSubmit(e);
+    }
+  };
 
   useEffect(() => {
     if (!isEmojiPickerOpen) return;
@@ -168,12 +187,21 @@ export const ChatWindow = () => {
     <div className="chat-window">
       <div className="chat-header">
         <div className="chat-header-info">
-          <h3>{getConversationTitle()}</h3>
-          {isOnline !== null && (
-            <span className={`status-indicator ${isOnline ? 'online' : 'offline'}`}>
-              {isOnline ? t('chat.online') : t('chat.offline')}
-            </span>
-          )}
+          <button 
+            className="mobile-back-button"
+            onClick={() => selectConversation(null)}
+            aria-label="Back to conversations"
+          >
+            ←
+          </button>
+          <div className="chat-info-text">
+            <h3>{getConversationTitle()}</h3>
+            {isOnline !== null && (
+              <span className={`status-indicator ${isOnline ? 'online' : 'offline'}`}>
+                {isOnline ? t('chat.online') : t('chat.offline')}
+              </span>
+            )}
+          </div>
         </div>
       </div>
 
@@ -237,8 +265,11 @@ export const ChatWindow = () => {
             className="attachment-button"
             onClick={() => fileInputRef.current?.click()}
             aria-label={t('chat.attach_file')}
+            title={t('chat.attach_file')}
           >
-            📎
+            <svg viewBox="0 0 24 24" fill="none" class="paperclip-icon" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path>
+            </svg>
           </button>
         </div>
         <div className="emoji-picker-wrapper" ref={emojiPickerRef}>
@@ -263,14 +294,16 @@ export const ChatWindow = () => {
               <button type="button" onClick={clearFile} className="clear-file-btn">×</button>
             </div>
           )}
-          <input
-            type="text"
+          <textarea
+            ref={textareaRef}
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
+            onKeyDown={handleKeyDown}
             placeholder={uploading ? t('chat.uploading') : t('chat.type_message')}
             maxLength={5000}
             className="message-input"
             disabled={uploading}
+            rows={1}
           />
         </div>
         <button type="submit" className="send-button" disabled={(!inputValue.trim() && !selectedFile) || uploading}>

@@ -208,6 +208,9 @@ export const ChatProvider = ({ children }) => {
 
   const selectConversation = async (conversation) => {
     setSelectedConversation(conversation);
+    
+    if (!conversation) return;
+
     // Reset unread count for this conversation locally
     setUnreadCounts((prev) => ({
       ...prev,
