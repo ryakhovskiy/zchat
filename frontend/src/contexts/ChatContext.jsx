@@ -38,6 +38,29 @@ export const ChatProvider = ({ children }) => {
     }
   }, [user]);
 
+  // Handle window focus to clear unread counts for active chat
+  useEffect(() => {
+    const handleFocus = async () => {
+      if (selectedConversationRef.current) {
+        // Clear local count
+        setUnreadCounts((prev) => ({
+          ...prev,
+          [selectedConversationRef.current]: 0
+        }));
+        
+        // Mark as read on backend
+        try {
+          await conversationsAPI.markAsRead(selectedConversationRef.current);
+        } catch (error) {
+          console.error('Failed to mark as read on focus:', error);
+        }
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, []);
+
   // Setup WebSocket listeners
   useEffect(() => {
     if (!wsClient) return;
@@ -77,8 +100,12 @@ export const ChatProvider = ({ children }) => {
         )
       );
 
-      // Increment unread count only if message is not in currently selected conversation
-      if (data.conversation_id !== selectedConversationRef.current) {
+      // Increment unread count only if message is not in currently selected conversation OR if window is not focused
+      // We check for window focus. If not focused, we increment even if it matches selectedConversation
+      const isChatActive = data.conversation_id === selectedConversationRef.current;
+      const isWindowFocused = document.hasFocus();
+
+      if (!isChatActive || !isWindowFocused) {
         setUnreadCounts((prev) => ({
           ...prev,
           [data.conversation_id]: (prev[data.conversation_id] || 0) + 1,
