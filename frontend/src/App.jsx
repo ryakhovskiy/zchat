@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ChatProvider } from './contexts/ChatContext';
 import { ThemeProvider } from './contexts/ThemeContext';
@@ -25,8 +25,13 @@ const TopBar = () => {
 
 const ChatMain = () => {
   const { user } = useAuth();
-  const { selectedConversation } = useChat();
+  const { selectedConversation, unreadCounts } = useChat();
   const [showUserList, setShowUserList] = useState(false);
+
+  useEffect(() => {
+    const totalUnread = Object.values(unreadCounts).reduce((a, b) => a + b, 0);
+    document.title = totalUnread > 0 ? `zChat (${totalUnread})` : 'zChat';
+  }, [unreadCounts]);
 
   return (
     <div className="app-layout">
