@@ -38,6 +38,13 @@ export const ChatProvider = ({ children }) => {
     }
   }, [user]);
 
+  // Request notification permission
+  useEffect(() => {
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+  }, []);
+
   // Handle window focus to clear unread counts for active chat
   useEffect(() => {
     const handleFocus = async () => {
@@ -110,6 +117,24 @@ export const ChatProvider = ({ children }) => {
           ...prev,
           [data.conversation_id]: (prev[data.conversation_id] || 0) + 1,
         }));
+
+        // Send push notification
+        if ('Notification' in window && Notification.permission === 'granted' && data.sender_id !== user.id) {
+          const notificationTitle = `New message from ${data.sender_username}`;
+          const notificationOptions = {
+            body: data.file_path ? (data.file_type === 'image' ? 'Sent an image' : 'Sent a file') : data.content,
+            icon: '/vite.svg', // Default vite icon, can be replaced with app logo
+            tag: `conversation-${data.conversation_id}` // Group notifications by conversation
+          };
+          
+          const notification = new Notification(notificationTitle, notificationOptions);
+          
+          notification.onclick = () => {
+            window.focus();
+            // Optional: Logic to select the conversation if we could access selectConversation here
+            // Since we're inside the effect, we might not want to close over too much state/dispatch
+          };
+        }
       }
     };
 
