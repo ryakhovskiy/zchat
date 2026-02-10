@@ -2,7 +2,7 @@ export const textToEmoji = (text) => {
   if (!text) return '';
 
   const emojiMap = {
-':C': '☹️',
+    ':C': '☹️',
     ':c': '☹️',
     ':)': '🙂',
     ':-)': '🙂',
@@ -36,7 +36,7 @@ export const textToEmoji = (text) => {
     ':-|': '😐',
     '-_-': '😑',
     'u_u': '😔',
-    // ':/': '😕',
+    ':/': '😕',
     '=/': '😕',
     ':-/': '😕',
     ':-\\': '😕',
