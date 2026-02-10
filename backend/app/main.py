@@ -6,7 +6,7 @@ from fastapi.responses import JSONResponse
 from fastapi.encoders import jsonable_encoder
 from app.config import get_settings
 from app.db_init import init_database
-from app.api import auth, users, conversations, websocket, uploads
+from app.api import auth, users, conversations, websocket, uploads, browser
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -55,6 +55,7 @@ app.include_router(auth.router, prefix="/api")
 app.include_router(users.router, prefix="/api")
 app.include_router(conversations.router, prefix="/api")
 app.include_router(uploads.router, prefix="/api")
+app.include_router(browser.router, prefix="/api/browser", tags=["Browser"])
 app.include_router(websocket.router)
 
 
