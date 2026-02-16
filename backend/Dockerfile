@@ -19,7 +19,7 @@ COPY pyproject.toml uv.lock ./
 # --frozen: Sync with exact versions from uv.lock
 # --no-install-project: Don't install the project itself (zchat-backend), just dependencies
 # --no-dev: Don't install dev dependencies
-RUN uv sync --frozen --no-install-project --no-dev
+RUN uv sync --no-install-project --no-dev
 
 # Add Virtual Environment to PATH
 ENV PATH="/app/.venv/bin:$PATH"
