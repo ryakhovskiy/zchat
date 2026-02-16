@@ -25,4 +25,3 @@ func (h *PasswordHasher) Hash(plain string) (string, error) {
 func (h *PasswordHasher) Verify(plain, hashed string) error {
 	return bcrypt.CompareHashAndPassword([]byte(hashed), []byte(plain))
 }
-
