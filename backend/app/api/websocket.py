@@ -234,6 +234,27 @@ async def websocket_endpoint(
                             )
                     except Exception as e:
                         logger.error(f"Error processing typing indicator: {e}")
+
+                elif data.get("type") in ["call_offer", "call_answer", "ice_candidate", "call_end", "call_rejected"]:
+                    try:
+                        target_user_id = data.get("target_user_id")
+                        if target_user_id:
+                            # Forward signaling message to target user
+                            payload = {
+                                "type": data["type"],
+                                "sender_id": current_user.id,
+                                "sender_username": current_user.username,
+                                "target_user_id": target_user_id,
+                            }
+                            # Include optional fields if present
+                            if "sdp" in data:
+                                payload["sdp"] = data["sdp"]
+                            if "candidate" in data:
+                                payload["candidate"] = data["candidate"]
+                                
+                            await manager.send_personal_message(payload, target_user_id)
+                    except Exception as e:
+                        logger.error(f"Error processing call signaling: {e}")
         
         except WebSocketDisconnect:
             logger.info(f"WebSocket disconnected for user {user_id}")
