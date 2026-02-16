@@ -7,6 +7,8 @@ import json
 import logging
 from app.database import get_db, SessionLocal
 from app.models.user import User
+from app.models.message import Message
+from app.models.conversation import Conversation
 from app.schemas import MessageCreate, WSMessage
 from app.services.message_service import MessageService
 from app.utils.security import decode_token
@@ -169,34 +171,35 @@ async def websocket_endpoint(
                             db, message_data, current_user
                         )
                         
+                        # Broadcast to conversation participants (assuming user is participant)
+                        ws_payload = {
+                            "type": "message",
+                            "conversation_id": message_response.conversation_id,
+                            "content": message_response.content,
+                            "sender_id": message_response.sender_id,
+                            "sender_username": message_response.sender_username,
+                            "message_id": message_response.id,
+                            "timestamp": message_response.created_at.isoformat(),
+                            "file_path": message_response.file_path,
+                            "file_type": message_response.file_type,
+                            "is_deleted": getattr(message_response, "is_deleted", False),
+                            "is_read": False
+                        }
+
                         # Get conversation participants
-                        from app.models.conversation import Conversation
+                        # Explicitly use global import to avoid shadowing or UnboundLocalError if local import fails
+                        # The import is already at top of file: from app.models.conversation import Conversation
                         conversation = db.query(Conversation).filter(
-                            Conversation.id == data["conversation_id"]
+                             Conversation.id == message_response.conversation_id
                         ).first()
                         
                         if conversation:
-                            participant_ids = [p.id for p in conversation.participants]
-                            
-                            # Broadcast to conversation participants
-                            ws_message = {
-                                "type": "message",
-                                "conversation_id": message_response.conversation_id,
-                                "content": message_response.content,
-                                "sender_id": message_response.sender_id,
-                                "sender_username": message_response.sender_username,
-                                "message_id": message_response.id,
-                                "timestamp": message_response.created_at.isoformat(),
-                                "file_path": message_response.file_path,
-                                "file_type": message_response.file_type,
-                                "is_deleted": getattr(message_response, "is_deleted", False)
-                            }
-                            
-                            await manager.broadcast_to_conversation(
-                                ws_message,
-                                data["conversation_id"],
-                                participant_ids
-                            )
+                             participant_ids = [p.id for p in conversation.participants]
+                             await manager.broadcast_to_conversation(
+                                 ws_payload,
+                                 message_response.conversation_id,
+                                 participant_ids
+                             )
                     except SQLAlchemyError as e:
                         logger.error(f"Database error processing message: {e}")
                         db.rollback()
@@ -204,21 +207,47 @@ async def websocket_endpoint(
                             "type": "error",
                             "message": "Failed to send message"
                         })
-                    except Exception as e:
-                        logger.error(f"Error processing message: {e}")
-                        await websocket.send_json({
-                            "type": "error",
-                            "message": "Failed to process message"
-                        })
+                elif data.get("type") == "mark_read":
+                    conversation_id = data.get("conversation_id")
+                    if conversation_id:
+                        try:
+                            # Update messages as read
+                            db.query(Message).filter(
+                                Message.conversation_id == conversation_id,
+                                Message.sender_id != current_user.id,
+                                Message.is_read == False
+                            ).update({"is_read": True}, synchronize_session=False)
+                            db.commit()
+                            
+                            # Get participants
+                            conversation = db.query(Conversation).filter(
+                                Conversation.id == conversation_id
+                            ).first()
+                            
+                            if conversation:
+                                participant_ids = [p.id for p in conversation.participants]
+                                
+                                # Broadcast read receipt
+                                await manager.broadcast_to_conversation(
+                                    {
+                                        "type": "messages_read",
+                                        "conversation_id": conversation_id,
+                                        "user_id": current_user.id
+                                    },
+                                    conversation_id,
+                                    participant_ids
+                                )
+                        except SQLAlchemyError as e:
+                            logger.error(f"Error marking messages as read: {e}")
+                            db.rollback()
                 
                 elif data.get("type") == "typing":
                     try:
                         # Broadcast typing indicator
-                        from app.models.conversation import Conversation
+                        # Use globally imported Conversation
                         conversation = db.query(Conversation).filter(
                             Conversation.id == data["conversation_id"]
                         ).first()
-                        
                         if conversation:
                             participant_ids = [p.id for p in conversation.participants]
                             await manager.broadcast_to_conversation(

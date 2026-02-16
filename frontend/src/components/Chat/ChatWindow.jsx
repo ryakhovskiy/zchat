@@ -12,8 +12,8 @@ import './Chat.css';
 
 export const ChatWindow = () => {
   const { t } = useTranslation();
-  const { selectedConversation, messages, sendMessage, selectConversation } = useChat();
-  const { user } = useAuth();
+  const { selectedConversation, messages, sendMessage, selectConversation, setMessages } = useChat();
+  const { user, wsClient } = useAuth();
   const { startCall } = useCall();
   const [inputValue, setInputValue] = useState('');
   const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
@@ -42,6 +42,55 @@ export const ChatWindow = () => {
         textareaRef.current.style.height = `${Math.min(scrollHeight, 120)}px`;
     }
   }, [inputValue]);
+
+  // Handle read receipts
+  useEffect(() => {
+    if (!wsClient) return;
+
+    const handleMessagesRead = (data) => {
+      // If the read receipt is from the current user, we don't update our own sent messages 
+      // as read by "someone else". However, in a multi-device scenario, this might need adjustment.
+      if (data.user_id === user.id) return;
+
+      setMessages((prev) => {
+        const conversationId = data.conversation_id;
+        const currentMessages = prev[conversationId] || [];
+        
+        // Check if any message needs update to avoid unnecessary re-renders
+        const hasUnreadSentMessages = currentMessages.some(
+          msg => msg.sender_id === user.id && !msg.is_read
+        );
+
+        if (!hasUnreadSentMessages) return prev;
+
+        return {
+          ...prev,
+          [conversationId]: currentMessages.map((msg) => 
+            (msg.sender_id === user.id && !msg.is_read) ? { ...msg, is_read: true } : msg
+          )
+        };
+      });
+    };
+
+    wsClient.on('messages_read', handleMessagesRead);
+    return () => wsClient.off('messages_read', handleMessagesRead);
+  }, [wsClient, setMessages, user.id]);
+
+  // Mark as read when conversation is open or messages update
+  useEffect(() => {
+    if (selectedConversation && wsClient) {
+        const handleFocus = () => {
+             wsClient.markRead(selectedConversation.id);
+        };
+        
+        if (document.hasFocus()) {
+            handleFocus();
+        }
+        
+        window.addEventListener('focus', handleFocus);
+        return () => window.removeEventListener('focus', handleFocus);
+    }
+  }, [selectedConversation, wsClient, conversationMessages.length]);
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey && !e.altKey) {
@@ -310,7 +359,14 @@ export const ChatWindow = () => {
                 )}
                 {/* <div className="message-text">{textToEmoji(message.content)}</div> */}
                 <div className="message-text">{formatMessageContent(message.content)}</div>
-                <div className="message-time">{formatTime(message.created_at)}</div>
+                <div className="message-time">
+                  {formatTime(message.created_at)}
+                  {message.sender_id === user.id && (
+                    <span className="read-receipt" style={{ marginLeft: '4px', fontSize: '0.8em' }}>
+                      {!message.id ? '' : (message.is_read ? '✓✓' : '✓')}
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
           ))

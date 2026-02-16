@@ -137,6 +137,13 @@ export class WebSocketClient {
     }
   }
 
+  markRead(conversationId) {
+    this.send({
+      type: 'mark_read',
+      conversation_id: conversationId
+    });
+  }
+
   on(event, callback) {
     if (!this.listeners[event]) {
       this.listeners[event] = [];

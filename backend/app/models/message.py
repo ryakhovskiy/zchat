@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Boolean
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from app.database import Base
@@ -20,6 +20,7 @@ class Message(Base):
     file_type = Column(String, nullable=True)
     fully_read_at = Column(DateTime, nullable=True)
     is_deleted = Column(Integer, default=0) # SQLite uses Integer for Boolean
+    is_read = Column(Boolean, default=False)
     
     # Relationships
     conversation = relationship("Conversation", back_populates="messages")
