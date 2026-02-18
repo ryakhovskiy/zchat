@@ -255,6 +255,9 @@ server {
     listen [::]:443 ssl;
     server_name zchat.space www.zchat.space;
     
+    root /var/www/zchat.space;
+    index index.html;
+    
     # Proxy API requests to Docker backend
     location /api/ {
         proxy_pass http://localhost:8000/api/;
@@ -280,22 +283,10 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_read_timeout 86400; # 24 hours - keep WebSocket connections alive
     }
-
-    # Uploads
-    location /uploads/ {
-        proxy_pass http://localhost:8000/api/uploads/;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-    }
     
-    # Frontend (Proxy to Docker Container on port 3000)
+    # Serve frontend files
     location / {
-        proxy_pass http://localhost:3000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_cache_bypass $http_upgrade;
+        try_files $uri $uri/ =404;
     }
     
     ssl_certificate /etc/letsencrypt/live/zchat.space/fullchain.pem;
