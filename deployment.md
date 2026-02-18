@@ -360,7 +360,7 @@ DATABASE_URL=postgresql://user:password@db:5432/dbname
 WS_PORT=8000
 ```
 
-### Example docker-compose.yml
+### docker-compose.yml
 ```yaml
 version: '3.8'
 
