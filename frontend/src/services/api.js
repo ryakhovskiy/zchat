@@ -46,14 +46,14 @@ export const authAPI = {
 
 // Users API
 export const usersAPI = {
-  getAll: () => api.get('/users'),
+  getAll: () => api.get('/users/'),
   getById: (id) => api.get(`/users/${id}`),
 };
 
 // Conversations API
 export const conversationsAPI = {
-  create: (data) => api.post('/conversations', data),
-  getAll: () => api.get('/conversations'),
+  create: (data) => api.post('/conversations/', data),
+  getAll: () => api.get('/conversations/'),
   getById: (id) => api.get(`/conversations/${id}`),
   getMessages: (id, limit = 1000) => 
     api.get(`/conversations/${id}/messages?limit=${limit}`),

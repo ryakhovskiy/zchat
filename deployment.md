@@ -391,8 +391,6 @@ WS_PORT=8000
 ```
 
 ### docker-compose.yml
-Update your `docker-compose.yml` to include all services (Postgres, Backend, Frontend). The frontend now runs in a container with its own internal Nginx.
-
 ```yaml
 version: '3.8'
 
