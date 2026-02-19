@@ -19,7 +19,7 @@ class Message(Base):
     file_path = Column(Text, nullable=True)
     file_type = Column(String, nullable=True)
     fully_read_at = Column(DateTime, nullable=True)
-    is_deleted = Column(Integer, default=0) # SQLite uses Integer for Boolean
+    is_deleted = Column(Boolean, default=False)
     is_read = Column(Boolean, default=False)
     
     # Relationships

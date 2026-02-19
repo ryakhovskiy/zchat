@@ -15,6 +15,45 @@ Complete guide for deploying a web application (frontend + backend) to an Ubuntu
 
 ---
 
+### Docker Deployment Check
+
+Ensure your `docker-compose.yml` has the correct port mappings and volume definitions:
+
+```yaml
+  frontend:
+    build:
+      context: ./frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+  backend_uploads:
+```
+
+### Nginx Configuration
+
+Ensure your `frontend/nginx.conf` handles client-side routing and listens on port 3000:
+
+```nginx
+server {
+    listen 3000;
+    
+    location / {
+        root /usr/share/nginx/html;
+        index index.html index.htm;
+        try_files $uri $uri/ /index.html;
+    }
+
+    error_page 500 502 503 504 /50x.html;
+    location = /50x.html {
+        root /usr/share/nginx/html;
+    }
+}
+```
+
 ## 1. Server Setup
 
 ### Install Nginx
@@ -255,12 +294,9 @@ server {
     listen [::]:443 ssl;
     server_name zchat.space www.zchat.space;
     
-    root /var/www/zchat.space;
-    index index.html;
-    
-    # Proxy API requests to Docker backend
-    location /api/ {
-        proxy_pass http://localhost:8000/api/;
+    # Proxy everything to Frontend Container
+    location / {
+        proxy_pass http://localhost:3000;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection 'upgrade';
@@ -268,25 +304,6 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_cache_bypass $http_upgrade;
-    }
-    
-    # Proxy WebSocket connections
-    location /ws {
-        proxy_pass http://localhost:8000/ws;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_read_timeout 86400; # 24 hours - keep WebSocket connections alive
-    }
-    
-    # Serve frontend files
-    location / {
-        try_files $uri $uri/ =404;
     }
     
     ssl_certificate /etc/letsencrypt/live/zchat.space/fullchain.pem;
@@ -307,8 +324,7 @@ sudo systemctl reload nginx
 - `https://server-ip` → `https://zchat.space`
 - `http://zchat.space` → `https://zchat.space`
 - `http://www.zchat.space` → `https://www.zchat.space`
-- Proxies `/api/*` requests to backend on port 8000
-- Serves frontend from `/var/www/zchat.space`
+- Proxies all requests to the Frontend Docker container on port 3000 (which handles API routing)
 
 ---
 
@@ -327,22 +343,36 @@ sudo usermod -aG docker $USER
 # Log out and back in for group changes to take effect
 ```
 
-### Prepare Backend
+### Prepare Project Structure
+
+Clone your repository to `~/zchat`:
+```bash
+git clone <your-repo-url> ~/zchat
+cd ~/zchat
+```
 
 **Directory structure:**
 ```
-~/backend/
-├── Dockerfile
+~/zchat/
 ├── docker-compose.yml
-├── .env
-└── ... (your backend code)
+├── deployment.md
+├── backend/
+│   ├── Dockerfile
+│   ├── .env
+│   └── ... 
+├── frontend/
+│   ├── Dockerfile
+│   ├── nginx.conf
+│   └── ...
+└── postgres/
+    └── Dockerfile
 ```
 
 ### Configure Environment Variables
 
 Create `.env` file for your backend:
 ```bash
-vi ~/backend/.env
+vi backend/.env
 ```
 
 **CORS:** Update CORS origins to include your domain:
@@ -365,128 +395,146 @@ WS_PORT=8000
 version: '3.8'
 
 services:
+  postgres:
+    build: 
+      context: ./postgres
+    environment:
+      POSTGRES_DB: zchat
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   backend:
-    build: .
+    build: 
+      context: ./backend
     ports:
       - "8000:8000"
-    env_file:
-      - .env
-    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/zchat
+      SECRET_KEY: change_me_in_production
+      ALGORITHM: HS256
+      ACCESS_TOKEN_EXPIRE_MINUTES: 30
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - backend_uploads:/app/uploads
+    command: sh -c "python app/db_init.py && uvicorn app.main:app --host 0.0.0.0 --port 8000"
+
+  frontend:
+    build:
+      context: ./frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+  backend_uploads:
 ```
 
-### Deploy Backend
+### Deploy
 ```bash
-cd ~/backend
+cd ~/zchat
 docker-compose up -d --build
 ```
 
-### Verify Backend is Running
+### Verify Services
 ```bash
 docker-compose ps
-docker-compose logs -f
-
-# Test locally
-curl http://localhost:8000/api/health
-```
-
-### Useful Docker Commands
-```bash
-# View logs
-docker-compose logs -f
-
-# Restart
-docker-compose restart
-
-# Stop
-docker-compose down
-
-# Rebuild and restart
-docker-compose up -d --build
+# You should see frontend (3000->8000), backend (8000->8000), and postgres (5432->5432)
 ```
 
 ---
 
-## 8. Frontend Deployment (Vite)
+## 8. Frontend Deployment (Docker)
 
-### Prepare Frontend Locally
+The frontend is now deployed as a Docker container. 
 
-**Directory structure:**
-```
-your-frontend-project/
-├── .env.local              # Local development
-├── .env.production         # Production build
-├── package.json
-├── vite.config.js
-├── src/
-└── dist/                   # Generated after build
-```
+### Internal Nginx Configuration (`frontend/nginx.conf`)
+The frontend container uses an internal Nginx to serve the React app and proxy API requests to the backend container. Create `frontend/nginx.conf` with the following content:
 
-### Configure Environment Variables
+```nginx
+server {
+    listen 80;
+    server_name localhost;
 
-**`.env.local` (for local development):**
-```env
-VITE_API_URL=http://localhost:8000/api
-VITE_WS_URL=ws://localhost:8000/ws
-```
+    root /usr/share/nginx/html;
+    index index.html;
 
-**`.env.production` (for production build):**
-```env
-VITE_API_URL=/api
-VITE_WS_URL=/ws
-```
+    # Gzip compression
+    gzip on;
+    gzip_min_length 1000;
+    gzip_proxied expired no-cache no-store private auth;
+    gzip_types text/plain text/css application/json application/javascript application/x-javascript text/xml application/xml application/xml+rss text/javascript;
 
-**Nginx proxy:** The production URLs are relative (`/api` and `/ws`) because Nginx proxies them
-
-### Update Your Code
-
-Make sure your code uses the environment variables:
-
-**For API calls:**
-```javascript
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
-```
-
-### Vite Proxy for Local Development
-
-Add to `vite.config.js` to use `/api` in development too:
-```javascript
-export default {
-  server: {
-    proxy: {
-      '/api': {
-        target: 'http://localhost:8000',
-        changeOrigin: true,
-      }
-      'ws': { ... }
+    location / {
+        try_files $uri $uri/ /index.html;
     }
-  }
+
+    # Proxy API requests to the backend
+    location /api {
+        proxy_pass http://backend:8000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
+    }
+
+    # Proxy WebSocket requests
+    location /ws {
+        proxy_pass http://backend:8000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+    }
 }
 ```
 
-### Build for Production
+### Host Nginx Configuration
+Since the frontend container is running on port 3000, you need to update your host's Nginx configuration (`/etc/nginx/sites-available/zchat.space`) to proxy requests to it.
 
-```bash
-# Build
-npm run build
-# or
-npx vite build --mode production
+Replace the `location /` block:
+
+```nginx
+    # Proxy everything to the Frontend Docker container
+    location / {
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
 ```
 
-### Deploy to Server
+### Volume Management
+To ensure data persistence, the `docker-compose.yml` defines two named volumes:
+- `postgres_data`: Stores the PostgreSQL database files.
+- `backend_uploads`: Stores user-uploaded files.
 
-**Build locally, upload to server**
+To backup these volumes, you can inspect their location:
 ```bash
-# From your local machine
-scp -r dist/* kr@server-ip:/var/www/zchat.space/
+docker volume inspect zchat_postgres_data
+docker volume inspect zchat_backend_uploads
 ```
+(Note: The prefix `zchat_` depends on the directory name where `docker-compose.yml` is located.)
 
-### Set Proper Permissions
-```bash
-sudo chown -R www-data:www-data /var/www/zchat.space
-sudo chmod -R 755 /var/www/zchat.space
-```
-
-### Reload Nginx
+### Reload Host Nginx
 ```bash
 sudo systemctl reload nginx
 ```
@@ -568,11 +616,11 @@ sudo systemctl reload nginx
 - [ ] SSL certificate obtained with Let's Encrypt
 - [ ] Backend deployed with Docker
 - [ ] Backend CORS configured for production domain
-- [ ] Frontend built with correct environment variables
-- [ ] Frontend deployed to /var/www/
+- [ ] Frontend built and served by Nginx (in Docker)
 - [ ] All redirects working (IP → domain, HTTP → HTTPS)
-- [ ] API calls proxied through Nginx
-- [ ] WebSocket connections proxied through Nginx (if applicable)
+- [ ] All traffic proxied to Frontend container (port 3000)
+- [ ] API calls proxied through Frontend container to Backend container
+- [ ] WebSocket connections proxied correctly
 - [ ] No CORS errors in browser
 - [ ] WebSocket connects via WSS (if applicable)
 - [ ] All functionality tested in production
@@ -581,28 +629,23 @@ sudo systemctl reload nginx
 
 ## Maintenance
 
-### Update Frontend
-```bash
-# On local machine - make changes, then:
-npm run build
-scp -r dist/* kr@your-server-ip:/var/www/zchat.space/
-```
-
-### Update Backend
+### Update Application (Frontend & Backend)
 ```bash
 # On server
-cd ~/backend
-git pull  # or upload new code
+cd ~/zchat
+# Pull latest changes if using git
+git pull
+# Rebuild and restart containers
 docker-compose up -d --build
 ```
 
 ### Monitor Logs
 ```bash
-# Nginx logs
+# Nginx logs (Host)
 sudo tail -f /var/log/nginx/access.log
 sudo tail -f /var/log/nginx/error.log
 
-# Backend logs
+# Docker logs (Frontend & Backend)
 docker-compose logs -f
 ```
 

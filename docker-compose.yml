@@ -1,0 +1,53 @@
+services:
+  postgres:
+    image: postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    user: 1000:1000
+    volumes:
+      - ./postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build: 
+      context: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      # These variables can be overridden by .env file
+      DATABASE_URL: ${DATABASE_URL}
+      SECRET_KEY: ${SECRET_KEY}
+      ALGORITHM: ${ALGORITHM}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+      - backend_uploads:/app/uploads
+    command: sh -c "uv sync && python app/db_init.py && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+
+#  frontend:
+#    build:
+#      context: ./frontend
+#      args:
+#        VITE_API_URL: ${VITE_API_URL:-/api}
+#        VITE_WS_URL: ${VITE_WS_URL:-/ws}
+#    ports:
+#      - "3000:3000"
+#    volumes:
+#      - ./frontend/nginx.conf:/etc/nginx/conf.d/default.conf
+#    depends_on:
+#      - backend
+
+volumes:
+  postgres_data:
+  backend_uploads:
