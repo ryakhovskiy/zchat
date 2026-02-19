@@ -111,11 +111,11 @@ class DatabaseInitializer:
                  # Actually, we should correct this behavior. Raise.
                  raise
 
-def init_db():
+def init_database():
     """Entry point for database initialization script."""
     initializer = DatabaseInitializer()
     initializer.initialize()
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
-    init_db()
+    init_database()
