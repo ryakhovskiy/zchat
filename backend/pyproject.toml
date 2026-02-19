@@ -19,7 +19,8 @@ dependencies = [
     "httpx>=0.28.1",
     "bcrypt>=4.0.0,<5.0.0",
     "email-validator==2.2.0",
-    "psycopg2>=2.9.11",
+    "psycopg2>=2.9.11; sys_platform == 'linux'",
+    "psycopg2-binary>=2.9.11; sys_platform == 'win32'",
 ]
 
 [project.optional-dependencies]

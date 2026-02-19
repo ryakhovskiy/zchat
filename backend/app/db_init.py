@@ -1,9 +1,14 @@
 """Database initialization using raw SQL queries with PostgreSQL."""
 import logging
 import os
+import sys
 import time
 from pathlib import Path
 from typing import List
+
+# Add the parent directory to sys.path to resolve 'app' module
+sys.path.append(str(Path(__file__).resolve().parent.parent))
+
 import psycopg2
 from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 from app.config import get_settings
