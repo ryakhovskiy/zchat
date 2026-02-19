@@ -34,15 +34,15 @@ services:
       - backend_uploads:/app/uploads
     command: sh -c "python app/db_init.py && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
 
-  frontend:
-    build:
-      context: ./frontend
-    ports:
-      - "3000:3000"
-    volumes:
-      - ./frontend/nginx.conf:/etc/nginx/conf.d/default.conf
-    depends_on:
-      - backend
+#  frontend:
+#    build:
+#      context: ./frontend
+#    ports:
+#      - "3000:3000"
+#    volumes:
+#      - ./frontend/nginx.conf:/etc/nginx/conf.d/default.conf
+#    depends_on:
+#      - backend
 
 volumes:
   postgres_data:
