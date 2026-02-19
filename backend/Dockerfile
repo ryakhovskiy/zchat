@@ -1,6 +1,6 @@
 # Use the official uv image which includes Python and uv
-# We use python3.11-bookworm-slim to match the requires-python >=3.11 in pyproject.toml
-FROM ghcr.io/astral-sh/uv:python3.11-bookworm-slim
+# We use python3.11-bookworm to match the requires-python >=3.11 in pyproject.toml
+FROM ghcr.io/astral-sh/uv:python3.11-bookworm
 
 # Set working directory
 WORKDIR /app

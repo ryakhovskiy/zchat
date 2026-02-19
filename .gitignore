@@ -18,3 +18,4 @@ chrome-user-data
 .env
 .env.local
 .env.production
+postgres-data
