@@ -204,6 +204,8 @@
   flex-direction: column;
   background-color: var(--bg-primary);
   transition: background-color 0.3s ease;
+  min-width: 0; /* Prevent flex item from overflowing parent */
+  overflow: hidden; /* Ensure content stays within bounds */
 }
 
 .chat-header {
@@ -318,9 +320,12 @@
 }
 
 .message-text {
-  word-wrap: break-word;
-  white-space: pre-wrap;
+  word-wrap: break-word;       /* Legacy support */
+  overflow-wrap: anywhere;     /* Modern standard, breaks long URLs properly */
+  word-break: break-word;      /* Fallback for older browsers */
+  white-space: pre-wrap;       /* Preserve whitespace */
   line-height: 1.4;
+  min-width: 0;                /* Allow flex item to shrink below content size */
 }
 
 .message-time {
@@ -526,6 +531,8 @@
   border-radius: 8px;
   display: flex;
   align-items: center;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .attachment-file a {
@@ -534,6 +541,8 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .attachment-file a:hover {
