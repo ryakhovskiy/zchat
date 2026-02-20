@@ -87,7 +87,7 @@ export const Login = ({ onSwitchToRegister }) => {
             </div>
           </div>
 
-          <div className="form-group remember-me">
+          <div className="remember-me">
             <label className="checkbox-label">
               <input
                 type="checkbox"
