@@ -79,6 +79,11 @@ export const filesAPI = {
   },
 };
 
+// Browser API
+export const browserAPI = {
+    proxy: (url) => api.get('/browser/proxy', { params: { url } }),
+};
+
 // WebSocket connection
 export class WebSocketClient {
   constructor(token) {

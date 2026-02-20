@@ -10,6 +10,7 @@ import { ChatWindow } from './components/Chat/ChatWindow';
 import { ConversationList } from './components/Chat/ConversationList';
 import { UserList } from './components/UserList/UserList';
 import { ControlPanel } from './components/Common/ControlPanel';
+import { WebBrowser } from './components/Browser/WebBrowser';
 import { useChat } from './contexts/ChatContext';
 import './App.css';
 import './AppLayout.css';
@@ -27,7 +28,7 @@ const TopBar = () => {
 
 const ChatMain = () => {
   const { user } = useAuth();
-  const { selectedConversation, unreadCounts } = useChat();
+  const { selectedConversation, unreadCounts, isBrowserOpen } = useChat();
   const [showUserList, setShowUserList] = useState(false);
 
   useEffect(() => {
@@ -50,7 +51,11 @@ const ChatMain = () => {
           <ConversationList onNewChat={() => setShowUserList(true)} />
         </div>
 
-        <ChatWindow />
+        {isBrowserOpen ? (
+            <WebBrowser /> 
+        ) : (
+            <ChatWindow />
+        )}
 
         {showUserList && <UserList onClose={() => setShowUserList(false)} />}
       </div>
