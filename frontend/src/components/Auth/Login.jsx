@@ -10,6 +10,7 @@ export const Login = ({ onSwitchToRegister }) => {
     username: '',
     password: '',
   });
+  const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -19,7 +20,7 @@ export const Login = ({ onSwitchToRegister }) => {
     setError('');
     setLoading(true);
 
-    const result = await login(formData.username, formData.password);
+    const result = await login(formData.username, formData.password, rememberMe);
 
     if (!result.success) {
       setError(result.error);
@@ -84,6 +85,18 @@ export const Login = ({ onSwitchToRegister }) => {
                 )}
               </button>
             </div>
+          </div>
+
+          <div className="remember-me">
+            <label className="checkbox-label">
+              <input
+                type="checkbox"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+                disabled={loading}
+              />
+              {t('auth.remember_me')}
+            </label>
           </div>
 
           <button type="submit" className="btn-primary" disabled={loading}>
