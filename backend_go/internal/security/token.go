@@ -8,8 +8,8 @@ import (
 
 // TokenService wraps JWT creation and validation.
 type TokenService struct {
-	secret     []byte
-	expiresIn  time.Duration
+	secret    []byte
+	expiresIn time.Duration
 }
 
 func NewTokenService(secret string, expiresIn time.Duration) *TokenService {
@@ -19,13 +19,18 @@ func NewTokenService(secret string, expiresIn time.Duration) *TokenService {
 	}
 }
 
-// CreateForUser creates a JWT for the given username as subject.
+// CreateForUser creates a JWT for the given username using the default TTL.
 func (t *TokenService) CreateForUser(username string) (string, error) {
+	return t.CreateWithTTL(username, t.expiresIn)
+}
+
+// CreateWithTTL creates a JWT for the given username with an explicit TTL.
+func (t *TokenService) CreateWithTTL(username string, ttl time.Duration) (string, error) {
 	now := time.Now()
 	claims := jwt.MapClaims{
 		"sub": username,
 		"iat": now.Unix(),
-		"exp": now.Add(t.expiresIn).Unix(),
+		"exp": now.Add(ttl).Unix(),
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString(t.secret)
@@ -50,4 +55,3 @@ func (t *TokenService) Parse(tokenStr string) (jwt.MapClaims, error) {
 	}
 	return nil, jwt.ErrTokenMalformed
 }
-

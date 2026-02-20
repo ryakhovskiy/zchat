@@ -14,27 +14,28 @@ type Config struct {
 	Port        int
 	DatabaseURL string
 
-	JWTSecret             string
-	AccessTokenMinutes    int
-	EncryptKey            string
+	JWTSecret          string
+	AccessTokenMinutes int
+	RememberMeDays     int
+	EncryptKey         string
 
-	UploadDir                 string
-	CORSOrigins               []string
-	Debug                     bool
+	UploadDir                  string
+	CORSOrigins                []string
+	Debug                      bool
 	MaxMessagesPerConversation int
 }
 
 func Load() (*Config, error) {
 	cfg := &Config{
-		AppName: getEnv("APP_NAME", "zChat Go API"),
-		Env:     getEnv("APP_ENV", "development"),
-		Host:    getEnv("HTTP_HOST", "0.0.0.0"),
-		Port:    getEnvAsInt("HTTP_PORT", 8000),
-		// Default SQLite path relative to project root
-		DatabaseURL: getEnv("DATABASE_URL", "file:zchat_go.db?_foreign_keys=on"),
+		AppName:     getEnv("APP_NAME", "zChat Go API"),
+		Env:         getEnv("APP_ENV", "development"),
+		Host:        getEnv("HTTP_HOST", "0.0.0.0"),
+		Port:        getEnvAsInt("HTTP_PORT", 8000),
+		DatabaseURL: getEnv("DATABASE_URL", "postgres://postgres:postgres@localhost:5432/zchat?sslmode=disable"),
 
 		JWTSecret:          os.Getenv("JWT_SECRET"),
 		AccessTokenMinutes: getEnvAsInt("ACCESS_TOKEN_EXPIRE_MINUTES", 60*24),
+		RememberMeDays:     getEnvAsInt("REMEMBER_ME_TOKEN_EXPIRE_DAYS", 30),
 		EncryptKey:         os.Getenv("ENCRYPTION_KEY"),
 
 		UploadDir:                  getEnv("UPLOAD_DIR", "uploads"),
@@ -50,7 +51,7 @@ func Load() (*Config, error) {
 		}
 		cfg.CORSOrigins = parts
 	} else {
-		cfg.CORSOrigins = []string{"*"}
+		cfg.CORSOrigins = []string{"http://localhost:3000", "http://localhost:5173"}
 	}
 
 	if cfg.JWTSecret == "" {
@@ -95,4 +96,3 @@ func getEnvAsBool(key string, def bool) bool {
 	}
 	return def
 }
-

@@ -12,6 +12,7 @@ type ConversationService struct {
 	conversations domain.ConversationRepository
 	participants  domain.ParticipantRepository
 	messages      domain.MessageRepository
+	msgSvc        *MessageService // used only in toResponse to decrypt last_message
 }
 
 func NewConversationService(
@@ -26,22 +27,31 @@ func NewConversationService(
 	}
 }
 
+// SetMessageService injects MessageService after construction (avoids circular init).
+func (s *ConversationService) SetMessageService(msgSvc *MessageService) {
+	s.msgSvc = msgSvc
+}
+
 type ConversationCreateInput struct {
 	Name           *string
 	IsGroup        bool
 	ParticipantIDs []int64
 }
 
+// ConversationResponse is the rich response DTO including participants, last message and unread count.
+type ConversationResponse struct {
+	*domain.Conversation
+	Participants []domain.User    `json:"participants"`
+	LastMessage  *MessageResponse `json:"last_message"`
+	UnreadCount  int              `json:"unread_count"`
+}
+
 func (s *ConversationService) CreateConversation(
 	ctx context.Context,
 	in ConversationCreateInput,
 	creatorID int64,
-) (*domain.Conversation, error) {
-	if len(in.ParticipantIDs) == 0 {
-		return nil, errors.New("at least one participant is required")
-	}
-
-	// Include creator
+) (*ConversationResponse, error) {
+	// Deduplicate + include creator
 	uniqueIDs := make([]int64, 0, len(in.ParticipantIDs)+1)
 	seen := map[int64]struct{}{creatorID: {}}
 	uniqueIDs = append(uniqueIDs, creatorID)
@@ -53,7 +63,16 @@ func (s *ConversationService) CreateConversation(
 		uniqueIDs = append(uniqueIDs, id)
 	}
 
-	// Check for existing conversation with same participants
+	// Validation: direct → exactly 1 other; group → at least 2 others
+	otherCount := len(uniqueIDs) - 1 // exclude creator
+	if !in.IsGroup && otherCount != 1 {
+		return nil, errors.New("a direct conversation requires exactly one other participant")
+	}
+	if in.IsGroup && otherCount < 2 {
+		return nil, errors.New("a group conversation requires at least two other participants")
+	}
+
+	// Idempotency check
 	var existing *domain.Conversation
 	var err error
 	if !in.IsGroup && len(uniqueIDs) == 2 {
@@ -65,7 +84,7 @@ func (s *ConversationService) CreateConversation(
 		return nil, fmt.Errorf("find existing conversation: %w", err)
 	}
 	if existing != nil {
-		return existing, nil
+		return s.toResponse(ctx, existing, creatorID)
 	}
 
 	conv := &domain.Conversation{
@@ -75,18 +94,30 @@ func (s *ConversationService) CreateConversation(
 	if err := s.conversations.Create(ctx, conv, uniqueIDs); err != nil {
 		return nil, err
 	}
-	return conv, nil
+	return s.toResponse(ctx, conv, creatorID)
 }
 
-func (s *ConversationService) ListForUser(ctx context.Context, userID int64) ([]*domain.Conversation, error) {
-	return s.conversations.ListForUser(ctx, userID)
+func (s *ConversationService) ListForUser(ctx context.Context, userID int64) ([]*ConversationResponse, error) {
+	convs, err := s.conversations.ListForUser(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	res := make([]*ConversationResponse, 0, len(convs))
+	for _, c := range convs {
+		r, err := s.toResponse(ctx, c, userID)
+		if err != nil {
+			return nil, err
+		}
+		res = append(res, r)
+	}
+	return res, nil
 }
 
 func (s *ConversationService) GetConversation(
 	ctx context.Context,
 	conversationID int64,
 	userID int64,
-) (*domain.Conversation, error) {
+) (*ConversationResponse, error) {
 	conv, err := s.conversations.GetByID(ctx, conversationID)
 	if err != nil {
 		return nil, err
@@ -101,7 +132,7 @@ func (s *ConversationService) GetConversation(
 	if !isParticipant {
 		return nil, errors.New("not a participant in this conversation")
 	}
-	return conv, nil
+	return s.toResponse(ctx, conv, userID)
 }
 
 func (s *ConversationService) MarkAsRead(
@@ -112,3 +143,34 @@ func (s *ConversationService) MarkAsRead(
 	return s.conversations.MarkAsRead(ctx, conversationID, userID)
 }
 
+// toResponse enriches a bare Conversation with participants, last message and unread count.
+func (s *ConversationService) toResponse(ctx context.Context, conv *domain.Conversation, userID int64) (*ConversationResponse, error) {
+	users, err := s.participants.ListParticipants(ctx, conv.ID)
+	if err != nil {
+		return nil, fmt.Errorf("list participants: %w", err)
+	}
+	participants := make([]domain.User, len(users))
+	for i, u := range users {
+		participants[i] = *u
+	}
+
+	unread, err := s.conversations.GetUnreadCount(ctx, conv.ID, userID)
+	if err != nil {
+		unread = 0 // non-fatal
+	}
+
+	var lastMsg *MessageResponse
+	if s.msgSvc != nil {
+		msgs, err := s.messages.ListForConversationForUser(ctx, conv.ID, userID, 1)
+		if err == nil && len(msgs) > 0 {
+			lastMsg, _ = s.msgSvc.ToResponse(ctx, msgs[0])
+		}
+	}
+
+	return &ConversationResponse{
+		Conversation: conv,
+		Participants: participants,
+		LastMessage:  lastMsg,
+		UnreadCount:  unread,
+	}, nil
+}

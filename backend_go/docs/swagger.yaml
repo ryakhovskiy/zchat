@@ -1,5 +1,5 @@
 basePath: /api
-host: localhost:8080
+host: localhost:8000
 info:
   contact:
     email: support@swagger.io
@@ -19,3 +19,4 @@ securityDefinitions:
     name: Authorization
     type: apiKey
 swagger: "2.0"
+

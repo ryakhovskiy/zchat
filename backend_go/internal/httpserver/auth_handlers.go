@@ -14,8 +14,9 @@ type registerRequest struct {
 }
 
 type loginRequest struct {
-	Username string `json:"username"`
-	Password string `json:"password"`
+	Username   string `json:"username"`
+	Password   string `json:"password"`
+	RememberMe bool   `json:"remember_me"`
 }
 
 // tokenResponse mirrors the Python Token schema: access_token, token_type, user.
@@ -89,8 +90,9 @@ func handleLogin(authSvc *service.AuthService) http.HandlerFunc {
 		}
 
 		resp, err := authSvc.Login(r.Context(), service.LoginInput{
-			Username: req.Username,
-			Password: req.Password,
+			Username:   req.Username,
+			Password:   req.Password,
+			RememberMe: req.RememberMe,
 		})
 		if err != nil {
 			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": err.Error()})
@@ -144,5 +146,3 @@ func handleMe() http.HandlerFunc {
 		writeJSON(w, http.StatusOK, user)
 	}
 }
-
-

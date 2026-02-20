@@ -13,10 +13,11 @@ import (
 	"backend_go/internal/config"
 	"backend_go/internal/security"
 	"backend_go/internal/service"
-	"backend_go/internal/store/sqlite"
+	"backend_go/internal/store/postgres"
 	"backend_go/internal/ws"
 
 	_ "backend_go/docs"
+
 	httpSwagger "github.com/swaggo/http-swagger"
 )
 
@@ -41,18 +42,24 @@ func NewRouter(cfg *config.Config, db *sql.DB, hub *ws.Hub, tokenSvc *security.T
 	}))
 
 	// Repositories
-	userRepo := sqlite.NewUserRepo(db)
-	convRepo := sqlite.NewConversationRepo(db)
-	msgRepo := sqlite.NewMessageRepo(db)
-	partRepo := sqlite.NewParticipantRepo(db)
+	userRepo := postgres.NewUserRepo(db)
+	convRepo := postgres.NewConversationRepo(db)
+	msgRepo := postgres.NewMessageRepo(db)
+	partRepo := postgres.NewParticipantRepo(db)
+	deletedMsgRepo := postgres.NewUserDeletedMessageRepo(db)
 
 	// Services
-	authSvc := service.NewAuthService(userRepo, tokenSvc, passwordHasher)
+	defaultTTL := time.Duration(cfg.AccessTokenMinutes) * time.Minute
+	rememberMeTTL := time.Duration(cfg.RememberMeDays) * 24 * time.Hour
+
+	authSvc := service.NewAuthService(userRepo, tokenSvc, passwordHasher, defaultTTL, rememberMeTTL)
 	userSvc := service.NewUserService(userRepo)
 	convSvc := service.NewConversationService(convRepo, partRepo, msgRepo)
-	msgSvc := service.NewMessageService(convRepo, partRepo, msgRepo, userRepo, encryptor, cfg.MaxMessagesPerConversation)
+	msgSvc := service.NewMessageService(convRepo, partRepo, msgRepo, deletedMsgRepo, userRepo, encryptor, cfg.MaxMessagesPerConversation)
+	// wire circular reference
+	convSvc.SetMessageService(msgSvc)
 
-	// Simple health endpoints for now
+	// Static endpoints
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
@@ -65,9 +72,15 @@ func NewRouter(cfg *config.Config, db *sql.DB, hub *ws.Hub, tokenSvc *security.T
 		w.Write([]byte(`{"status":"healthy"}`))
 	})
 
+	r.Get("/robots.txt", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("User-agent: *\nDisallow: /"))
+	})
+
 	// Swagger documentation
 	r.Get("/docs/*", httpSwagger.Handler(
-		httpSwagger.URL("/docs/doc.json"), //The url pointing to API definition
+		httpSwagger.URL("/docs/doc.json"),
 	))
 
 	// API routes
@@ -103,8 +116,14 @@ func NewRouter(cfg *config.Config, db *sql.DB, hub *ws.Hub, tokenSvc *security.T
 				r.Post("/{conversationID}/messages", handleCreateMessage(msgSvc))
 			})
 
-			// Uploads (implementation in separate file)
-			r.Mount("/uploads", UploadRoutes(cfg))
+			// Message edit / delete
+			r.Route("/messages", func(r chi.Router) {
+				r.Put("/{messageID}", handleEditMessage(msgSvc))
+				r.Delete("/{messageID}", handleDeleteMessage(msgSvc))
+			})
+
+			// Uploads (auth enforced inside for download via token param)
+			r.Mount("/uploads", UploadRoutes(cfg, tokenSvc))
 		})
 	})
 
@@ -122,5 +141,3 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 		_ = json.NewEncoder(w).Encode(v)
 	}
 }
-
-

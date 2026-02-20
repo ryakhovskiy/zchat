@@ -31,8 +31,18 @@ type ConversationRepository interface {
 // MessageRepository defines persistence operations for messages.
 type MessageRepository interface {
 	Create(ctx context.Context, m *Message) error
+	GetByID(ctx context.Context, id int64) (*Message, error)
+	Update(ctx context.Context, m *Message) error
+	SoftDeleteForEveryone(ctx context.Context, id int64) error
 	ListForConversation(ctx context.Context, conversationID int64, limit int) ([]*Message, error)
+	ListForConversationForUser(ctx context.Context, conversationID, userID int64, limit int) ([]*Message, error)
+	MarkAllReadInConversation(ctx context.Context, conversationID, senderExcludeID int64) error
 	PruneOld(ctx context.Context, conversationID int64, keepLimit int) error
+}
+
+// UserDeletedMessageRepository tracks per-user soft deletes ("delete for me").
+type UserDeletedMessageRepository interface {
+	Create(ctx context.Context, userID, messageID int64) error
 }
 
 // ParticipantRepository defines operations around conversation participants.
@@ -40,4 +50,3 @@ type ParticipantRepository interface {
 	ListParticipants(ctx context.Context, conversationID int64) ([]*User, error)
 	IsParticipant(ctx context.Context, conversationID, userID int64) (bool, error)
 }
-

@@ -12,7 +12,7 @@ import (
 	"backend_go/internal/config"
 	"backend_go/internal/httpserver"
 	"backend_go/internal/security"
-	"backend_go/internal/store/sqlite"
+	"backend_go/internal/store/postgres"
 	"backend_go/internal/ws"
 )
 
@@ -28,7 +28,7 @@ import (
 // @license.name    Apache 2.0
 // @license.url     http://www.apache.org/licenses/LICENSE-2.0.html
 
-// @host            localhost:8080
+// @host            localhost:8000
 // @BasePath        /api
 
 // @securityDefinitions.apikey BearerAuth
@@ -43,13 +43,13 @@ func main() {
 	}
 
 	// Initialize database
-	db, err := sqlite.Open(cfg.DatabaseURL)
+	db, err := postgres.Open(cfg.DatabaseURL)
 	if err != nil {
 		log.Fatalf("failed to open database: %v", err)
 	}
 	defer db.Close()
 
-	if err := sqlite.Migrate(db); err != nil {
+	if err := postgres.Migrate(db); err != nil {
 		log.Fatalf("failed to run migrations: %v", err)
 	}
 

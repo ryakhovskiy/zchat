@@ -42,5 +42,21 @@ type Message struct {
 	FileType       *string    `db:"file_type"`
 	FullyReadAt    *time.Time `db:"fully_read_at"`
 	IsDeleted      bool       `db:"is_deleted"`
+	IsEdited       bool       `db:"is_edited"`
+	IsRead         bool       `db:"is_read"`
 }
 
+// UserDeletedMessage tracks per-user "delete for me" deletions.
+type UserDeletedMessage struct {
+	UserID    int64     `db:"user_id"`
+	MessageID int64     `db:"message_id"`
+	DeletedAt time.Time `db:"deleted_at"`
+}
+
+// ConversationResponse is the rich DTO returned by conversation endpoints.
+type ConversationResponse struct {
+	*Conversation
+	Participants []User      `json:"participants"`
+	LastMessage  interface{} `json:"last_message"` // *service.MessageResponse, typed as any to avoid import cycle
+	UnreadCount  int         `json:"unread_count"`
+}
