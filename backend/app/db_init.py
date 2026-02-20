@@ -26,7 +26,8 @@ class DatabaseInitializer:
             "users.sql",
             "conversations.sql",
             "conversation_participants.sql",
-            "messages.sql"
+            "messages.sql",
+            "migration_edit_delete.sql"
         ]
         self.index_file = "indexes.sql"
         self.max_retries = 30

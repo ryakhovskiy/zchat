@@ -335,13 +335,22 @@
 }
 
 .message-input-container {
-  padding: 1.5rem;
   background-color: var(--card-bg);
   border-top: 1px solid var(--border-color);
   display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  padding: 0;
+  transition: background-color 0.3s ease, border-color 0.3s ease;
+}
+
+.message-input-row {
+  display: flex;
   gap: 1rem;
   align-items: flex-end;
-  transition: background-color 0.3s ease, border-color 0.3s ease;
+  padding: 1rem 1.5rem;
+  width: 100%;
 }
 
 .emoji-picker-wrapper {
@@ -618,6 +627,10 @@
   }
   
   .message-input-container {
+    padding: 0;
+  }
+
+  .message-input-row {
     padding: 0.75rem;
   }
   
@@ -640,4 +653,93 @@
   .mobile-back-button {
     display: inline-block;
   }
+}
+/* ── Message context menu ─────────────────────────────── */
+
+.message-context-menu {
+  position: fixed;
+  z-index: 1000;
+  background-color: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px var(--shadow-color);
+  min-width: 160px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.context-menu-item {
+  padding: 0.6rem 1rem;
+  background: none;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  transition: background-color 0.15s;
+  white-space: nowrap;
+}
+
+.context-menu-item:hover {
+  background-color: var(--hover-bg);
+}
+
+.context-menu-item--danger {
+  color: var(--error-color);
+}
+
+.context-menu-item--danger:hover {
+  background-color: var(--error-bg);
+}
+
+/* ── Edit mode banner ──────────────────────────────────── */
+
+.edit-mode-banner {
+  width: 100%;
+  padding: 0.4rem 1rem;
+  background-color: var(--hover-bg);
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.85rem;
+  color: var(--accent-color);
+  border-radius: 0;
+}
+
+.cancel-edit-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 1rem;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0;
+}
+
+.cancel-edit-btn:hover {
+  color: var(--text-primary);
+}
+
+.message-input-row {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-end;
+  padding: 1rem 1.5rem;
+  width: 100%;
+}
+
+/* ── Edited / Deleted message styles ──────────────────── */
+
+.message-edited-label {
+  font-size: 0.7rem;
+  opacity: 0.65;
+  margin-left: 2px;
+}
+
+.message-deleted-text {
+  opacity: 0.55;
+  font-style: italic;
+  font-size: 0.9rem;
 }

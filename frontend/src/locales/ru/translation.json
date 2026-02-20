@@ -37,7 +37,13 @@
     "file_type_not_allowed": "Тип файла запрещен (исполняемый файл/установщик).",
     "failed_to_send": "Не удалось отправить сообщение",
     "attach_file": "Прикрепить файл",
-    "toggle_emoji": "Выбор эмодзи"
+    "toggle_emoji": "Выбор эмодзи",
+    "edit_message": "Редактировать",
+    "delete_for_me": "Удалить для меня",
+    "delete_for_everyone": "Удалить для всех",
+    "editing_message": "Редактирование сообщения",
+    "message_deleted": "Сообщение удалено",
+    "edited": "изменено"
   },
   "user_list": {
     "new_conversation": "Новая беседа",

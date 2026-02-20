@@ -10,6 +10,22 @@ class MessageBase(BaseModel):
     content: str = Field(..., min_length=1, max_length=5000)
 
 
+class MessageEdit(BaseModel):
+    """Schema for editing a message."""
+    content: str = Field(..., min_length=1, max_length=5000)
+
+    @validator('content')
+    def content_not_empty(cls, v):
+        if not v.strip():
+            raise ValueError('Message content cannot be empty')
+        return v.strip()
+
+
+class MessageDelete(BaseModel):
+    """Schema for deleting a message."""
+    delete_type: str = Field(..., pattern="^(for_me|for_everyone)$")
+
+
 class MessageCreate(MessageBase):
     """Schema for creating a message."""
     conversation_id: int
@@ -46,6 +62,7 @@ class MessageResponse(BaseModel):
     file_path: Optional[str] = None
     file_type: Optional[str] = None
     is_deleted: bool = False
+    is_edited: bool = False
     is_read: bool = False
     
     class Config:

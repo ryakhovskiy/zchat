@@ -14,6 +14,8 @@ from .user import (
 from .message import (
     MessageBase,
     MessageCreate,
+    MessageEdit,
+    MessageDelete,
     MessageUpdate,
     MessageResponse,
     MessageWithSender,

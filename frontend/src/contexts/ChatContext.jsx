@@ -168,10 +168,49 @@ export const ChatProvider = ({ children }) => {
     wsClient.on('user_online', handleUserOnline);
     wsClient.on('user_offline', handleUserOffline);
 
+    const handleMessageEdited = (data) => {
+      setMessages((prev) => {
+        const convMessages = prev[data.conversation_id] || [];
+        return {
+          ...prev,
+          [data.conversation_id]: convMessages.map((msg) =>
+            msg.id === data.message_id
+              ? { ...msg, content: data.content, is_edited: true }
+              : msg
+          ),
+        };
+      });
+    };
+
+    const handleMessageDeleted = (data) => {
+      setMessages((prev) => {
+        const convMessages = prev[data.conversation_id] || [];
+        if (data.delete_type === 'for_everyone') {
+          return {
+            ...prev,
+            [data.conversation_id]: convMessages.map((msg) =>
+              msg.id === data.message_id ? { ...msg, is_deleted: true, content: '' } : msg
+            ),
+          };
+        } else {
+          // for_me: remove from local list entirely
+          return {
+            ...prev,
+            [data.conversation_id]: convMessages.filter((msg) => msg.id !== data.message_id),
+          };
+        }
+      });
+    };
+
+    wsClient.on('message_edited', handleMessageEdited);
+    wsClient.on('message_deleted', handleMessageDeleted);
+
     return () => {
       wsClient.off('message', handleMessage);
       wsClient.off('user_online', handleUserOnline);
       wsClient.off('user_offline', handleUserOffline);
+      wsClient.off('message_edited', handleMessageEdited);
+      wsClient.off('message_deleted', handleMessageDeleted);
     };
   }, [wsClient]);
 
@@ -259,6 +298,16 @@ export const ChatProvider = ({ children }) => {
     wsClient.send(message);
   };
 
+  const editMessage = (messageId, content) => {
+    if (!wsClient) return;
+    wsClient.send({ type: 'edit_message', message_id: messageId, content });
+  };
+
+  const deleteMessage = (messageId, deleteType) => {
+    if (!wsClient) return;
+    wsClient.send({ type: 'delete_message', message_id: messageId, delete_type: deleteType });
+  };
+
   const selectConversation = async (conversation) => {
     // If opening a conversation, close the browser
     if (conversation) {
@@ -297,6 +346,8 @@ export const ChatProvider = ({ children }) => {
     loadConversations,
     createConversation,
     sendMessage,
+    editMessage,
+    deleteMessage,
     selectConversation,
     setMessages, 
   };
