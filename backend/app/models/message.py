@@ -20,6 +20,7 @@ class Message(Base):
     file_type = Column(String, nullable=True)
     fully_read_at = Column(DateTime, nullable=True)
     is_deleted = Column(Boolean, default=False)
+    is_edited = Column(Boolean, default=False)  # New field for edited status
     is_read = Column(Boolean, default=False)
     
     # Relationships
@@ -28,3 +29,11 @@ class Message(Base):
     
     def __repr__(self):
         return f"<Message {self.id} from User {self.sender_id}>"
+
+class UserDeletedMessage(Base):
+    """Tracks messages deleted by specific users (Delete for me)."""
+    __tablename__ = "user_deleted_messages"
+    
+    user_id = Column(Integer, ForeignKey("users.id"), primary_key=True)
+    message_id = Column(Integer, ForeignKey("messages.id"), primary_key=True)
+    deleted_at = Column(DateTime, default=datetime.utcnow)

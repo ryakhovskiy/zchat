@@ -37,7 +37,13 @@
     "file_type_not_allowed": "Dateityp nicht erlaubt (ausführbar/Installer).",
     "failed_to_send": "Nachricht konnte nicht gesendet werden",
     "attach_file": "Datei anhängen",
-    "toggle_emoji": "Emoji-Auswahl umschalten"
+    "toggle_emoji": "Emoji-Auswahl umschalten",
+    "edit_message": "Bearbeiten",
+    "delete_for_me": "Nur für mich löschen",
+    "delete_for_everyone": "Für alle löschen",
+    "editing_message": "Nachricht bearbeiten",
+    "message_deleted": "Nachricht gelöscht",
+    "edited": "bearbeitet"
   },
   "user_list": {
     "new_conversation": "Neue Konversation",

@@ -264,6 +264,69 @@ async def websocket_endpoint(
                     except Exception as e:
                         logger.error(f"Error processing typing indicator: {e}")
 
+                elif data.get("type") == "edit_message":
+                    try:
+                        message_id = data.get("message_id")
+                        content = data.get("content")
+                        if message_id and content:
+                            updated = MessageService.edit_message(db, message_id, current_user.id, content)
+                            conversation = db.query(Conversation).filter(
+                                Conversation.id == updated.conversation_id
+                            ).first()
+                            if conversation:
+                                participant_ids = [p.id for p in conversation.participants]
+                                await manager.broadcast_to_conversation(
+                                    {
+                                        "type": "message_edited",
+                                        "message_id": updated.id,
+                                        "conversation_id": updated.conversation_id,
+                                        "content": updated.content,
+                                        "is_edited": True
+                                    },
+                                    updated.conversation_id,
+                                    participant_ids
+                                )
+                    except Exception as e:
+                        logger.error(f"Error editing message: {e}")
+                        db.rollback()
+
+                elif data.get("type") == "delete_message":
+                    try:
+                        message_id = data.get("message_id")
+                        delete_type = data.get("delete_type", "for_me")  # "for_me" or "for_everyone"
+                        if message_id:
+                            result = MessageService.delete_message(db, message_id, current_user.id, delete_type)
+                            if delete_type == "for_everyone":
+                                conversation = db.query(Conversation).filter(
+                                    Conversation.id == result.conversation_id
+                                ).first()
+                                if conversation:
+                                    participant_ids = [p.id for p in conversation.participants]
+                                    await manager.broadcast_to_conversation(
+                                        {
+                                            "type": "message_deleted",
+                                            "message_id": message_id,
+                                            "conversation_id": result.conversation_id,
+                                            "delete_type": "for_everyone"
+                                        },
+                                        result.conversation_id,
+                                        participant_ids
+                                    )
+                            else:
+                                # Only notify the requesting user
+                                await manager.send_personal_message(
+                                    {
+                                        "type": "message_deleted",
+                                        "message_id": message_id,
+                                        "conversation_id": result.conversation_id,
+                                        "delete_type": "for_me"
+                                    },
+                                    current_user.id
+                                )
+                    except Exception as e:
+                        logger.error(f"Error deleting message: {e}")
+                        db.rollback()
+
                 elif data.get("type") in ["call_offer", "call_answer", "ice_candidate", "call_end", "call_rejected"]:
                     try:
                         target_user_id = data.get("target_user_id")

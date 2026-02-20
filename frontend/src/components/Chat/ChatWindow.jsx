@@ -12,18 +12,21 @@ import './Chat.css';
 
 export const ChatWindow = () => {
   const { t } = useTranslation();
-  const { selectedConversation, messages, sendMessage, selectConversation, setMessages } = useChat();
+  const { selectedConversation, messages, sendMessage, editMessage, deleteMessage, selectConversation, setMessages } = useChat();
   const { user, wsClient } = useAuth();
   const { startCall } = useCall();
   const [inputValue, setInputValue] = useState('');
   const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
   const [uploading, setUploading] = useState(false);
+  const [contextMenu, setContextMenu] = useState(null); // { messageId, x, y, isMine }
+  const [editingMessage, setEditingMessage] = useState(null); // { id, content }
 
   const messagesEndRef = useRef(null);
   const emojiPickerRef = useRef(null);
   const fileInputRef = useRef(null);
   const textareaRef = useRef(null);
+  const contextMenuRef = useRef(null);
 
   const conversationMessages = selectedConversation
     ? messages[selectedConversation.id] || []
@@ -99,6 +102,56 @@ export const ChatWindow = () => {
     }
   };
 
+  const handleMessageRightClick = (e, message) => {
+    if (message.is_deleted) return;
+    e.preventDefault();
+    setContextMenu({
+      messageId: message.id,
+      x: e.clientX,
+      y: e.clientY,
+      isMine: message.sender_id === user.id,
+      content: message.content,
+    });
+  };
+
+  const closeContextMenu = () => setContextMenu(null);
+
+  const handleEditStart = () => {
+    setEditingMessage({ id: contextMenu.messageId, content: contextMenu.content });
+    setInputValue(contextMenu.content);
+    closeContextMenu();
+  };
+
+  const handleEditSubmit = () => {
+    if (!editingMessage || !inputValue.trim()) return;
+    editMessage(editingMessage.id, inputValue.trim());
+    setEditingMessage(null);
+    setInputValue('');
+  };
+
+  const handleEditCancel = () => {
+    setEditingMessage(null);
+    setInputValue('');
+  };
+
+  const handleDeleteForMe = () => {
+    deleteMessage(contextMenu.messageId, 'for_me');
+    closeContextMenu();
+  };
+
+  const handleDeleteForEveryone = () => {
+    deleteMessage(contextMenu.messageId, 'for_everyone');
+    closeContextMenu();
+  };
+
+  // Close context menu on outside click
+  useEffect(() => {
+    if (!contextMenu) return;
+    const handleClick = () => closeContextMenu();
+    document.addEventListener('click', handleClick);
+    return () => document.removeEventListener('click', handleClick);
+  }, [contextMenu]);
+
   useEffect(() => {
     if (!isEmojiPickerOpen) return;
 
@@ -148,6 +201,12 @@ export const ChatWindow = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (editingMessage) {
+      handleEditSubmit();
+      return;
+    }
+
     if ((!inputValue.trim() && !selectedFile) || !selectedConversation) return;
 
     try {
@@ -331,6 +390,7 @@ export const ChatWindow = () => {
               className={`message ${
                 message.sender_id === user.id ? 'message-sent' : 'message-received'
               }`}
+              onContextMenu={(e) => handleMessageRightClick(e, message)}
             >
               <div className="message-content">
                 {message.sender_id !== user.id && (
@@ -357,10 +417,17 @@ export const ChatWindow = () => {
                     )}
                   </div>
                 )}
-                {/* <div className="message-text">{textToEmoji(message.content)}</div> */}
-                <div className="message-text">{formatMessageContent(message.content)}</div>
+                <div className="message-text">
+                  {message.is_deleted
+                    ? <em className="message-deleted-text">{t('chat.message_deleted', 'Message deleted')}</em>
+                    : formatMessageContent(message.content)
+                  }
+                </div>
                 <div className="message-time">
                   {formatTime(message.created_at)}
+                  {message.is_edited && !message.is_deleted && (
+                    <span className="message-edited-label"> · {t('chat.edited', 'edited')}</span>
+                  )}
                   {message.sender_id === user.id && (
                     <span className="read-receipt" style={{ marginLeft: '4px', fontSize: '0.8em' }}>
                       {!message.id ? '' : (message.is_read ? '✓✓' : '✓')}
@@ -375,6 +442,13 @@ export const ChatWindow = () => {
       </div>
 
       <form className="message-input-container" onSubmit={handleSubmit}>
+        {editingMessage && (
+          <div className="edit-mode-banner">
+            <span>{t('chat.editing_message', 'Editing message')}</span>
+            <button type="button" className="cancel-edit-btn" onClick={handleEditCancel}>✕</button>
+          </div>
+        )}
+        <div className="message-input-row">
         <div className="attachment-button-wrapper">
           <input
             type="file"
@@ -429,9 +503,33 @@ export const ChatWindow = () => {
           />
         </div>
         <button type="submit" className="send-button" disabled={(!inputValue.trim() && !selectedFile) || uploading}>
-          {uploading ? '...' : t('chat.send')}
+          {uploading ? '...' : (editingMessage ? '✓' : t('chat.send'))}
         </button>
+        </div>
       </form>
+
+      {contextMenu && (
+        <div
+          className="message-context-menu"
+          style={{ top: contextMenu.y, left: contextMenu.x }}
+          ref={contextMenuRef}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {contextMenu.isMine && (
+            <button className="context-menu-item" onClick={handleEditStart}>
+              ✏️ {t('chat.edit_message', 'Edit')}
+            </button>
+          )}
+          <button className="context-menu-item" onClick={handleDeleteForMe}>
+            🗑️ {t('chat.delete_for_me', 'Delete for me')}
+          </button>
+          {contextMenu.isMine && (
+            <button className="context-menu-item context-menu-item--danger" onClick={handleDeleteForEveryone}>
+              🗑️ {t('chat.delete_for_everyone', 'Delete for everyone')}
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 };
