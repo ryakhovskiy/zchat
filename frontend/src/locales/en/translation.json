@@ -15,6 +15,7 @@
     "app_title": "zChat",
     "toggle_show": "Show password",
     "toggle_hide": "Hide password",
+    "remember_me": "Remember me",
     "password_requirements": "10+ chars, uppercase, lowercase, number, special char",
     "password_match_error": "Passwords do not match",
     "password_length_error": "Password must be at least 10 characters",
@@ -37,7 +38,13 @@
     "file_type_not_allowed": "File type not allowed (executable/installer).",
     "failed_to_send": "Failed to send message",
     "attach_file": "Attach file",
-    "toggle_emoji": "Toggle emoji picker"
+    "toggle_emoji": "Toggle emoji picker",
+    "edit_message": "Edit",
+    "delete_for_me": "Delete for me",
+    "delete_for_everyone": "Delete for everyone",
+    "editing_message": "Editing message",
+    "message_deleted": "Message deleted",
+    "edited": "edited"
   },
   "user_list": {
     "new_conversation": "New Conversation",

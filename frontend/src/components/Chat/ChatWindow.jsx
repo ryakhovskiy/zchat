@@ -4,6 +4,7 @@ import data from '@emoji-mart/data';
 import { useTranslation } from 'react-i18next';
 import { useChat } from '../../contexts/ChatContext';
 import { useAuth } from '../../contexts/AuthContext';
+import { useCall } from '../../contexts/CallContext';
 import { textToEmoji } from '../../utils/emojiUtils';
 import { filesAPI } from '../../services/api';
 import { ControlPanel } from '../Common/ControlPanel';
@@ -11,17 +12,21 @@ import './Chat.css';
 
 export const ChatWindow = () => {
   const { t } = useTranslation();
-  const { selectedConversation, messages, sendMessage, selectConversation } = useChat();
-  const { user } = useAuth();
+  const { selectedConversation, messages, sendMessage, editMessage, deleteMessage, selectConversation, setMessages } = useChat();
+  const { user, wsClient } = useAuth();
+  const { startCall } = useCall();
   const [inputValue, setInputValue] = useState('');
   const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
   const [uploading, setUploading] = useState(false);
+  const [contextMenu, setContextMenu] = useState(null); // { messageId, x, y, isMine }
+  const [editingMessage, setEditingMessage] = useState(null); // { id, content }
 
   const messagesEndRef = useRef(null);
   const emojiPickerRef = useRef(null);
   const fileInputRef = useRef(null);
   const textareaRef = useRef(null);
+  const contextMenuRef = useRef(null);
 
   const conversationMessages = selectedConversation
     ? messages[selectedConversation.id] || []
@@ -41,12 +46,111 @@ export const ChatWindow = () => {
     }
   }, [inputValue]);
 
+  // Handle read receipts
+  useEffect(() => {
+    if (!wsClient) return;
+
+    const handleMessagesRead = (data) => {
+      // If the read receipt is from the current user, we don't update our own sent messages 
+      // as read by "someone else". However, in a multi-device scenario, this might need adjustment.
+      if (data.user_id === user.id) return;
+
+      setMessages((prev) => {
+        const conversationId = data.conversation_id;
+        const currentMessages = prev[conversationId] || [];
+        
+        // Check if any message needs update to avoid unnecessary re-renders
+        const hasUnreadSentMessages = currentMessages.some(
+          msg => msg.sender_id === user.id && !msg.is_read
+        );
+
+        if (!hasUnreadSentMessages) return prev;
+
+        return {
+          ...prev,
+          [conversationId]: currentMessages.map((msg) => 
+            (msg.sender_id === user.id && !msg.is_read) ? { ...msg, is_read: true } : msg
+          )
+        };
+      });
+    };
+
+    wsClient.on('messages_read', handleMessagesRead);
+    return () => wsClient.off('messages_read', handleMessagesRead);
+  }, [wsClient, setMessages, user.id]);
+
+  // Mark as read when conversation is open or messages update
+  useEffect(() => {
+    if (selectedConversation && wsClient) {
+        const handleFocus = () => {
+             wsClient.markRead(selectedConversation.id);
+        };
+        
+        if (document.hasFocus()) {
+            handleFocus();
+        }
+        
+        window.addEventListener('focus', handleFocus);
+        return () => window.removeEventListener('focus', handleFocus);
+    }
+  }, [selectedConversation, wsClient, conversationMessages.length]);
+
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey && !e.altKey) {
         e.preventDefault();
         handleSubmit(e);
     }
   };
+
+  const handleMessageRightClick = (e, message) => {
+    if (message.is_deleted) return;
+    e.preventDefault();
+    setContextMenu({
+      messageId: message.id,
+      x: e.clientX,
+      y: e.clientY,
+      isMine: message.sender_id === user.id,
+      content: message.content,
+    });
+  };
+
+  const closeContextMenu = () => setContextMenu(null);
+
+  const handleEditStart = () => {
+    setEditingMessage({ id: contextMenu.messageId, content: contextMenu.content });
+    setInputValue(contextMenu.content);
+    closeContextMenu();
+  };
+
+  const handleEditSubmit = () => {
+    if (!editingMessage || !inputValue.trim()) return;
+    editMessage(editingMessage.id, inputValue.trim());
+    setEditingMessage(null);
+    setInputValue('');
+  };
+
+  const handleEditCancel = () => {
+    setEditingMessage(null);
+    setInputValue('');
+  };
+
+  const handleDeleteForMe = () => {
+    deleteMessage(contextMenu.messageId, 'for_me');
+    closeContextMenu();
+  };
+
+  const handleDeleteForEveryone = () => {
+    deleteMessage(contextMenu.messageId, 'for_everyone');
+    closeContextMenu();
+  };
+
+  // Close context menu on outside click
+  useEffect(() => {
+    if (!contextMenu) return;
+    const handleClick = () => closeContextMenu();
+    document.addEventListener('click', handleClick);
+    return () => document.removeEventListener('click', handleClick);
+  }, [contextMenu]);
 
   useEffect(() => {
     if (!isEmojiPickerOpen) return;
@@ -61,12 +165,48 @@ export const ChatWindow = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isEmojiPickerOpen]);
 
+  const formatMessageContent = (content) => {
+    if (!content) return null;
+
+    // URL regex pattern to capture links
+    const urlPattern = /(https?:\/\/[^\s]+)/;
+    
+    // Split content by URLs, including the separators (URLs themselves)
+    return content.split(urlPattern).map((part, index) => {
+      // Check if part is a URL
+      if (part.match(urlPattern)) {
+        return (
+          <a
+            key={index}
+            href={part}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="message-link"
+            onClick={(e) => e.stopPropagation()}
+            style={{ color: '#4dabf7', textDecoration: 'underline' }}
+          >
+            {part}
+          </a>
+        );
+      }
+      
+      // If not a URL, apply emoji conversion
+      return <span key={index}>{textToEmoji(part)}</span>;
+    });
+  };
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (editingMessage) {
+      handleEditSubmit();
+      return;
+    }
+
     if ((!inputValue.trim() && !selectedFile) || !selectedConversation) return;
 
     try {
@@ -203,6 +343,39 @@ export const ChatWindow = () => {
             )}
           </div>
         </div>
+
+        {selectedConversation && !selectedConversation.is_group && (
+            <button 
+                className="call-button"
+                onClick={() => {
+                    const otherUser = selectedConversation.participants?.find(p => p.id !== user.id);
+                    if (otherUser) {
+                        startCall(otherUser.id, otherUser.username);
+                    }
+                }}
+                title={t('chat.start_call', 'Call')}
+                style={{
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    marginLeft: 'auto',
+                    padding: '8px',
+                    borderRadius: '50%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'var(--text-primary)',
+                    transition: 'background-color 0.2s'
+                }}
+                onMouseOver={(e) => e.currentTarget.style.backgroundColor = 'var(--hover-bg)'}
+                onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+            >
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+                </svg>
+            </button>
+        )}
+
       </div>
 
       <div className="messages-container">
@@ -217,6 +390,7 @@ export const ChatWindow = () => {
               className={`message ${
                 message.sender_id === user.id ? 'message-sent' : 'message-received'
               }`}
+              onContextMenu={(e) => handleMessageRightClick(e, message)}
             >
               <div className="message-content">
                 {message.sender_id !== user.id && (
@@ -243,8 +417,23 @@ export const ChatWindow = () => {
                     )}
                   </div>
                 )}
-                <div className="message-text">{textToEmoji(message.content)}</div>
-                <div className="message-time">{formatTime(message.created_at)}</div>
+                <div className="message-text">
+                  {message.is_deleted
+                    ? <em className="message-deleted-text">{t('chat.message_deleted', 'Message deleted')}</em>
+                    : formatMessageContent(message.content)
+                  }
+                </div>
+                <div className="message-time">
+                  {formatTime(message.created_at)}
+                  {message.is_edited && !message.is_deleted && (
+                    <span className="message-edited-label"> · {t('chat.edited', 'edited')}</span>
+                  )}
+                  {message.sender_id === user.id && (
+                    <span className="read-receipt" style={{ marginLeft: '4px', fontSize: '0.8em' }}>
+                      {!message.id ? '' : (message.is_read ? '✓✓' : '✓')}
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
           ))
@@ -253,6 +442,13 @@ export const ChatWindow = () => {
       </div>
 
       <form className="message-input-container" onSubmit={handleSubmit}>
+        {editingMessage && (
+          <div className="edit-mode-banner">
+            <span>{t('chat.editing_message', 'Editing message')}</span>
+            <button type="button" className="cancel-edit-btn" onClick={handleEditCancel}>✕</button>
+          </div>
+        )}
+        <div className="message-input-row">
         <div className="attachment-button-wrapper">
           <input
             type="file"
@@ -307,9 +503,33 @@ export const ChatWindow = () => {
           />
         </div>
         <button type="submit" className="send-button" disabled={(!inputValue.trim() && !selectedFile) || uploading}>
-          {uploading ? '...' : t('chat.send')}
+          {uploading ? '...' : (editingMessage ? '✓' : t('chat.send'))}
         </button>
+        </div>
       </form>
+
+      {contextMenu && (
+        <div
+          className="message-context-menu"
+          style={{ top: contextMenu.y, left: contextMenu.x }}
+          ref={contextMenuRef}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {contextMenu.isMine && (
+            <button className="context-menu-item" onClick={handleEditStart}>
+              ✏️ {t('chat.edit_message', 'Edit')}
+            </button>
+          )}
+          <button className="context-menu-item" onClick={handleDeleteForMe}>
+            🗑️ {t('chat.delete_for_me', 'Delete for me')}
+          </button>
+          {contextMenu.isMine && (
+            <button className="context-menu-item context-menu-item--danger" onClick={handleDeleteForEveryone}>
+              🗑️ {t('chat.delete_for_everyone', 'Delete for everyone')}
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 };

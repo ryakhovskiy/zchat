@@ -18,9 +18,9 @@ export const AuthProvider = ({ children }) => {
   const [wsClient, setWsClient] = useState(null);
 
   useEffect(() => {
-    // Check for stored token on mount
-    const storedToken = localStorage.getItem('token');
-    const storedUser = localStorage.getItem('user');
+    // Check for stored token on mount — localStorage (remember me) takes precedence
+    const storedToken = localStorage.getItem('token') || sessionStorage.getItem('token');
+    const storedUser = localStorage.getItem('user') || sessionStorage.getItem('user');
 
     if (storedToken && storedUser) {
       setToken(storedToken);
@@ -41,13 +41,14 @@ export const AuthProvider = ({ children }) => {
       });
   };
 
-  const login = async (username, password) => {
+  const login = async (username, password, rememberMe = false) => {
     try {
-      const response = await authAPI.login({ username, password });
+      const response = await authAPI.login({ username, password, remember_me: rememberMe });
       const { access_token, user: userData } = response.data;
 
-      localStorage.setItem('token', access_token);
-      localStorage.setItem('user', JSON.stringify(userData));
+      const storage = rememberMe ? localStorage : sessionStorage;
+      storage.setItem('token', access_token);
+      storage.setItem('user', JSON.stringify(userData));
 
       setToken(access_token);
       setUser(userData);
@@ -93,6 +94,8 @@ export const AuthProvider = ({ children }) => {
     } finally {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
+      sessionStorage.removeItem('token');
+      sessionStorage.removeItem('user');
       setToken(null);
       setUser(null);
 

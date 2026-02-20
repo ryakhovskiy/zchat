@@ -18,6 +18,7 @@ export const ChatProvider = ({ children }) => {
   const [users, setUsers] = useState([]);
   const [onlineUsers, setOnlineUsers] = useState([]);
   const [selectedConversation, setSelectedConversation] = useState(null);
+  const [isBrowserOpen, setIsBrowserOpen] = useState(false);
   const [messages, setMessages] = useState({});
   const [loading, setLoading] = useState(false);
   const [unreadCounts, setUnreadCounts] = useState({});
@@ -37,6 +38,13 @@ export const ChatProvider = ({ children }) => {
       loadUsers();
     }
   }, [user]);
+
+  // Request notification permission
+  useEffect(() => {
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+  }, []);
 
   // Handle window focus to clear unread counts for active chat
   useEffect(() => {
@@ -110,6 +118,24 @@ export const ChatProvider = ({ children }) => {
           ...prev,
           [data.conversation_id]: (prev[data.conversation_id] || 0) + 1,
         }));
+
+        // Send push notification
+        if ('Notification' in window && Notification.permission === 'granted' && data.sender_id !== user.id) {
+          const notificationTitle = `New message from ${data.sender_username}`;
+          const notificationOptions = {
+            body: data.file_path ? (data.file_type === 'image' ? 'Sent an image' : 'Sent a file') : data.content,
+            icon: '/vite.svg', // Default vite icon, can be replaced with app logo
+            tag: `conversation-${data.conversation_id}` // Group notifications by conversation
+          };
+          
+          const notification = new Notification(notificationTitle, notificationOptions);
+          
+          notification.onclick = () => {
+            window.focus();
+            // Optional: Logic to select the conversation if we could access selectConversation here
+            // Since we're inside the effect, we might not want to close over too much state/dispatch
+          };
+        }
       }
     };
 
@@ -142,10 +168,49 @@ export const ChatProvider = ({ children }) => {
     wsClient.on('user_online', handleUserOnline);
     wsClient.on('user_offline', handleUserOffline);
 
+    const handleMessageEdited = (data) => {
+      setMessages((prev) => {
+        const convMessages = prev[data.conversation_id] || [];
+        return {
+          ...prev,
+          [data.conversation_id]: convMessages.map((msg) =>
+            msg.id === data.message_id
+              ? { ...msg, content: data.content, is_edited: true }
+              : msg
+          ),
+        };
+      });
+    };
+
+    const handleMessageDeleted = (data) => {
+      setMessages((prev) => {
+        const convMessages = prev[data.conversation_id] || [];
+        if (data.delete_type === 'for_everyone') {
+          return {
+            ...prev,
+            [data.conversation_id]: convMessages.map((msg) =>
+              msg.id === data.message_id ? { ...msg, is_deleted: true, content: '' } : msg
+            ),
+          };
+        } else {
+          // for_me: remove from local list entirely
+          return {
+            ...prev,
+            [data.conversation_id]: convMessages.filter((msg) => msg.id !== data.message_id),
+          };
+        }
+      });
+    };
+
+    wsClient.on('message_edited', handleMessageEdited);
+    wsClient.on('message_deleted', handleMessageDeleted);
+
     return () => {
       wsClient.off('message', handleMessage);
       wsClient.off('user_online', handleUserOnline);
       wsClient.off('user_offline', handleUserOffline);
+      wsClient.off('message_edited', handleMessageEdited);
+      wsClient.off('message_deleted', handleMessageDeleted);
     };
   }, [wsClient]);
 
@@ -233,7 +298,22 @@ export const ChatProvider = ({ children }) => {
     wsClient.send(message);
   };
 
+  const editMessage = (messageId, content) => {
+    if (!wsClient) return;
+    wsClient.send({ type: 'edit_message', message_id: messageId, content });
+  };
+
+  const deleteMessage = (messageId, deleteType) => {
+    if (!wsClient) return;
+    wsClient.send({ type: 'delete_message', message_id: messageId, delete_type: deleteType });
+  };
+
   const selectConversation = async (conversation) => {
+    // If opening a conversation, close the browser
+    if (conversation) {
+      setIsBrowserOpen(false);
+    }
+    
     setSelectedConversation(conversation);
     
     if (!conversation) return;
@@ -258,13 +338,18 @@ export const ChatProvider = ({ children }) => {
     users,
     onlineUsers,
     selectedConversation,
+    isBrowserOpen,
+    setIsBrowserOpen,
     messages,
     loading,
     unreadCounts,
     loadConversations,
     createConversation,
     sendMessage,
+    editMessage,
+    deleteMessage,
     selectConversation,
+    setMessages, 
   };
 
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;

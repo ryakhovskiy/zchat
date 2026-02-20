@@ -7,6 +7,8 @@ import json
 import logging
 from app.database import get_db, SessionLocal
 from app.models.user import User
+from app.models.message import Message
+from app.models.conversation import Conversation
 from app.schemas import MessageCreate, WSMessage
 from app.services.message_service import MessageService
 from app.utils.security import decode_token
@@ -169,34 +171,35 @@ async def websocket_endpoint(
                             db, message_data, current_user
                         )
                         
+                        # Broadcast to conversation participants (assuming user is participant)
+                        ws_payload = {
+                            "type": "message",
+                            "conversation_id": message_response.conversation_id,
+                            "content": message_response.content,
+                            "sender_id": message_response.sender_id,
+                            "sender_username": message_response.sender_username,
+                            "message_id": message_response.id,
+                            "timestamp": message_response.created_at.isoformat(),
+                            "file_path": message_response.file_path,
+                            "file_type": message_response.file_type,
+                            "is_deleted": getattr(message_response, "is_deleted", False),
+                            "is_read": False
+                        }
+
                         # Get conversation participants
-                        from app.models.conversation import Conversation
+                        # Explicitly use global import to avoid shadowing or UnboundLocalError if local import fails
+                        # The import is already at top of file: from app.models.conversation import Conversation
                         conversation = db.query(Conversation).filter(
-                            Conversation.id == data["conversation_id"]
+                             Conversation.id == message_response.conversation_id
                         ).first()
                         
                         if conversation:
-                            participant_ids = [p.id for p in conversation.participants]
-                            
-                            # Broadcast to conversation participants
-                            ws_message = {
-                                "type": "message",
-                                "conversation_id": message_response.conversation_id,
-                                "content": message_response.content,
-                                "sender_id": message_response.sender_id,
-                                "sender_username": message_response.sender_username,
-                                "message_id": message_response.id,
-                                "timestamp": message_response.created_at.isoformat(),
-                                "file_path": message_response.file_path,
-                                "file_type": message_response.file_type,
-                                "is_deleted": getattr(message_response, "is_deleted", False)
-                            }
-                            
-                            await manager.broadcast_to_conversation(
-                                ws_message,
-                                data["conversation_id"],
-                                participant_ids
-                            )
+                             participant_ids = [p.id for p in conversation.participants]
+                             await manager.broadcast_to_conversation(
+                                 ws_payload,
+                                 message_response.conversation_id,
+                                 participant_ids
+                             )
                     except SQLAlchemyError as e:
                         logger.error(f"Database error processing message: {e}")
                         db.rollback()
@@ -204,21 +207,47 @@ async def websocket_endpoint(
                             "type": "error",
                             "message": "Failed to send message"
                         })
-                    except Exception as e:
-                        logger.error(f"Error processing message: {e}")
-                        await websocket.send_json({
-                            "type": "error",
-                            "message": "Failed to process message"
-                        })
+                elif data.get("type") == "mark_read":
+                    conversation_id = data.get("conversation_id")
+                    if conversation_id:
+                        try:
+                            # Update messages as read
+                            db.query(Message).filter(
+                                Message.conversation_id == conversation_id,
+                                Message.sender_id != current_user.id,
+                                Message.is_read == False
+                            ).update({"is_read": True}, synchronize_session=False)
+                            db.commit()
+                            
+                            # Get participants
+                            conversation = db.query(Conversation).filter(
+                                Conversation.id == conversation_id
+                            ).first()
+                            
+                            if conversation:
+                                participant_ids = [p.id for p in conversation.participants]
+                                
+                                # Broadcast read receipt
+                                await manager.broadcast_to_conversation(
+                                    {
+                                        "type": "messages_read",
+                                        "conversation_id": conversation_id,
+                                        "user_id": current_user.id
+                                    },
+                                    conversation_id,
+                                    participant_ids
+                                )
+                        except SQLAlchemyError as e:
+                            logger.error(f"Error marking messages as read: {e}")
+                            db.rollback()
                 
                 elif data.get("type") == "typing":
                     try:
                         # Broadcast typing indicator
-                        from app.models.conversation import Conversation
+                        # Use globally imported Conversation
                         conversation = db.query(Conversation).filter(
                             Conversation.id == data["conversation_id"]
                         ).first()
-                        
                         if conversation:
                             participant_ids = [p.id for p in conversation.participants]
                             await manager.broadcast_to_conversation(
@@ -234,6 +263,90 @@ async def websocket_endpoint(
                             )
                     except Exception as e:
                         logger.error(f"Error processing typing indicator: {e}")
+
+                elif data.get("type") == "edit_message":
+                    try:
+                        message_id = data.get("message_id")
+                        content = data.get("content")
+                        if message_id and content:
+                            updated = MessageService.edit_message(db, message_id, current_user.id, content)
+                            conversation = db.query(Conversation).filter(
+                                Conversation.id == updated.conversation_id
+                            ).first()
+                            if conversation:
+                                participant_ids = [p.id for p in conversation.participants]
+                                await manager.broadcast_to_conversation(
+                                    {
+                                        "type": "message_edited",
+                                        "message_id": updated.id,
+                                        "conversation_id": updated.conversation_id,
+                                        "content": updated.content,
+                                        "is_edited": True
+                                    },
+                                    updated.conversation_id,
+                                    participant_ids
+                                )
+                    except Exception as e:
+                        logger.error(f"Error editing message: {e}")
+                        db.rollback()
+
+                elif data.get("type") == "delete_message":
+                    try:
+                        message_id = data.get("message_id")
+                        delete_type = data.get("delete_type", "for_me")  # "for_me" or "for_everyone"
+                        if message_id:
+                            result = MessageService.delete_message(db, message_id, current_user.id, delete_type)
+                            if delete_type == "for_everyone":
+                                conversation = db.query(Conversation).filter(
+                                    Conversation.id == result.conversation_id
+                                ).first()
+                                if conversation:
+                                    participant_ids = [p.id for p in conversation.participants]
+                                    await manager.broadcast_to_conversation(
+                                        {
+                                            "type": "message_deleted",
+                                            "message_id": message_id,
+                                            "conversation_id": result.conversation_id,
+                                            "delete_type": "for_everyone"
+                                        },
+                                        result.conversation_id,
+                                        participant_ids
+                                    )
+                            else:
+                                # Only notify the requesting user
+                                await manager.send_personal_message(
+                                    {
+                                        "type": "message_deleted",
+                                        "message_id": message_id,
+                                        "conversation_id": result.conversation_id,
+                                        "delete_type": "for_me"
+                                    },
+                                    current_user.id
+                                )
+                    except Exception as e:
+                        logger.error(f"Error deleting message: {e}")
+                        db.rollback()
+
+                elif data.get("type") in ["call_offer", "call_answer", "ice_candidate", "call_end", "call_rejected"]:
+                    try:
+                        target_user_id = data.get("target_user_id")
+                        if target_user_id:
+                            # Forward signaling message to target user
+                            payload = {
+                                "type": data["type"],
+                                "sender_id": current_user.id,
+                                "sender_username": current_user.username,
+                                "target_user_id": target_user_id,
+                            }
+                            # Include optional fields if present
+                            if "sdp" in data:
+                                payload["sdp"] = data["sdp"]
+                            if "candidate" in data:
+                                payload["candidate"] = data["candidate"]
+                                
+                            await manager.send_personal_message(payload, target_user_id)
+                    except Exception as e:
+                        logger.error(f"Error processing call signaling: {e}")
         
         except WebSocketDisconnect:
             logger.info(f"WebSocket disconnected for user {user_id}")

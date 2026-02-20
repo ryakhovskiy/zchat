@@ -46,14 +46,14 @@ export const authAPI = {
 
 // Users API
 export const usersAPI = {
-  getAll: () => api.get('/users'),
+  getAll: () => api.get('/users/'),
   getById: (id) => api.get(`/users/${id}`),
 };
 
 // Conversations API
 export const conversationsAPI = {
-  create: (data) => api.post('/conversations', data),
-  getAll: () => api.get('/conversations'),
+  create: (data) => api.post('/conversations/', data),
+  getAll: () => api.get('/conversations/'),
   getById: (id) => api.get(`/conversations/${id}`),
   getMessages: (id, limit = 1000) => 
     api.get(`/conversations/${id}/messages?limit=${limit}`),
@@ -77,6 +77,11 @@ export const filesAPI = {
     const token = localStorage.getItem('token');
     return `${API_BASE_URL}/uploads/${filename}?token=${token}`;
   },
+};
+
+// Browser API
+export const browserAPI = {
+    proxy: (url) => api.get('/browser/proxy', { params: { url } }),
 };
 
 // WebSocket connection
@@ -135,6 +140,13 @@ export class WebSocketClient {
     if (this.ws?.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(data));
     }
+  }
+
+  markRead(conversationId) {
+    this.send({
+      type: 'mark_read',
+      conversation_id: conversationId
+    });
   }
 
   on(event, callback) {

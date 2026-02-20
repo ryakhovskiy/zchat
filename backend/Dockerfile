@@ -1,6 +1,6 @@
 # Use the official uv image which includes Python and uv
-# We use python3.11-bookworm-slim to match the requires-python >=3.11 in pyproject.toml
-FROM ghcr.io/astral-sh/uv:python3.11-bookworm-slim
+# We use python3.11-bookworm to match the requires-python >=3.11 in pyproject.toml
+FROM ghcr.io/astral-sh/uv:python3.11-bookworm
 
 # Set working directory
 WORKDIR /app
@@ -19,7 +19,7 @@ COPY pyproject.toml uv.lock ./
 # --frozen: Sync with exact versions from uv.lock
 # --no-install-project: Don't install the project itself (zchat-backend), just dependencies
 # --no-dev: Don't install dev dependencies
-RUN uv sync --frozen --no-install-project --no-dev
+RUN uv sync --no-install-project --no-dev
 
 # Add Virtual Environment to PATH
 ENV PATH="/app/.venv/bin:$PATH"

@@ -1,13 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ChatProvider } from './contexts/ChatContext';
+import { CallProvider } from './contexts/CallContext';
 import { ThemeProvider } from './contexts/ThemeContext';
+import { CallOverlay } from './components/Chat/CallModal';
 import { Login } from './components/Auth/Login';
 import { Register } from './components/Auth/Register';
 import { ChatWindow } from './components/Chat/ChatWindow';
 import { ConversationList } from './components/Chat/ConversationList';
 import { UserList } from './components/UserList/UserList';
 import { ControlPanel } from './components/Common/ControlPanel';
+import { WebBrowser } from './components/Browser/WebBrowser';
 import { useChat } from './contexts/ChatContext';
 import './App.css';
 import './AppLayout.css';
@@ -25,7 +28,7 @@ const TopBar = () => {
 
 const ChatMain = () => {
   const { user } = useAuth();
-  const { selectedConversation, unreadCounts } = useChat();
+  const { selectedConversation, unreadCounts, isBrowserOpen } = useChat();
   const [showUserList, setShowUserList] = useState(false);
 
   useEffect(() => {
@@ -48,7 +51,11 @@ const ChatMain = () => {
           <ConversationList onNewChat={() => setShowUserList(true)} />
         </div>
 
-        <ChatWindow />
+        {isBrowserOpen ? (
+            <WebBrowser /> 
+        ) : (
+            <ChatWindow />
+        )}
 
         {showUserList && <UserList onClose={() => setShowUserList(false)} />}
       </div>
@@ -74,7 +81,10 @@ const ChatApp = () => {
 
   return (
     <ChatProvider>
-      <ChatMain />
+      <CallProvider>
+        <CallOverlay />
+        <ChatMain />
+      </CallProvider>
     </ChatProvider>
   );
 };

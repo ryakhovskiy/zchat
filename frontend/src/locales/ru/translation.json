@@ -15,6 +15,7 @@
     "app_title": "zChat",
     "toggle_show": "Показать пароль",
     "toggle_hide": "Скрыть пароль",
+    "remember_me": "Запомнить меня",
     "password_requirements": "10+ символов, заглавная, строчная, цифра, спецсимвол",
     "password_match_error": "Пароли не совпадают",
     "password_length_error": "Пароль должен содержать минимум 10 символов",
@@ -37,7 +38,13 @@
     "file_type_not_allowed": "Тип файла запрещен (исполняемый файл/установщик).",
     "failed_to_send": "Не удалось отправить сообщение",
     "attach_file": "Прикрепить файл",
-    "toggle_emoji": "Выбор эмодзи"
+    "toggle_emoji": "Выбор эмодзи",
+    "edit_message": "Редактировать",
+    "delete_for_me": "Удалить для меня",
+    "delete_for_everyone": "Удалить для всех",
+    "editing_message": "Редактирование сообщения",
+    "message_deleted": "Сообщение удалено",
+    "edited": "изменено"
   },
   "user_list": {
     "new_conversation": "Новая беседа",

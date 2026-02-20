@@ -10,6 +10,22 @@ class MessageBase(BaseModel):
     content: str = Field(..., min_length=1, max_length=5000)
 
 
+class MessageEdit(BaseModel):
+    """Schema for editing a message."""
+    content: str = Field(..., min_length=1, max_length=5000)
+
+    @validator('content')
+    def content_not_empty(cls, v):
+        if not v.strip():
+            raise ValueError('Message content cannot be empty')
+        return v.strip()
+
+
+class MessageDelete(BaseModel):
+    """Schema for deleting a message."""
+    delete_type: str = Field(..., pattern="^(for_me|for_everyone)$")
+
+
 class MessageCreate(MessageBase):
     """Schema for creating a message."""
     conversation_id: int
@@ -46,6 +62,8 @@ class MessageResponse(BaseModel):
     file_path: Optional[str] = None
     file_type: Optional[str] = None
     is_deleted: bool = False
+    is_edited: bool = False
+    is_read: bool = False
     
     class Config:
         from_attributes = True
@@ -64,7 +82,7 @@ class MessageWithSender(BaseModel):
 
 class WSMessage(BaseModel):
     """WebSocket message schema."""
-    type: str  # "message", "typing", "online", "offline", "user_online", "user_offline"
+    type: str  # "message", "typing", "online", "offline", "user_online", "user_offline", "call_offer", "call_answer", "ice_candidate", "call_end", "call_rejected", "mark_read", "messages_read"
     conversation_id: Optional[int] = None
     content: Optional[str] = None
     sender_id: Optional[int] = None
@@ -73,3 +91,9 @@ class WSMessage(BaseModel):
     timestamp: Optional[datetime] = None
     user_id: Optional[int] = None  # For user status events
     username: Optional[str] = None  # For user status events
+    is_read: Optional[bool] = None  # Read receipt status
+    
+    # Signaling fields for calls
+    target_user_id: Optional[int] = None
+    sdp: Optional[dict] = None
+    candidate: Optional[dict] = None

@@ -1,9 +1,12 @@
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
-from datetime import datetime
+from datetime import datetime, timedelta
 from app.models.user import User
 from app.schemas import UserCreate, UserLogin, Token, UserResponse
 from app.utils.security import verify_password, get_password_hash, create_access_token
+from app.config import get_settings
+
+_settings = get_settings()
 
 
 class AuthService:
@@ -65,8 +68,15 @@ class AuthService:
         user.last_seen = datetime.utcnow()
         db.commit()
         
-        # Create access token
-        access_token = create_access_token(data={"sub": user.username})
+        # Create access token with expiry based on remember_me
+        if credentials.remember_me:
+            expires_delta = timedelta(days=_settings.REMEMBER_ME_TOKEN_EXPIRE_DAYS)
+        else:
+            expires_delta = timedelta(minutes=_settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+        access_token = create_access_token(
+            data={"sub": user.username},
+            expires_delta=expires_delta,
+        )
         
         return Token(
             access_token=access_token,
