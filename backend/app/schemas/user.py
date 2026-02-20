@@ -55,6 +55,7 @@ class UserLogin(BaseModel):
     """Schema for user login."""
     username: str
     password: str
+    remember_me: bool = False
 
 
 class UserResponse(UserBase):

@@ -15,6 +15,7 @@
     "app_title": "zChat",
     "toggle_show": "Show password",
     "toggle_hide": "Hide password",
+    "remember_me": "Remember me",
     "password_requirements": "10+ chars, uppercase, lowercase, number, special char",
     "password_match_error": "Passwords do not match",
     "password_length_error": "Password must be at least 10 characters",
