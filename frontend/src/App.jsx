@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ChatProvider } from './contexts/ChatContext';
+import { CallProvider } from './contexts/CallContext';
 import { ThemeProvider } from './contexts/ThemeContext';
+import { CallOverlay } from './components/Chat/CallModal';
 import { Login } from './components/Auth/Login';
 import { Register } from './components/Auth/Register';
 import { ChatWindow } from './components/Chat/ChatWindow';
@@ -79,7 +81,10 @@ const ChatApp = () => {
 
   return (
     <ChatProvider>
-      <ChatMain />
+      <CallProvider>
+        <CallOverlay />
+        <ChatMain />
+      </CallProvider>
     </ChatProvider>
   );
 };

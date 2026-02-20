@@ -12,7 +12,7 @@ export default defineConfig(({ mode }) => {
     },
     plugins: [react()],
     server: {
-      port: 3000,
+      port: parseInt(env.PORT) || 3000,
       proxy: {
         '/api': {
           target: 'http://localhost:8000',

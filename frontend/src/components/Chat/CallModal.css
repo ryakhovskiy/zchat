@@ -1,0 +1,79 @@
+.call-overlay {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 9999;
+}
+
+.call-card {
+    background: #333;
+    color: white;
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    width: 250px;
+    text-align: center;
+}
+
+.call-status {
+    font-size: 0.9em;
+    color: #aaa;
+    margin-bottom: 10px;
+}
+
+.peer-avatar {
+    width: 60px;
+    height: 60px;
+    background: #6200ea;
+    border-radius: 50%;
+    margin: 0 auto 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    font-weight: bold;
+}
+
+.peer-name {
+    font-size: 1.2em;
+    margin-bottom: 15px;
+}
+
+.call-timer {
+    font-family: monospace;
+    font-size: 1.5em;
+    margin-bottom: 15px;
+}
+
+.call-actions {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+}
+
+.call-btn {
+    border: none;
+    padding: 10px 20px;
+    border-radius: 20px;
+    cursor: pointer;
+    font-weight: bold;
+    color: white;
+    transition: transform 0.1s;
+}
+
+.call-btn:active {
+    transform: scale(0.95);
+}
+
+.call-btn.accept {
+    background: #00c853;
+}
+
+.call-btn.reject {
+    background: #ff1744;
+}
+
+.call-btn.end {
+    background: #ff1744;
+    width: 100%;
+}

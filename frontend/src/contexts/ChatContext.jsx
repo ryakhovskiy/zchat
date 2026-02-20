@@ -298,6 +298,7 @@ export const ChatProvider = ({ children }) => {
     createConversation,
     sendMessage,
     selectConversation,
+    setMessages, 
   };
 
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;
