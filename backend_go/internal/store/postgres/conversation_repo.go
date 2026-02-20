@@ -53,7 +53,7 @@ func (r *ConversationRepo) GetByID(ctx context.Context, id int64) (*domain.Conve
 		FROM conversations WHERE id = $1
 	`, id).Scan(&c.ID, &c.Name, &c.IsGroup, &c.CreatedAt, &c.UpdatedAt)
 	if err == sql.ErrNoRows {
-		return nil, nil
+		return nil, domain.ErrNotFound
 	}
 	if err != nil {
 		return nil, fmt.Errorf("get conversation: %w", err)

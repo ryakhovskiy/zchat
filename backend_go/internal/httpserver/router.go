@@ -122,6 +122,11 @@ func NewRouter(cfg *config.Config, db *sql.DB, hub *ws.Hub, tokenSvc *security.T
 				r.Delete("/{messageID}", handleDeleteMessage(msgSvc))
 			})
 
+			// Browser proxy
+			r.Route("/browser", func(r chi.Router) {
+				RegisterBrowserRoutes(r)
+			})
+
 			// Uploads (auth enforced inside for download via token param)
 			r.Mount("/uploads", UploadRoutes(cfg, tokenSvc))
 		})

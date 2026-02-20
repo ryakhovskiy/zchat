@@ -104,7 +104,6 @@ func validatePassword(password string) error {
 
 func (s *AuthService) Register(ctx context.Context, in RegisterInput) (*domain.User, error) {
 	// Normalise and validate
-	in.Username = strings.ToLower(strings.TrimSpace(in.Username))
 	if err := validateUsername(in.Username); err != nil {
 		return nil, err
 	}
@@ -112,17 +111,21 @@ func (s *AuthService) Register(ctx context.Context, in RegisterInput) (*domain.U
 		return nil, err
 	}
 
-	if existing, err := s.users.GetByUsername(ctx, in.Username); err != nil {
+	in.Username = strings.ToLower(strings.TrimSpace(in.Username))
+
+	// Check if username exists
+	if _, err := s.users.GetByUsername(ctx, in.Username); err == nil {
+		return nil, domain.ErrConflict // Username taken
+	} else if !errors.Is(err, domain.ErrNotFound) {
 		return nil, fmt.Errorf("check username: %w", err)
-	} else if existing != nil {
-		return nil, errors.New("username already registered")
 	}
 
+	// Check if email exists
 	if in.Email != nil && *in.Email != "" {
-		if existing, err := s.users.GetByEmail(ctx, *in.Email); err != nil {
+		if _, err := s.users.GetByEmail(ctx, *in.Email); err == nil {
+			return nil, domain.ErrConflict // Email taken
+		} else if !errors.Is(err, domain.ErrNotFound) {
 			return nil, fmt.Errorf("check email: %w", err)
-		} else if existing != nil {
-			return nil, errors.New("email already registered")
 		}
 	}
 
@@ -147,16 +150,17 @@ func (s *AuthService) Register(ctx context.Context, in RegisterInput) (*domain.U
 func (s *AuthService) Login(ctx context.Context, in LoginInput) (*TokenResponse, error) {
 	user, err := s.users.GetByUsername(ctx, strings.ToLower(in.Username))
 	if err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			return nil, domain.ErrUnauthorized
+		}
 		return nil, fmt.Errorf("get user: %w", err)
 	}
-	if user == nil {
-		return nil, errors.New("incorrect username or password")
-	}
+
 	if !user.IsActive {
-		return nil, errors.New("user account is inactive")
+		return nil, domain.ErrForbidden
 	}
 	if err := s.hash.Verify(in.Password, user.HashedPassword); err != nil {
-		return nil, errors.New("incorrect username or password")
+		return nil, domain.ErrUnauthorized
 	}
 	if err := s.users.SetOnlineStatus(ctx, user.ID, true); err != nil {
 		return nil, fmt.Errorf("set online: %w", err)
@@ -173,7 +177,7 @@ func (s *AuthService) Login(ctx context.Context, in LoginInput) (*TokenResponse,
 
 	return &TokenResponse{
 		AccessToken: token,
-		TokenType:   "bearer",
+		TokenType:   "Bearer",
 		User:        user,
 	}, nil
 }

@@ -80,7 +80,8 @@ func (s *ConversationService) CreateConversation(
 	} else if in.IsGroup {
 		existing, err = s.conversations.FindExistingGroup(ctx, uniqueIDs)
 	}
-	if err != nil {
+
+	if err != nil && !errors.Is(err, domain.ErrNotFound) {
 		return nil, fmt.Errorf("find existing conversation: %w", err)
 	}
 	if existing != nil {
@@ -122,9 +123,7 @@ func (s *ConversationService) GetConversation(
 	if err != nil {
 		return nil, err
 	}
-	if conv == nil {
-		return nil, errors.New("conversation not found")
-	}
+
 	isParticipant, err := s.participants.IsParticipant(ctx, conversationID, userID)
 	if err != nil {
 		return nil, err

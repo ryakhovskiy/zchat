@@ -40,7 +40,7 @@ func (r *MessageRepo) GetByID(ctx context.Context, id int64) (*domain.Message, e
 		&m.FilePath, &m.FileType, &m.FullyReadAt, &m.IsDeleted, &m.IsEdited, &m.IsRead,
 	)
 	if err == sql.ErrNoRows {
-		return nil, nil
+		return nil, domain.ErrNotFound
 	}
 	if err != nil {
 		return nil, fmt.Errorf("get message: %w", err)

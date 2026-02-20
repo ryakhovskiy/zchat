@@ -1,10 +1,14 @@
-FROM golang:1.26
+FROM golang:1.24
 
 WORKDIR /app
 
 # Pre-cache dependencies
-COPY go.mod ./
+COPY go.mod go.sum ./
 RUN go mod download
+
+# Install Playwright and browser dependencies
+RUN CGO_ENABLED=0 go install github.com/playwright-community/playwright-go/cmd/playwright@latest
+RUN /go/bin/playwright install --with-deps
 
 # Copy source
 COPY . .

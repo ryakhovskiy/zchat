@@ -104,7 +104,7 @@ func (r *UserRepo) scanUser(ctx context.Context, query string, args ...any) (*do
 		&u.IsActive, &u.IsOnline, &u.CreatedAt, &u.LastSeen,
 	)
 	if err == sql.ErrNoRows {
-		return nil, nil
+		return nil, domain.ErrNotFound
 	}
 	if err != nil {
 		return nil, fmt.Errorf("scan user: %w", err)
