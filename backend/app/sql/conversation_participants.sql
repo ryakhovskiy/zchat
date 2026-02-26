@@ -1,9 +1,0 @@
-CREATE TABLE IF NOT EXISTS conversation_participants (
-    user_id INTEGER NOT NULL,
-    conversation_id INTEGER NOT NULL,
-    last_read_at TIMESTAMPTZ DEFAULT NULL,
-    joined_at TIMESTAMPTZ DEFAULT NULL,
-    PRIMARY KEY (user_id, conversation_id),
-    FOREIGN KEY (user_id) REFERENCES users(id),
-    FOREIGN KEY (conversation_id) REFERENCES conversations(id)
-);
