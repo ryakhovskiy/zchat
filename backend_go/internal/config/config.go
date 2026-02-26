@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -26,12 +27,27 @@ type Config struct {
 }
 
 func Load() (*Config, error) {
+	dbHost := getEnv("POSTGRES_HOST", "localhost")
+	dbPort := getEnv("POSTGRES_PORT", "5432")
+	dbUser := getEnv("POSTGRES_USER", "postgres")
+	dbPass := getEnv("POSTGRES_PASSWORD", "postgres")
+	dbName := getEnv("POSTGRES_DB", "zchat")
+
+	u := url.URL{
+		Scheme:   "postgres",
+		User:     url.UserPassword(dbUser, dbPass),
+		Host:     fmt.Sprintf("%s:%s", dbHost, dbPort),
+		Path:     dbName,
+		RawQuery: "sslmode=disable",
+	}
+	dbURL := u.String()
+
 	cfg := &Config{
 		AppName:     getEnv("APP_NAME", "zChat Go API"),
 		Env:         getEnv("APP_ENV", "development"),
 		Host:        getEnv("HTTP_HOST", "0.0.0.0"),
 		Port:        getEnvAsInt("HTTP_PORT", 8000),
-		DatabaseURL: getEnv("DATABASE_URL", "postgres://postgres:postgres@localhost:5432/zchat?sslmode=disable"),
+		DatabaseURL: dbURL,
 
 		JWTSecret:          os.Getenv("JWT_SECRET"),
 		AccessTokenMinutes: getEnvAsInt("ACCESS_TOKEN_EXPIRE_MINUTES", 60*24),
