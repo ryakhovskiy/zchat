@@ -218,7 +218,7 @@ export const ChatWindow = () => {
         setUploading(false);
       }
 
-      sendMessage(selectedConversation.id, inputValue, fileData);
+      await sendMessage(selectedConversation.id, inputValue, fileData);
       setInputValue('');
       setSelectedFile(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -350,25 +350,10 @@ export const ChatWindow = () => {
                 onClick={() => {
                     const otherUser = selectedConversation.participants?.find(p => p.id !== user.id);
                     if (otherUser) {
-                        startCall(otherUser.id, otherUser.username);
+                      startCall(otherUser.id, otherUser.username, selectedConversation.id);
                     }
                 }}
                 title={t('chat.start_call', 'Call')}
-                style={{
-                    background: 'none',
-                    border: 'none',
-                    cursor: 'pointer',
-                    marginLeft: 'auto',
-                    padding: '8px',
-                    borderRadius: '50%',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: 'var(--text-primary)',
-                    transition: 'background-color 0.2s'
-                }}
-                onMouseOver={(e) => e.currentTarget.style.backgroundColor = 'var(--hover-bg)'}
-                onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
             >
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
@@ -463,7 +448,7 @@ export const ChatWindow = () => {
             aria-label={t('chat.attach_file')}
             title={t('chat.attach_file')}
           >
-            <svg viewBox="0 0 24 24" fill="none" class="paperclip-icon" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg viewBox="0 0 24 24" fill="none" className="paperclip-icon" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path>
             </svg>
           </button>

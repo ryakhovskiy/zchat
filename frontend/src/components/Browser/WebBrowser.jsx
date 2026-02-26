@@ -33,10 +33,17 @@ export const WebBrowser = () => {
 
     try {
         const response = await browserAPI.proxy(targetUrl);
-        setHtmlContent(response.data.html);
+        if (typeof response.data === 'string') {
+          setHtmlContent(response.data);
+        } else if (response.data?.html) {
+          setHtmlContent(response.data.html);
+        } else {
+          setHtmlContent('');
+          setError('Unexpected response format from browser proxy');
+        }
     } catch (err) {
         console.error("Browser failed:", err);
-        setError("Failed to load page. " + (err.response?.data?.detail || err.message));
+        setError("Failed to load page. " + (err.response?.data?.error || err.response?.data?.detail || err.message));
     } finally {
         setLoading(false);
     }

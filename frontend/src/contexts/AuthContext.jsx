@@ -1,5 +1,5 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { authAPI, WebSocketClient } from '../services/api';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import { authAPI, WebSocketClient, clearAuthStorage, getStoredToken, UNAUTHORIZED_EVENT } from '../services/api';
 
 const AuthContext = createContext(null);
 
@@ -16,24 +16,92 @@ export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(null);
   const [loading, setLoading] = useState(true);
   const [wsClient, setWsClient] = useState(null);
+  const wsClientRef = useRef(null);
+
+  const resetAuthState = () => {
+    clearAuthStorage();
+    setToken(null);
+    setUser(null);
+    setWsClient(null);
+
+    if (wsClientRef.current) {
+      wsClientRef.current.disconnect();
+      wsClientRef.current = null;
+    }
+  };
 
   useEffect(() => {
-    // Check for stored token on mount — localStorage (remember me) takes precedence
-    const storedToken = localStorage.getItem('token') || sessionStorage.getItem('token');
-    const storedUser = localStorage.getItem('user') || sessionStorage.getItem('user');
+    const handleUnauthorized = () => {
+      resetAuthState();
+    };
 
-    if (storedToken && storedUser) {
-      setToken(storedToken);
-      setUser(JSON.parse(storedUser));
-      initializeWebSocket(storedToken);
-    }
-    setLoading(false);
+    window.addEventListener(UNAUTHORIZED_EVENT, handleUnauthorized);
+    return () => window.removeEventListener(UNAUTHORIZED_EVENT, handleUnauthorized);
   }, []);
 
-  const initializeWebSocket = (authToken) => {
+  useEffect(() => {
+    let isMounted = true;
+
+    const bootstrapAuth = async () => {
+      const storedToken = getStoredToken();
+      if (!storedToken) {
+        if (isMounted) {
+          setLoading(false);
+        }
+        return;
+      }
+
+      try {
+        const response = await authAPI.getCurrentUser();
+        const userData = response.data;
+
+        if (!isMounted) {
+          return;
+        }
+
+        setToken(storedToken);
+        setUser(userData);
+        initializeWebSocket(storedToken, isMounted);
+      } catch (error) {
+        if (isMounted) {
+          resetAuthState();
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    bootstrapAuth();
+
+    return () => {
+      isMounted = false;
+      if (wsClientRef.current) {
+        wsClientRef.current.disconnect();
+        wsClientRef.current = null;
+      }
+    };
+  }, []);
+
+  const initializeWebSocket = (authToken, isMounted = true) => {
+    if (!authToken) {
+      return;
+    }
+
+    if (wsClientRef.current) {
+      wsClientRef.current.disconnect();
+    }
+
     const client = new WebSocketClient(authToken);
+    wsClientRef.current = client;
+
     client.connect()
       .then(() => {
+        if (!isMounted || wsClientRef.current !== client) {
+          client.disconnect();
+          return;
+        }
         setWsClient(client);
       })
       .catch((error) => {
@@ -53,6 +121,14 @@ export const AuthProvider = ({ children }) => {
       setToken(access_token);
       setUser(userData);
 
+      if (rememberMe) {
+        sessionStorage.removeItem('token');
+        sessionStorage.removeItem('user');
+      } else {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+      }
+
       initializeWebSocket(access_token);
 
       return { success: true };
@@ -71,6 +147,8 @@ export const AuthProvider = ({ children }) => {
 
       localStorage.setItem('token', access_token);
       localStorage.setItem('user', JSON.stringify(userData));
+      sessionStorage.removeItem('token');
+      sessionStorage.removeItem('user');
 
       setToken(access_token);
       setUser(userData);
@@ -92,17 +170,10 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      sessionStorage.removeItem('token');
-      sessionStorage.removeItem('user');
-      setToken(null);
-      setUser(null);
-
       if (wsClient) {
         wsClient.disconnect();
-        setWsClient(null);
       }
+      resetAuthState();
     }
   };
 

@@ -46,12 +46,13 @@ export const CallProvider = ({ children }) => {
                  // Already in a call, auto-reject
                  wsClient.send({
                     type: 'call_rejected', 
-                    target_user_id: data.sender_id
+                    target_user_id: data.sender_id,
+                    conversation_id: data.conversation_id
                 });
                 return;
             }
             
-            setCallPeer({ id: data.sender_id, username: data.sender_username });
+            setCallPeer({ id: data.sender_id, username: data.sender_username, conversationId: data.conversation_id });
             setIncomingSDP(data.sdp);
             setCallState('incoming');
         };
@@ -104,7 +105,7 @@ export const CallProvider = ({ children }) => {
         };
     }, [wsClient, callState]); // Re-bind if callState changes to ensure current state is checked
 
-    const createPeerConnection = (targetUserId) => {
+    const createPeerConnection = (targetUserId, conversationId) => {
         const pc = new RTCPeerConnection(STUN_SERVERS);
 
         pc.onicecandidate = (event) => {
@@ -112,6 +113,7 @@ export const CallProvider = ({ children }) => {
                 wsClient.send({
                     type: 'ice_candidate',
                     target_user_id: targetUserId,
+                    conversation_id: conversationId,
                     candidate: event.candidate
                 });
             }
@@ -131,20 +133,24 @@ export const CallProvider = ({ children }) => {
         return pc;
     };
 
-    const startCall = async (targetUserId, targetUsername) => {
+    const startCall = async (targetUserId, targetUsername, conversationId) => {
         if (!wsClient) {
              alert("Connection error");
              return;
         }
+        if (!conversationId) {
+            alert("Conversation context is required to start a call");
+            return;
+        }
         try {
-            setCallPeer({ id: targetUserId, username: targetUsername });
+            setCallPeer({ id: targetUserId, username: targetUsername, conversationId });
             setCallState('calling');
 
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
             setLocalStream(stream);
             localStreamRef.current = stream;
 
-            const pc = createPeerConnection(targetUserId);
+            const pc = createPeerConnection(targetUserId, conversationId);
             peerConnection.current = pc;
 
             stream.getTracks().forEach(track => pc.addTrack(track, stream));
@@ -155,6 +161,7 @@ export const CallProvider = ({ children }) => {
             wsClient.send({
                 type: 'call_offer',
                 target_user_id: targetUserId,
+                conversation_id: conversationId,
                 sdp: offer
             });
         } catch (err) {
@@ -172,7 +179,7 @@ export const CallProvider = ({ children }) => {
             setLocalStream(stream);
             localStreamRef.current = stream;
 
-            const pc = createPeerConnection(callPeer.id);
+            const pc = createPeerConnection(callPeer.id, callPeer.conversationId);
             peerConnection.current = pc;
 
             stream.getTracks().forEach(track => pc.addTrack(track, stream));
@@ -186,6 +193,7 @@ export const CallProvider = ({ children }) => {
             wsClient.send({
                 type: 'call_answer',
                 target_user_id: callPeer.id,
+                conversation_id: callPeer.conversationId,
                 sdp: answer
             });
         } catch (err) {
@@ -198,7 +206,8 @@ export const CallProvider = ({ children }) => {
         if (callPeer && wsClient) {
             wsClient.send({
                 type: 'call_rejected',
-                target_user_id: callPeer.id
+                target_user_id: callPeer.id,
+                conversation_id: callPeer.conversationId
             });
         }
         cleanupCall();
@@ -208,7 +217,8 @@ export const CallProvider = ({ children }) => {
         if (callPeer && wsClient && callState !== 'idle') {
              wsClient.send({
                 type: 'call_end',
-                target_user_id: callPeer.id
+                target_user_id: callPeer.id,
+                conversation_id: callPeer.conversationId
             });
         }
         cleanupCall();
