@@ -2,6 +2,7 @@ package httpserver
 
 import (
 	"context"
+	"log"
 	"net/http"
 	"strings"
 
@@ -52,7 +53,18 @@ func AuthMiddleware(tokens *security.TokenService, users domain.UserRepository) 
 			}
 
 			user, err := users.GetByUsername(r.Context(), sub)
-			if err != nil || user == nil || !user.IsActive {
+			if err != nil {
+				log.Printf("AuthMiddleware: GetByUsername error for sub '%s': %v", sub, err)
+				http.Error(w, "user not found", http.StatusUnauthorized)
+				return
+			}
+			if user == nil {
+				log.Printf("AuthMiddleware: user nil for sub '%s'", sub)
+				http.Error(w, "user not found", http.StatusUnauthorized)
+				return
+			}
+			if !user.IsActive {
+				log.Printf("AuthMiddleware: user inactive for sub '%s'", sub)
 				http.Error(w, "user not found", http.StatusUnauthorized)
 				return
 			}
@@ -62,4 +74,3 @@ func AuthMiddleware(tokens *security.TokenService, users domain.UserRepository) 
 		})
 	}
 }
-

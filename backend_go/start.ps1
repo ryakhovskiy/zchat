@@ -45,6 +45,8 @@ if (-not $Env:HTTP_PORT) {
     $Env:HTTP_PORT = "8000"
 }
 
-Write-Host "Starting Go backend on $($Env:HTTP_HOST -or '0.0.0.0'):$($Env:HTTP_PORT -or '8000') ..."
+$hostAddress = if ($Env:HTTP_HOST) { $Env:HTTP_HOST } else { "0.0.0.0" }
+$portNumber = if ($Env:HTTP_PORT) { $Env:HTTP_PORT } else { "8000" }
+Write-Host "Starting Go backend on ${hostAddress}:${portNumber} ..."
 go run ./cmd/server
 

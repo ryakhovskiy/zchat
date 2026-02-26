@@ -62,4 +62,3 @@ func (e *Encryptor) Decrypt(enc string) (string, error) {
 	}
 	return string(plain), nil
 }
-

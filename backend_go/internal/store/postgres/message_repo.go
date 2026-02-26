@@ -104,7 +104,28 @@ func (r *MessageRepo) MarkAllReadInConversation(ctx context.Context, conversatio
 }
 
 func (r *MessageRepo) PruneOld(ctx context.Context, conversationID int64, keepLimit int) error {
-	_, err := r.db.ExecContext(ctx, `
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin prune tx: %w", err)
+	}
+	defer tx.Rollback()
+
+	if _, err := tx.ExecContext(ctx, `
+		DELETE FROM user_deleted_messages udm
+		USING messages m
+		WHERE udm.message_id = m.id
+		  AND m.conversation_id = $1
+		  AND m.id NOT IN (
+			  SELECT id FROM messages
+			  WHERE conversation_id = $1
+			  ORDER BY created_at DESC
+			  LIMIT $2
+		  )
+	`, conversationID, keepLimit); err != nil {
+		return fmt.Errorf("delete dependent user_deleted_messages: %w", err)
+	}
+
+	if _, err := tx.ExecContext(ctx, `
 		DELETE FROM messages
 		WHERE conversation_id = $1
 		  AND id NOT IN (
@@ -113,8 +134,15 @@ func (r *MessageRepo) PruneOld(ctx context.Context, conversationID int64, keepLi
 			  ORDER BY created_at DESC
 			  LIMIT $2
 		  )
-	`, conversationID, keepLimit)
-	return err
+	`, conversationID, keepLimit); err != nil {
+		return fmt.Errorf("delete old messages: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit prune tx: %w", err)
+	}
+
+	return nil
 }
 
 // ── helpers ──────────────────────────────────────────────────────────────────

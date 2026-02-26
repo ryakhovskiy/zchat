@@ -216,6 +216,14 @@ func (s *MessageService) ListMessages(
 }
 
 func (s *MessageService) MarkAllReadInConversation(ctx context.Context, conversationID, callerID int64) error {
+	isParticipant, err := s.participants.IsParticipant(ctx, conversationID, callerID)
+	if err != nil {
+		return fmt.Errorf("check participant: %w", err)
+	}
+	if !isParticipant {
+		return ErrForbidden
+	}
+
 	return s.messages.MarkAllReadInConversation(ctx, conversationID, callerID)
 }
 

@@ -11,8 +11,8 @@ import (
 )
 
 type conversationCreateRequest struct {
-	Name          *string  `json:"name"`
-	IsGroup       bool     `json:"is_group"`
+	Name           *string `json:"name"`
+	IsGroup        bool    `json:"is_group"`
 	ParticipantIDs []int64 `json:"participant_ids"`
 }
 
@@ -87,6 +87,7 @@ func handleMarkConversationRead(convSvc *service.ConversationService) http.Handl
 			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
 			return
 		}
+		// conversationID is sometimes "undefined" due to frontend bug, so we need to handle that case
 		idStr := chi.URLParam(r, "conversationID")
 		id, err := strconv.ParseInt(idStr, 10, 64)
 		if err != nil {
@@ -100,4 +101,3 @@ func handleMarkConversationRead(convSvc *service.ConversationService) http.Handl
 		writeJSON(w, http.StatusOK, map[string]string{"status": "success"})
 	}
 }
-

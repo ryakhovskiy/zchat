@@ -90,6 +90,30 @@ func Migrate(db *sql.DB) error {
 		// Add new columns to existing tables if they were created by an older schema
 		`ALTER TABLE messages ADD COLUMN IF NOT EXISTS is_edited BOOLEAN NOT NULL DEFAULT FALSE`,
 		`ALTER TABLE messages ADD COLUMN IF NOT EXISTS is_read   BOOLEAN NOT NULL DEFAULT FALSE`,
+
+		// Ensure message FK in user_deleted_messages cascades on delete
+		`DO $$
+		BEGIN
+			IF EXISTS (
+				SELECT 1
+				FROM information_schema.table_constraints
+				WHERE table_schema = 'public'
+				  AND table_name = 'user_deleted_messages'
+				  AND constraint_type = 'FOREIGN KEY'
+				  AND constraint_name = 'user_deleted_messages_message_id_fkey'
+			) THEN
+				ALTER TABLE user_deleted_messages
+				DROP CONSTRAINT user_deleted_messages_message_id_fkey;
+			END IF;
+
+			ALTER TABLE user_deleted_messages
+			ADD CONSTRAINT user_deleted_messages_message_id_fkey
+			FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE CASCADE;
+		EXCEPTION
+			WHEN duplicate_object THEN
+				NULL;
+		END
+		$$`,
 	}
 
 	for _, stmt := range stmts {

@@ -1,7 +1,9 @@
 package httpserver
 
 import (
+	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -9,6 +11,48 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/playwright-community/playwright-go"
 )
+
+const maxProxiedHTMLBytes = 2 * 1024 * 1024
+
+func isBlockedIP(ip net.IP) bool {
+	if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsMulticast() || ip.IsUnspecified() {
+		return true
+	}
+	if ip4 := ip.To4(); ip4 != nil {
+		if ip4[0] == 169 && ip4[1] == 254 {
+			return true
+		}
+	}
+	return false
+}
+
+func validateProxyURL(targetURL string) error {
+	parsedURL, err := url.Parse(targetURL)
+	if err != nil {
+		return fmt.Errorf("invalid url")
+	}
+	if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
+		return fmt.Errorf("invalid url scheme")
+	}
+	hostname := strings.ToLower(parsedURL.Hostname())
+	if hostname == "" || hostname == "localhost" || strings.HasSuffix(hostname, ".localhost") || strings.HasSuffix(hostname, ".local") {
+		return fmt.Errorf("target host is not allowed")
+	}
+
+	ips, err := net.LookupIP(hostname)
+	if err != nil {
+		return fmt.Errorf("failed to resolve host")
+	}
+	if len(ips) == 0 {
+		return fmt.Errorf("host has no addresses")
+	}
+	for _, ip := range ips {
+		if isBlockedIP(ip) {
+			return fmt.Errorf("target host is not allowed")
+		}
+	}
+	return nil
+}
 
 func RegisterBrowserRoutes(r chi.Router) {
 	r.Get("/proxy", handleBrowserProxy)
@@ -21,10 +65,8 @@ func handleBrowserProxy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Basic URL validation
-	parsedURL, err := url.Parse(targetURL)
-	if err != nil || (parsedURL.Scheme != "http" && parsedURL.Scheme != "https") {
-		http.Error(w, "invalid url", http.StatusBadRequest)
+	if err := validateProxyURL(targetURL); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -77,6 +119,10 @@ func handleBrowserProxy(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Printf("could not get content: %v", err)
 		http.Error(w, "failed to read content", http.StatusInternalServerError)
+		return
+	}
+	if len(content) > maxProxiedHTMLBytes {
+		http.Error(w, "response too large", http.StatusBadGateway)
 		return
 	}
 

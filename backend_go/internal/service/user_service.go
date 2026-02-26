@@ -38,10 +38,10 @@ func (s *UserService) SetOnlineStatus(ctx context.Context, id int64, isOnline bo
 
 // UserStats is a simplified version of the Python service stats.
 type UserStats struct {
-	UserID           int64  `json:"user_id"`
-	Username         string `json:"username"`
-	ConversationCount int   `json:"conversation_count"`
-	MessageCount     int    `json:"message_count"`
+	UserID            int64  `json:"user_id"`
+	Username          string `json:"username"`
+	ConversationCount int    `json:"conversation_count"`
+	MessageCount      int    `json:"message_count"`
 }
 
 // GetStats would require additional queries; left as a placeholder.
@@ -55,4 +55,3 @@ func (s *UserService) GetStats(ctx context.Context, user *domain.User) (*UserSta
 		Username: user.Username,
 	}, nil
 }
-

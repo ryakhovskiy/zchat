@@ -7,15 +7,15 @@ This is a Go rewrite of the existing Python/FastAPI backend. It provides the sam
 ### Requirements
 
 - Go **1.21+**
-- SQLite (used via `github.com/mattn/go-sqlite3`)
+- PostgreSQL (driver: `github.com/jackc/pgx/v5/stdlib`)
 - Environment variables:
   - **JWT_SECRET**: secret key for signing JWT tokens.
   - **ENCRYPTION_KEY**: secret used for encrypting message content (any string; internally hashed to a 32‑byte key).
   - Optional:
     - **HTTP_HOST** (default `0.0.0.0`)
     - **HTTP_PORT** (default `8000`)
-    - **DATABASE_URL** (default `file:zchat_go.db?_foreign_keys=on`)
-    - **CORS_ORIGINS** (comma‑separated list; default `*`)
+    - **DATABASE_URL** (default `postgres://postgres:postgres@localhost:5432/zchat?sslmode=disable`)
+    - **CORS_ORIGINS** (comma‑separated list; default `http://localhost:3000,http://localhost:5173`)
     - **MAX_MESSAGES_PER_CONVERSATION** (default `1000`)
 
 You can reuse values from the existing `.env` used by the Python backend (e.g. `ENCRYPTION_KEY`).
@@ -87,6 +87,6 @@ The container listens on `0.0.0.0:8000` by default, which matches the Nginx conf
 
 ### Notes
 
-- The Go backend uses its own SQLite database by default (`zchat_go.db`), so it will not overwrite the existing Python backend database unless you explicitly point `DATABASE_URL` at the same file.
-- For production, **always** override the default development secrets and configure CORS appropriately for your domain.+
+- The Go backend now targets PostgreSQL by default. Configure `DATABASE_URL` to your local/dev/prod Postgres instance.
+- For production, **always** override the default development secrets and configure CORS appropriately for your domain.
 
