@@ -23,6 +23,41 @@ export const ChatProvider = ({ children }) => {
   const [loading, setLoading] = useState(false);
   const [unreadCounts, setUnreadCounts] = useState({});
 
+  const appendMessageToState = (messageData) => {
+    if (!messageData?.conversation_id || !messageData?.id) {
+      return;
+    }
+
+    setMessages((prev) => {
+      const conversationId = messageData.conversation_id;
+      const existingMessages = prev[conversationId] || [];
+
+      if (existingMessages.some((message) => message.id === messageData.id)) {
+        return prev;
+      }
+
+      return {
+        ...prev,
+        [conversationId]: [...existingMessages, messageData],
+      };
+    });
+
+    setConversations((prev) =>
+      prev.map((conversation) =>
+        conversation.id === messageData.conversation_id
+          ? {
+              ...conversation,
+              updated_at: messageData.created_at,
+              last_message: {
+                content: messageData.content,
+                sender_id: messageData.sender_id,
+              },
+            }
+          : conversation
+      )
+    );
+  };
+
   const normalizeConversation = (conversation) => {
     if (!conversation) {
       return null;
@@ -92,39 +127,18 @@ export const ChatProvider = ({ children }) => {
     if (!wsClient) return;
 
     const handleMessage = (data) => {
-      setMessages((prev) => ({
-        ...prev,
-        [data.conversation_id]: [
-          ...(prev[data.conversation_id] || []),
-          {
-            id: data.message_id,
-            content: data.content,
-            sender_id: data.sender_id,
-            sender_username: data.sender_username,
-            conversation_id: data.conversation_id,
-            created_at: data.timestamp,
-            file_path: data.file_path,
-            file_type: data.file_type,
-            is_deleted: data.is_deleted,
-          },
-        ],
-      }));
-
-      // Update conversation's last message and updated_at
-      setConversations((prev) =>
-        prev.map((conv) =>
-          conv.id === data.conversation_id
-            ? {
-                ...conv,
-                updated_at: data.timestamp,
-                last_message: {
-                  content: data.content,
-                  sender_id: data.sender_id,
-                },
-              }
-            : conv
-        )
-      );
+      appendMessageToState({
+        id: data.message_id,
+        content: data.content,
+        sender_id: data.sender_id,
+        sender_username: data.sender_username,
+        conversation_id: data.conversation_id,
+        created_at: data.timestamp,
+        file_path: data.file_path,
+        file_type: data.file_type,
+        is_deleted: data.is_deleted,
+        is_read: data.is_read,
+      });
 
       // Increment unread count only if message is not in currently selected conversation OR if window is not focused
       // We check for window focus. If not focused, we increment even if it matches selectedConversation
@@ -306,9 +320,12 @@ export const ChatProvider = ({ children }) => {
     }
   };
 
-  const sendMessage = (conversationId, content, fileData = null) => {
-    if (!wsClient) return;
+  const sendMessage = async (conversationId, content, fileData = null) => {
     if (!content && !fileData) return;
+
+    if (!conversationId || !Number.isFinite(Number(conversationId))) {
+      throw new Error('Invalid conversation id');
+    }
 
     const message = {
       type: 'message',
@@ -321,7 +338,18 @@ export const ChatProvider = ({ children }) => {
       message.file_type = fileData.file_type;
     }
 
-    wsClient.send(message);
+    if (wsClient?.ws?.readyState === WebSocket.OPEN) {
+      wsClient.send(message);
+      return;
+    }
+
+    const response = await conversationsAPI.sendMessage(conversationId, {
+      content: message.content,
+      file_path: message.file_path,
+      file_type: message.file_type,
+    });
+
+    appendMessageToState(response.data);
   };
 
   const editMessage = (messageId, content) => {

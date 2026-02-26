@@ -4,6 +4,7 @@ const API_BASE_URL = import.meta.env.VITE_API_URL;
 const WS_BASE_URL = import.meta.env.VITE_WS_URL;
 
 let isHandlingUnauthorized = false;
+export const UNAUTHORIZED_EVENT = 'zchat:unauthorized';
 
 export const getStoredToken = () => localStorage.getItem('token') || sessionStorage.getItem('token');
 
@@ -40,6 +41,7 @@ api.interceptors.response.use(
   (error) => {
     if (error.response?.status === 401) {
       clearAuthStorage();
+      window.dispatchEvent(new Event(UNAUTHORIZED_EVENT));
 
       if (!isHandlingUnauthorized) {
         isHandlingUnauthorized = true;

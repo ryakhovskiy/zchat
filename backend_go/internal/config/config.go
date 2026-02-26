@@ -19,6 +19,7 @@ type Config struct {
 	AccessTokenMinutes int
 	RememberMeDays     int
 	EncryptKey         string
+	LegacyEncryptKeys  []string
 
 	UploadDir                  string
 	CORSOrigins                []string
@@ -75,6 +76,17 @@ func Load() (*Config, error) {
 	}
 	if cfg.EncryptKey == "" {
 		return nil, fmt.Errorf("ENCRYPTION_KEY is required")
+	}
+
+	legacyKeys := getEnv("ENCRYPTION_KEY_LEGACY", "")
+	if legacyKeys != "" {
+		parts := strings.Split(legacyKeys, ",")
+		for _, part := range parts {
+			key := strings.TrimSpace(part)
+			if key != "" {
+				cfg.LegacyEncryptKeys = append(cfg.LegacyEncryptKeys, key)
+			}
+		}
 	}
 
 	if err := os.MkdirAll(cfg.UploadDir, 0o755); err != nil {

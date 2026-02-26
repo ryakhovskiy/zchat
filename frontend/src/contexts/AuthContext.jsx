@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
-import { authAPI, WebSocketClient, clearAuthStorage, getStoredToken } from '../services/api';
+import { authAPI, WebSocketClient, clearAuthStorage, getStoredToken, UNAUTHORIZED_EVENT } from '../services/api';
 
 const AuthContext = createContext(null);
 
@@ -17,6 +17,27 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [wsClient, setWsClient] = useState(null);
   const wsClientRef = useRef(null);
+
+  const resetAuthState = () => {
+    clearAuthStorage();
+    setToken(null);
+    setUser(null);
+    setWsClient(null);
+
+    if (wsClientRef.current) {
+      wsClientRef.current.disconnect();
+      wsClientRef.current = null;
+    }
+  };
+
+  useEffect(() => {
+    const handleUnauthorized = () => {
+      resetAuthState();
+    };
+
+    window.addEventListener(UNAUTHORIZED_EVENT, handleUnauthorized);
+    return () => window.removeEventListener(UNAUTHORIZED_EVENT, handleUnauthorized);
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -42,11 +63,8 @@ export const AuthProvider = ({ children }) => {
         setUser(userData);
         initializeWebSocket(storedToken, isMounted);
       } catch (error) {
-        clearAuthStorage();
-
         if (isMounted) {
-          setToken(null);
-          setUser(null);
+          resetAuthState();
         }
       } finally {
         if (isMounted) {
@@ -152,19 +170,10 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
-      clearAuthStorage();
-      setToken(null);
-      setUser(null);
-
       if (wsClient) {
         wsClient.disconnect();
-        setWsClient(null);
       }
-
-      if (wsClientRef.current) {
-        wsClientRef.current.disconnect();
-        wsClientRef.current = null;
-      }
+      resetAuthState();
     }
   };
 

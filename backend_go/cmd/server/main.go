@@ -57,7 +57,7 @@ func main() {
 	tokenSvc := security.NewTokenService(cfg.JWTSecret, time.Duration(cfg.AccessTokenMinutes)*time.Minute)
 	passwordHasher := security.NewPasswordHasher(0)
 
-	encryptor, err := security.NewEncryptor([]byte(cfg.EncryptKey))
+	encryptor, err := security.NewEncryptor([]byte(cfg.EncryptKey), cfg.LegacyEncryptKeys)
 	if err != nil {
 		log.Fatalf("failed to initialize encryptor: %v", err)
 	}

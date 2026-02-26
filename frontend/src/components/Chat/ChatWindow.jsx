@@ -218,7 +218,7 @@ export const ChatWindow = () => {
         setUploading(false);
       }
 
-      sendMessage(selectedConversation.id, inputValue, fileData);
+      await sendMessage(selectedConversation.id, inputValue, fileData);
       setInputValue('');
       setSelectedFile(null);
       if (fileInputRef.current) fileInputRef.current.value = '';

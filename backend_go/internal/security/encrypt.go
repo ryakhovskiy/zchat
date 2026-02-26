@@ -8,16 +8,21 @@ import (
 	"encoding/base64"
 	"errors"
 	"io"
+	"strings"
+	"time"
+
+	"github.com/fernet/fernet-go"
 )
 
 // Encryptor provides symmetric encryption for message content.
 // It uses AES-GCM with a 32-byte key, roughly mirroring the security
 // guarantees of the Python Fernet-based implementation.
 type Encryptor struct {
-	aead cipher.AEAD
+	aead       cipher.AEAD
+	fernetKeys []*fernet.Key
 }
 
-func NewEncryptor(key []byte) (*Encryptor, error) {
+func NewEncryptor(key []byte, legacyKeys []string) (*Encryptor, error) {
 	// Derive a fixed-size 32-byte key from the provided bytes using SHA-256.
 	// This allows using arbitrary-length secrets (e.g. from existing .env files)
 	// while ensuring AES-256 compatibility.
@@ -34,7 +39,30 @@ func NewEncryptor(key []byte) (*Encryptor, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Encryptor{aead: aead}, nil
+	fernetKeys := make([]*fernet.Key, 0, len(legacyKeys)+1)
+	if fk := parseFernetKey(string(key)); fk != nil {
+		fernetKeys = append(fernetKeys, fk)
+	}
+	for _, rawKey := range legacyKeys {
+		if fk := parseFernetKey(rawKey); fk != nil {
+			fernetKeys = append(fernetKeys, fk)
+		}
+	}
+
+	return &Encryptor{aead: aead, fernetKeys: fernetKeys}, nil
+}
+
+func parseFernetKey(raw string) *fernet.Key {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return nil
+	}
+
+	key, err := fernet.DecodeKey(trimmed)
+	if err != nil {
+		return nil
+	}
+	return key
 }
 
 func (e *Encryptor) Encrypt(plain string) (string, error) {
@@ -48,17 +76,23 @@ func (e *Encryptor) Encrypt(plain string) (string, error) {
 
 func (e *Encryptor) Decrypt(enc string) (string, error) {
 	raw, err := base64.StdEncoding.DecodeString(enc)
-	if err != nil {
-		return "", err
+	if err == nil {
+		if len(raw) < e.aead.NonceSize() {
+			return "", errors.New("ciphertext too short")
+		}
+		nonce := raw[:e.aead.NonceSize()]
+		ciphertext := raw[e.aead.NonceSize():]
+		plain, openErr := e.aead.Open(nil, nonce, ciphertext, nil)
+		if openErr == nil {
+			return string(plain), nil
+		}
 	}
-	if len(raw) < e.aead.NonceSize() {
-		return "", errors.New("ciphertext too short")
+
+	if len(e.fernetKeys) > 0 {
+		if plain := fernet.VerifyAndDecrypt([]byte(enc), 0*time.Second, e.fernetKeys); plain != nil {
+			return string(plain), nil
+		}
 	}
-	nonce := raw[:e.aead.NonceSize()]
-	ciphertext := raw[e.aead.NonceSize():]
-	plain, err := e.aead.Open(nil, nonce, ciphertext, nil)
-	if err != nil {
-		return "", err
-	}
-	return string(plain), nil
+
+	return "", errors.New("failed to decrypt message payload")
 }
