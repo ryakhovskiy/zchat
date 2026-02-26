@@ -22,6 +22,24 @@ export const ChatProvider = ({ children }) => {
   const [messages, setMessages] = useState({});
   const [loading, setLoading] = useState(false);
   const [unreadCounts, setUnreadCounts] = useState({});
+
+  const normalizeConversation = (conversation) => {
+    if (!conversation) {
+      return null;
+    }
+
+    return {
+      ...conversation,
+      id: conversation.id ?? conversation.ID,
+      name: conversation.name ?? conversation.Name,
+      is_group: conversation.is_group ?? conversation.IsGroup,
+      created_at: conversation.created_at ?? conversation.CreatedAt,
+      updated_at: conversation.updated_at ?? conversation.UpdatedAt,
+      unread_count: conversation.unread_count ?? conversation.UnreadCount ?? 0,
+      last_message: conversation.last_message ?? conversation.LastMessage ?? null,
+      participants: conversation.participants ?? conversation.Participants ?? [],
+    };
+  };
   
   // Ref to track selected conversation ID for use in WebSocket handler
   const selectedConversationRef = useRef(null);
@@ -218,11 +236,15 @@ export const ChatProvider = ({ children }) => {
     try {
       setLoading(true);
       const response = await conversationsAPI.getAll();
-      setConversations(response.data);
+      const normalized = (response.data || [])
+        .map(normalizeConversation)
+        .filter((conversation) => Number.isFinite(Number(conversation?.id)));
+
+      setConversations(normalized);
       
       // Initialize unread counts from backend data
       const counts = {};
-      response.data.forEach((conv) => {
+      normalized.forEach((conv) => {
         if (conv.unread_count > 0) {
           counts[conv.id] = conv.unread_count;
         }
@@ -248,6 +270,10 @@ export const ChatProvider = ({ children }) => {
   };
 
   const loadMessages = async (conversationId) => {
+    if (!conversationId || !Number.isFinite(Number(conversationId))) {
+      return;
+    }
+
     if (messages[conversationId]) return; // Already loaded
 
     try {
@@ -314,20 +340,21 @@ export const ChatProvider = ({ children }) => {
       setIsBrowserOpen(false);
     }
     
-    setSelectedConversation(conversation);
+    const normalizedConversation = normalizeConversation(conversation);
+    setSelectedConversation(normalizedConversation);
     
-    if (!conversation) return;
+    if (!normalizedConversation || !Number.isFinite(Number(normalizedConversation.id))) return;
 
     // Reset unread count for this conversation locally
     setUnreadCounts((prev) => ({
       ...prev,
-      [conversation.id]: 0,
+      [normalizedConversation.id]: 0,
     }));
-    await loadMessages(conversation.id);
+    await loadMessages(normalizedConversation.id);
     
     // Mark conversation as read on the backend
     try {
-      await conversationsAPI.markAsRead(conversation.id);
+      await conversationsAPI.markAsRead(normalizedConversation.id);
     } catch (error) {
       console.error('Failed to mark conversation as read:', error);
     }

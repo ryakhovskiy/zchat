@@ -16,11 +16,11 @@ type User struct {
 
 // Conversation represents a chat conversation (direct or group).
 type Conversation struct {
-	ID        int64     `db:"id"`
-	Name      *string   `db:"name"`
-	IsGroup   bool      `db:"is_group"`
-	CreatedAt time.Time `db:"created_at"`
-	UpdatedAt time.Time `db:"updated_at"`
+	ID        int64     `db:"id" json:"id"`
+	Name      *string   `db:"name" json:"name,omitempty"`
+	IsGroup   bool      `db:"is_group" json:"is_group"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
 }
 
 // ConversationParticipant represents the membership of a user in a conversation.

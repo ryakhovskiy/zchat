@@ -3,6 +3,17 @@ import axios from 'axios';
 const API_BASE_URL = import.meta.env.VITE_API_URL;
 const WS_BASE_URL = import.meta.env.VITE_WS_URL;
 
+let isHandlingUnauthorized = false;
+
+export const getStoredToken = () => localStorage.getItem('token') || sessionStorage.getItem('token');
+
+export const clearAuthStorage = () => {
+  localStorage.removeItem('token');
+  localStorage.removeItem('user');
+  sessionStorage.removeItem('token');
+  sessionStorage.removeItem('user');
+};
+
 // Create axios instance
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -14,7 +25,7 @@ const api = axios.create({
 // Request interceptor to add auth token
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('token');
+    const token = getStoredToken();
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -28,9 +39,18 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      window.location.href = '/';
+      clearAuthStorage();
+
+      if (!isHandlingUnauthorized) {
+        isHandlingUnauthorized = true;
+        setTimeout(() => {
+          isHandlingUnauthorized = false;
+        }, 500);
+
+        if (window.location.pathname !== '/') {
+          window.location.replace('/');
+        }
+      }
     }
     return Promise.reject(error);
   }
@@ -74,7 +94,7 @@ export const filesAPI = {
     });
   },
   getFileUrl: (filename) => {
-    const token = localStorage.getItem('token');
+    const token = getStoredToken();
     return `${API_BASE_URL}/uploads/${filename}?token=${token}`;
   },
 };
@@ -92,15 +112,26 @@ export class WebSocketClient {
     this.listeners = {};
     this.reconnectAttempts = 0;
     this.maxReconnectAttempts = 5;
+    this.shouldReconnect = true;
+    this.hasEverConnected = false;
   }
 
   connect() {
+    if (!this.token) {
+      return Promise.reject(new Error('Missing WebSocket auth token'));
+    }
+
+    this.shouldReconnect = true;
+
     return new Promise((resolve, reject) => {
       try {
+        let opened = false;
         this.ws = new WebSocket(WS_BASE_URL, ['bearer', this.token]);
 
         this.ws.onopen = () => {
           console.log('WebSocket connected');
+          opened = true;
+          this.hasEverConnected = true;
           this.reconnectAttempts = 0;
           resolve();
         };
@@ -122,6 +153,15 @@ export class WebSocketClient {
         this.ws.onclose = () => {
           console.log('WebSocket disconnected');
           this.emit('disconnect');
+
+          if (!this.shouldReconnect) {
+            return;
+          }
+
+          if (!opened && !this.hasEverConnected) {
+            return;
+          }
+
           this.attemptReconnect();
         };
       } catch (error) {
@@ -173,6 +213,7 @@ export class WebSocketClient {
   }
 
   disconnect() {
+    this.shouldReconnect = false;
     if (this.ws) {
       this.ws.close();
       this.ws = null;
