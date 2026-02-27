@@ -453,28 +453,33 @@ export const ChatWindow = () => {
             </svg>
           </button>
         </div>
-        <div className="emoji-picker-wrapper" ref={emojiPickerRef}>
-            <button
-              type="button"
-              className="emoji-button"
-              onClick={() => setIsEmojiPickerOpen((prev) => !prev)}
-              aria-label={t('chat.toggle_emoji')}
-            >
-              😊
-            </button>
-            {isEmojiPickerOpen && (
-              <div className="emoji-picker">
-                <Picker data={data} onEmojiSelect={handleEmojiSelect} theme="light" previewPosition="none" />
-              </div>
-            )}
-        </div>
-        <div className="input-field-wrapper" style={{ flex: 1, position: 'relative' }}>
+        <div className="input-field-wrapper">
           {selectedFile && (
             <div className="selected-file-preview">
               <span>{selectedFile.name}</span>
               <button type="button" onClick={clearFile} className="clear-file-btn">×</button>
             </div>
           )}
+          <div className="emoji-picker-wrapper" ref={emojiPickerRef}>
+              <button
+                type="button"
+                className="emoji-button"
+                onClick={() => setIsEmojiPickerOpen((prev) => !prev)}
+                aria-label={t('chat.toggle_emoji')}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="emoji-icon">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <path d="M8 14s1.5 2 4 2 4-2 4-2"></path>
+                  <line x1="9" y1="9" x2="9.01" y2="9"></line>
+                  <line x1="15" y1="9" x2="15.01" y2="9"></line>
+                </svg>
+              </button>
+              {isEmojiPickerOpen && (
+                <div className="emoji-picker">
+                  <Picker data={data} onEmojiSelect={handleEmojiSelect} theme="light" previewPosition="none" />
+                </div>
+              )}
+          </div>
           <textarea
             ref={textareaRef}
             value={inputValue}
@@ -486,10 +491,15 @@ export const ChatWindow = () => {
             disabled={uploading}
             rows={1}
           />
+          <button type="submit" className="send-button" disabled={(!inputValue.trim() && !selectedFile) || uploading}>
+            {uploading ? '...' : (editingMessage ? '✓' : (
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="send-icon">
+                <line x1="22" y1="2" x2="11" y2="13"></line>
+                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+              </svg>
+            ))}
+          </button>
         </div>
-        <button type="submit" className="send-button" disabled={(!inputValue.trim() && !selectedFile) || uploading}>
-          {uploading ? '...' : (editingMessage ? '✓' : t('chat.send'))}
-        </button>
         </div>
       </form>
 
