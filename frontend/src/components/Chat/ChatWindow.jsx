@@ -434,25 +434,6 @@ export const ChatWindow = () => {
           </div>
         )}
         <div className="message-input-row">
-        <div className="attachment-button-wrapper">
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handleFileSelect}
-            style={{ display: 'none' }}
-          />
-          <button
-            type="button"
-            className="attachment-button"
-            onClick={() => fileInputRef.current?.click()}
-            aria-label={t('chat.attach_file')}
-            title={t('chat.attach_file')}
-          >
-            <svg viewBox="0 0 24 24" fill="none" className="paperclip-icon" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path>
-            </svg>
-          </button>
-        </div>
         <div className="input-field-wrapper">
           {selectedFile && (
             <div className="selected-file-preview">
@@ -491,6 +472,27 @@ export const ChatWindow = () => {
             disabled={uploading}
             rows={1}
           />
+          {!inputValue.trim() && (
+            <div className="attachment-button-wrapper">
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileSelect}
+                style={{ display: 'none' }}
+              />
+              <button
+                type="button"
+                className="attachment-button"
+                onClick={() => fileInputRef.current?.click()}
+                aria-label={t('chat.attach_file')}
+                title={t('chat.attach_file')}
+              >
+                <svg viewBox="0 0 24 24" fill="none" className="paperclip-icon" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path>
+                </svg>
+              </button>
+            </div>
+          )}
           <button type="submit" className="send-button" disabled={(!inputValue.trim() && !selectedFile) || uploading}>
             {uploading ? '...' : (editingMessage ? '✓' : (
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="send-icon">
