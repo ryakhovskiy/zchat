@@ -4,10 +4,11 @@ import android.util.Log
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.Types
 import com.zchat.mobile.BuildConfig
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -22,16 +23,18 @@ class ZChatWebSocketClient @Inject constructor(
     private val okHttpClient: OkHttpClient,
     private val moshi: Moshi
 ) {
-    private val scope = CoroutineScope(Dispatchers.IO)
-    private val adapter = moshi.adapter<Map<String, Any?>>(Types.newParameterizedType(Map::class.java, String::class.java, Any::class.java))
+    private val adapter = moshi.adapter<Map<String, Any?>>(
+        Types.newParameterizedType(Map::class.java, String::class.java, Any::class.java)
+    )
 
     private var webSocket: WebSocket? = null
 
     private val _connected = MutableStateFlow(false)
     val connected: StateFlow<Boolean> = _connected.asStateFlow()
 
-    private val _events = MutableStateFlow<Map<String, Any?>?>(null)
-    val events: StateFlow<Map<String, Any?>?> = _events.asStateFlow()
+    // SharedFlow so that identical consecutive events (same message content) are both delivered
+    private val _events = MutableSharedFlow<Map<String, Any?>>(extraBufferCapacity = 64)
+    val events: SharedFlow<Map<String, Any?>> = _events.asSharedFlow()
 
     fun connect(token: String) {
         disconnect()
@@ -50,7 +53,7 @@ class ZChatWebSocketClient @Inject constructor(
                     adapter.fromJson(text)
                 }.onSuccess { payload ->
                     if (payload != null) {
-                        _events.value = payload
+                        _events.tryEmit(payload)
                     }
                 }.onFailure {
                     Log.e("ZChatWS", "Failed to decode event", it)

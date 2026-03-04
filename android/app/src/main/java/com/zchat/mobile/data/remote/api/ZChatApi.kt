@@ -3,6 +3,7 @@ package com.zchat.mobile.data.remote.api
 import com.zchat.mobile.data.remote.dto.AuthResponseDto
 import com.zchat.mobile.data.remote.dto.ConversationDto
 import com.zchat.mobile.data.remote.dto.CreateConversationRequestDto
+import com.zchat.mobile.data.remote.dto.EditMessageRequestDto
 import com.zchat.mobile.data.remote.dto.LoginRequestDto
 import com.zchat.mobile.data.remote.dto.MessageDto
 import com.zchat.mobile.data.remote.dto.RegisterRequestDto
@@ -17,6 +18,7 @@ import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.Multipart
 import retrofit2.http.POST
+import retrofit2.http.PUT
 import retrofit2.http.Part
 import retrofit2.http.Path
 import retrofit2.http.Query
@@ -39,6 +41,9 @@ interface AuthApi {
 interface UsersApi {
     @GET("users/")
     suspend fun listUsers(): List<UserDto>
+
+    @GET("users/online")
+    suspend fun listOnlineUsers(): List<UserDto>
 
     @GET("users/{id}")
     suspend fun getUser(@Path("id") id: Long): UserDto
@@ -89,6 +94,12 @@ interface BrowserApi {
 }
 
 interface MessagesApi {
+    @PUT("messages/{id}")
+    suspend fun editMessage(
+        @Path("id") messageId: Long,
+        @Body payload: EditMessageRequestDto
+    ): MessageDto
+
     @DELETE("messages/{id}")
     suspend fun deleteMessage(
         @Path("id") messageId: Long,

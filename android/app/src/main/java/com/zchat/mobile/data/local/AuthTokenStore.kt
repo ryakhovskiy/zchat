@@ -35,6 +35,11 @@ class AuthTokenStore @Inject constructor(
     private val userIdKey = longPreferencesKey("user_id")
     private val rememberMeKey = booleanPreferencesKey("remember_me")
 
+    /** Synchronous in-memory cache so AuthInterceptor never needs runBlocking. */
+    @Volatile
+    var memCache: AuthSession = AuthSession()
+        private set
+
     val session: Flow<AuthSession> = context.authDataStore.data
         .catch { throwable ->
             if (throwable is IOException) {
@@ -49,10 +54,12 @@ class AuthTokenStore @Inject constructor(
                 username = prefs[usernameKey],
                 userId = prefs[userIdKey],
                 rememberMe = prefs[rememberMeKey] ?: false
-            )
+            ).also { memCache = it }
         }
 
     suspend fun saveSession(token: String, username: String, userId: Long, rememberMe: Boolean) {
+        val newSession = AuthSession(token = token, username = username, userId = userId, rememberMe = rememberMe)
+        memCache = newSession
         context.authDataStore.edit { prefs: MutablePreferences ->
             prefs[tokenKey] = token
             prefs[usernameKey] = username
@@ -62,6 +69,7 @@ class AuthTokenStore @Inject constructor(
     }
 
     suspend fun clear() {
+        memCache = AuthSession()
         context.authDataStore.edit { prefs ->
             prefs.remove(tokenKey)
             prefs.remove(usernameKey)

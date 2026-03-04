@@ -33,24 +33,33 @@ data class RegisterRequestDto(
 )
 
 @JsonClass(generateAdapter = true)
-data class ConversationDto(
-    val id: Long,
-    val name: String? = null,
-    @Json(name = "is_group") val isGroup: Boolean,
-    @Json(name = "updated_at") val updatedAt: String? = null
-)
-
-@JsonClass(generateAdapter = true)
 data class MessageDto(
     val id: Long,
     @Json(name = "conversation_id") val conversationId: Long,
     val content: String,
     @Json(name = "sender_id") val senderId: Long,
-    @Json(name = "sender_username") val senderUsername: String,
+    @Json(name = "sender_username") val senderUsername: String? = null,
     @Json(name = "file_path") val filePath: String? = null,
     @Json(name = "file_type") val fileType: String? = null,
+    // REST uses created_at; WebSocket broadcasts use timestamp
+    @Json(name = "created_at") val createdAt: String? = null,
     val timestamp: String? = null,
-    @Json(name = "is_read") val isRead: Boolean? = null
+    @Json(name = "is_read") val isRead: Boolean? = null,
+    @Json(name = "is_edited") val isEdited: Boolean? = null,
+    @Json(name = "is_deleted") val isDeleted: Boolean? = null,
+) {
+    val displayTime: String get() = createdAt ?: timestamp ?: ""
+}
+
+@JsonClass(generateAdapter = true)
+data class ConversationDto(
+    val id: Long,
+    val name: String? = null,
+    @Json(name = "is_group") val isGroup: Boolean,
+    @Json(name = "updated_at") val updatedAt: String? = null,
+    val participants: List<UserDto>? = null,
+    @Json(name = "unread_count") val unreadCount: Int? = null,
+    @Json(name = "last_message") val lastMessage: MessageDto? = null,
 )
 
 @JsonClass(generateAdapter = true)
@@ -65,6 +74,11 @@ data class SendMessageRequestDto(
     val content: String,
     @Json(name = "file_path") val filePath: String? = null,
     @Json(name = "file_type") val fileType: String? = null
+)
+
+@JsonClass(generateAdapter = true)
+data class EditMessageRequestDto(
+    val content: String
 )
 
 @JsonClass(generateAdapter = true)

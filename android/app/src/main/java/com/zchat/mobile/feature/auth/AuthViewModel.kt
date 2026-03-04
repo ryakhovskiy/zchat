@@ -15,10 +15,13 @@ data class AuthUiState(
     val loading: Boolean = true,
     val authenticated: Boolean = false,
     val username: String = "",
+    val email: String = "",
     val password: String = "",
-    val rememberMe: Boolean = true,
+    val rememberMe: Boolean = false,   // default false — opt-in, not opt-out
+    val isRegisterMode: Boolean = false,
     val error: String? = null,
-    val token: String? = null
+    val token: String? = null,
+    val currentUserId: Long? = null
 )
 
 @HiltViewModel
@@ -30,57 +33,73 @@ class AuthViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
+            // Sequential: bootstrap validates stored token first, then collect ongoing changes
+            val hasSession = authRepository.bootstrapSession()
+            if (!hasSession) {
+                _uiState.update { it.copy(loading = false, authenticated = false) }
+            }
             authRepository.session.collect { session ->
                 _uiState.update {
                     it.copy(
                         authenticated = !session.token.isNullOrBlank(),
                         loading = false,
-                        token = session.token
+                        token = session.token,
+                        currentUserId = session.userId
                     )
                 }
             }
         }
-
-        viewModelScope.launch {
-            val hasSession = authRepository.bootstrapSession()
-            if (!hasSession) {
-                _uiState.update { it.copy(loading = false, authenticated = false) }
-            }
-        }
     }
 
-    fun onUsernameChange(value: String) {
-        _uiState.update { it.copy(username = value) }
-    }
-
-    fun onPasswordChange(value: String) {
-        _uiState.update { it.copy(password = value) }
-    }
-
-    fun onRememberMeChange(value: Boolean) {
-        _uiState.update { it.copy(rememberMe = value) }
-    }
+    fun onUsernameChange(value: String) = _uiState.update { it.copy(username = value, error = null) }
+    fun onEmailChange(value: String) = _uiState.update { it.copy(email = value, error = null) }
+    fun onPasswordChange(value: String) = _uiState.update { it.copy(password = value, error = null) }
+    fun onRememberMeChange(value: Boolean) = _uiState.update { it.copy(rememberMe = value) }
+    fun switchToRegister() = _uiState.update { it.copy(isRegisterMode = true, error = null) }
+    fun switchToLogin() = _uiState.update { it.copy(isRegisterMode = false, error = null) }
 
     fun login() {
-        val current = _uiState.value
-        if (current.username.isBlank() || current.password.isBlank()) {
+        val s = _uiState.value
+        if (s.username.isBlank() || s.password.isBlank()) {
             _uiState.update { it.copy(error = "Enter username and password") }
             return
         }
         viewModelScope.launch {
             _uiState.update { it.copy(loading = true, error = null) }
             runCatching {
-                authRepository.login(current.username, current.password, current.rememberMe)
+                authRepository.login(s.username, s.password, s.rememberMe)
             }.onFailure { err ->
-                _uiState.update { it.copy(error = err.message ?: "Login failed") }
+                _uiState.update { it.copy(loading = false, error = err.message ?: "Login failed") }
+            }.onSuccess {
+                _uiState.update { it.copy(loading = false) }
             }
-            _uiState.update { it.copy(loading = false) }
+        }
+    }
+
+    fun register() {
+        val s = _uiState.value
+        if (s.username.isBlank() || s.password.isBlank()) {
+            _uiState.update { it.copy(error = "Username and password are required") }
+            return
+        }
+        viewModelScope.launch {
+            _uiState.update { it.copy(loading = true, error = null) }
+            runCatching {
+                authRepository.register(
+                    username = s.username,
+                    email = s.email.ifBlank { null },
+                    password = s.password,
+                    rememberMe = s.rememberMe
+                )
+            }.onFailure { err ->
+                _uiState.update { it.copy(loading = false, error = err.message ?: "Registration failed") }
+            }.onSuccess {
+                _uiState.update { it.copy(loading = false) }
+            }
         }
     }
 
     fun logout() {
-        viewModelScope.launch {
-            authRepository.logout()
-        }
+        viewModelScope.launch { authRepository.logout() }
     }
 }
