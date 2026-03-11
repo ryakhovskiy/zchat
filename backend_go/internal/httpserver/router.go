@@ -3,6 +3,7 @@ package httpserver
 import (
 	"database/sql"
 	"encoding/json"
+	"log"
 	"net/http"
 	"time"
 
@@ -124,7 +125,12 @@ func NewRouter(cfg *config.Config, db *sql.DB, hub *ws.Hub, tokenSvc *security.T
 
 			// Browser proxy
 			r.Route("/browser", func(r chi.Router) {
-				RegisterBrowserRoutes(r)
+				browserPool, err := NewBrowserPool()
+				if err != nil {
+					log.Printf("WARNING: browser proxy disabled: %v", err)
+				} else {
+					RegisterBrowserRoutes(r, browserPool)
+				}
 			})
 
 			// Uploads (auth enforced inside for download via token param)
