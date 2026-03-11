@@ -4,7 +4,7 @@
 A Go-based scalable REST API and WebSocket server interacting with a PostgreSQL database.
 
 ## Setup & Dev Scripts
-- **Go Version:** Go 1.24 (`go.mod`). Note: `Dockerfile` currently uses `golang:1.26` — reconcile when modifying either.
+- **Go Version:** Go 1.24.
 - **Run local server directly:** `go run cmd/server/main.go`
 - **Helper Scripts:** Use `./start.ps1` (Windows) or `./start.sh` (UNIX/Linux) to setup the environment and launch the backend server.
 - **Docker build:** `docker build -t zchat-backend .` from `backend_go/`, or use `docker-compose -f docker-compose.go.yml up -d` from root.

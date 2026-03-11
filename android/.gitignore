@@ -2,6 +2,7 @@
 .gradle/
 build/
 !gradle/wrapper/gradle-wrapper.jar
+.gradle/file-system.probe
 
 # Local properties (SDK path, etc.)
 local.properties

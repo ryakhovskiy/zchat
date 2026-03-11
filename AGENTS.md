@@ -69,6 +69,5 @@ See `deployment.md` for the full production Ubuntu/Nginx deployment guide (domai
 - WebSocket events use a flat `{ "type": "...", ...fields }` JSON structure — keep this consistent across backend, frontend, and Android.
 
 ## Known Discrepancies
-- **Go version**: `go.mod` specifies 1.24, but `Dockerfile` uses `golang:1.26` — reconcile when modifying either.
 - **Frontend Docker**: The frontend service in `docker-compose.go.yml` is commented out — enable when deploying frontend via Docker.
 - **Android feature parity**: File upload/download UI, message edit/delete actions, i18n, theme persistence, browser proxy, and typing indicators are not yet implemented on Android (see `android/AGENTS.md` for the full gap list).

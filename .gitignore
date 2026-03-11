@@ -19,3 +19,17 @@ chrome-user-data
 .env.local
 .env.production
 postgres-data
+android/.gradle
+android/build
+android/.idea
+android/*.iml
+android/.DS_Store
+android/*.apkm  
+android/*.apk
+android/*.aab
+android/*.ap_
+android/*.dex
+android/captures
+android/.externalNativeBuild
+android/.cxx
+android/output-metadata.json
