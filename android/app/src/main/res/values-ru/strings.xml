@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">zChat</string>
+    <string name="title_messages">Сообщения</string>
+    <string name="title_new_conversation">Новая беседа</string>
+    <string name="action_logout">Выйти</string>
+    <string name="action_send">Отправить</string>
+    <string name="action_edit">Изменить</string>
+    <string name="action_delete">Удалить</string>
+    <string name="action_cancel">Отмена</string>
+    <string name="msg_no_conversations">Пока нет бесед. Нажмите +, чтобы начать.</string>
+    <string name="msg_no_messages">Пока нет сообщений. Скажите привет!</string>
+    <string name="msg_no_users">Другие пользователи не найдены.</string>
+    <string name="hint_message">Сообщение</string>
+    <string name="typing_indicator">%1$s печатает…</string>
+    <string name="status_online">В сети</string>
+    <string name="edited_suffix">· изменено</string>
+</resources>

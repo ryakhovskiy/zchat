@@ -9,6 +9,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.NavHost
@@ -34,12 +35,17 @@ private object Routes {
 
 @Composable
 fun ZChatRoot(
+    isDarkMode: Boolean,
+    onToggleDarkMode: (Boolean) -> Unit,
     authViewModel: AuthViewModel = hiltViewModel(),
     chatViewModel: ChatViewModel = hiltViewModel()
 ) {
     val authState by authViewModel.uiState.collectAsStateWithLifecycle()
-    val chatState by chatViewModel.uiState.collectAsStateWithLifecycle()
+    val listState by chatViewModel.listState.collectAsStateWithLifecycle()
+    val activeState by chatViewModel.activeState.collectAsStateWithLifecycle()
+    val newState by chatViewModel.newState.collectAsStateWithLifecycle()
     val navController = rememberNavController()
+    val context = LocalContext.current
 
     // Global loading splash
     if (authState.loading) {
@@ -124,8 +130,10 @@ fun ZChatRoot(
             }
 
             ConversationListScreen(
-                state = chatState,
+                state = listState,
                 currentUserId = authState.currentUserId,
+                isDarkMode = isDarkMode,
+                onToggleDarkMode = onToggleDarkMode,
                 onConversationClicked = { id ->
                     chatViewModel.selectConversation(id)
                     navController.navigate("${Routes.CONVERSATION}/$id")
@@ -145,15 +153,15 @@ fun ZChatRoot(
             
             // Re-select if process died and recreated
             LaunchedEffect(conversationId) {
-                if (chatState.activeConversationId != conversationId) {
+                if (activeState.conversationId != conversationId) {
                     chatViewModel.selectConversation(conversationId)
                 }
             }
 
-            val conversation = chatState.conversations.find { it.id == conversationId }
+            val conversation = listState.conversations.find { it.id == conversationId }
 
             ConversationScreen(
-                state = chatState,
+                state = activeState,
                 conversation = conversation,
                 currentUserId = authState.currentUserId,
                 onBack = { navController.popBackStack() },
@@ -161,22 +169,19 @@ fun ZChatRoot(
                 onSendClicked = chatViewModel::sendMessage,
                 onStartEditing = chatViewModel::startEditing,
                 onCancelEditing = chatViewModel::cancelEditing,
-                onDeleteMessage = chatViewModel::deleteMessage
+                onDeleteMessage = chatViewModel::deleteMessage,
+                onFilePicked = { uri -> chatViewModel.uploadFile(uri, context) }
             )
         }
 
         composable(Routes.NEW_CONVERSATION) {
             NewConversationScreen(
-                state = chatState,
+                state = newState,
                 currentUserId = authState.currentUserId,
                 onBack = { navController.popBackStack() },
                 onLoadUsers = chatViewModel::loadUsers,
                 onCreateConversation = { ids, isGroup, name ->
                     chatViewModel.createConversation(ids, isGroup, name)
-                    // The view model selects the conversation automatically and active conversation ID is set.
-                    // But here we need the ID to navigate immediately.
-                    // Since createConversation is async and we don't return the ID immediately, we should navigate back to list or wait.
-                    // For now, let's pop to conversations and UI will handle it when conversation is created.
                     navController.navigate(Routes.CONVERSATIONS) {
                         popUpTo(Routes.CONVERSATIONS)
                     }

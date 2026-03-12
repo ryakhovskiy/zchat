@@ -1,6 +1,7 @@
 package com.zchat.mobile.data.repository
 
 import com.zchat.mobile.data.remote.api.ConversationsApi
+import com.zchat.mobile.data.remote.api.FilesApi
 import com.zchat.mobile.data.remote.api.MessagesApi
 import com.zchat.mobile.data.remote.api.UsersApi
 import com.zchat.mobile.data.remote.dto.ConversationDto
@@ -8,8 +9,10 @@ import com.zchat.mobile.data.remote.dto.CreateConversationRequestDto
 import com.zchat.mobile.data.remote.dto.EditMessageRequestDto
 import com.zchat.mobile.data.remote.dto.MessageDto
 import com.zchat.mobile.data.remote.dto.SendMessageRequestDto
+import com.zchat.mobile.data.remote.dto.UploadResponseDto
 import com.zchat.mobile.data.remote.dto.UserDto
 import com.zchat.mobile.data.remote.network.ZChatWebSocketClient
+import okhttp3.MultipartBody
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -18,6 +21,7 @@ class ChatRepository @Inject constructor(
     private val conversationsApi: ConversationsApi,
     private val usersApi: UsersApi,
     private val messagesApi: MessagesApi,
+    private val filesApi: FilesApi,
     private val webSocketClient: ZChatWebSocketClient
 ) {
     val wsConnected = webSocketClient.connected
@@ -35,17 +39,28 @@ class ChatRepository @Inject constructor(
         conversationsApi.listMessages(conversationId, limit)
 
     suspend fun sendMessage(conversationId: Long, content: String): MessageDto? {
+        return sendMessageWithFile(conversationId, content, null, null)
+    }
+
+    suspend fun sendMessageWithFile(
+        conversationId: Long,
+        content: String,
+        filePath: String?,
+        fileType: String?
+    ): MessageDto? {
         return if (wsConnected.value) {
             webSocketClient.send(
                 mapOf(
                     "type" to "message",
                     "conversation_id" to conversationId,
-                    "content" to content
-                )
+                    "content" to content,
+                    "file_path" to filePath,
+                    "file_type" to fileType
+                ).filterValues { it != null }
             )
-            null // message will arrive via WS event
+            null
         } else {
-            conversationsApi.sendMessage(conversationId, SendMessageRequestDto(content))
+            conversationsApi.sendMessage(conversationId, SendMessageRequestDto(content, filePath, fileType))
         }
     }
 
@@ -59,6 +74,16 @@ class ChatRepository @Inject constructor(
         runCatching { conversationsApi.markAsRead(conversationId) }
         webSocketClient.send(mapOf("type" to "mark_read", "conversation_id" to conversationId))
     }
+
+    fun sendTyping(conversationId: Long) {
+        if (wsConnected.value) {
+            webSocketClient.send(mapOf("type" to "typing", "conversation_id" to conversationId))
+        }
+    }
+
+    // ── Files ──────────────────────────────────────────────────────────────────
+    suspend fun uploadFile(part: MultipartBody.Part): UploadResponseDto =
+        filesApi.upload(part)
 
     // ── Users ──────────────────────────────────────────────────────────────────
     suspend fun getUsers(): List<UserDto> = usersApi.listUsers()

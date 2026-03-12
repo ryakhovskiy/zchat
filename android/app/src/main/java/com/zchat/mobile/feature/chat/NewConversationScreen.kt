@@ -35,7 +35,7 @@ import com.zchat.mobile.data.remote.dto.UserDto
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NewConversationScreen(
-    state: ChatUiState,
+    state: NewConversationState,
     currentUserId: Long?,
     onBack: () -> Unit,
     onLoadUsers: () -> Unit,
@@ -79,7 +79,7 @@ fun NewConversationScreen(
                 .padding(innerPadding)
         ) {
             when {
-                state.usersLoading -> CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                state.loading -> CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
                 others.isEmpty() -> Text(
                     "No other users found.",
                     modifier = Modifier.align(Alignment.Center),

@@ -1,5 +1,8 @@
 package com.zchat.mobile.feature.chat
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -24,6 +27,10 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Call
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -51,15 +58,19 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
+import com.zchat.mobile.BuildConfig
+import com.zchat.mobile.R
 import com.zchat.mobile.data.remote.dto.ConversationDto
 import com.zchat.mobile.data.remote.dto.MessageDto
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ConversationScreen(
-    state: ChatUiState,
+    state: ActiveConversationState,
     conversation: ConversationDto?,
     currentUserId: Long?,
     onBack: () -> Unit,
@@ -68,10 +79,20 @@ fun ConversationScreen(
     onStartEditing: (MessageDto) -> Unit,
     onCancelEditing: () -> Unit,
     onDeleteMessage: (Long, Long) -> Unit,
+    onFilePicked: (Uri) -> Unit,
 ) {
-    val messages = state.messages[state.activeConversationId] ?: emptyList()
+    val messages = state.messages[state.conversationId] ?: emptyList()
     val listState = rememberLazyListState()
     val focusManager = LocalFocusManager.current
+    var showCallCallDialog by remember { mutableStateOf(false) }
+
+    val filePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            onFilePicked(uri)
+        }
+    }
 
     // Scroll to bottom when new messages arrive
     LaunchedEffect(messages.size) {
@@ -84,7 +105,7 @@ fun ConversationScreen(
         ?: conversation?.participants
             ?.filter { it.id != currentUserId }
             ?.joinToString(", ") { it.username }
-        ?: state.activeConversationId?.let { "Conversation #$it" }
+        ?: state.conversationId?.let { "Conversation #$it" }
         ?: "Chat"
 
     Scaffold(
@@ -94,6 +115,13 @@ fun ConversationScreen(
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                actions = {
+                    if (conversation?.isGroup == false) {
+                        IconButton(onClick = { showCallCallDialog = true }) {
+                            Icon(Icons.Default.Call, contentDescription = "Call")
+                        }
                     }
                 }
             )
@@ -105,12 +133,23 @@ fun ConversationScreen(
                 .padding(innerPadding)
                 .imePadding()
         ) {
+            if (showCallCallDialog) {
+                AlertDialog(
+                    onDismissRequest = { showCallCallDialog = false },
+                    title = { Text("Audio Call") },
+                    text = { Text("Voice calling is not yet implemented natively. (WebRTC Skeleton)") },
+                    confirmButton = {
+                        TextButton(onClick = { showCallCallDialog = false }) { Text("OK") }
+                    }
+                )
+            }
+
             // Messages list
             Box(modifier = Modifier.weight(1f)) {
                 when {
-                    state.messagesLoading -> CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                    state.loading -> CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
                     messages.isEmpty() -> Text(
-                        "No messages yet. Say hello!",
+                        stringResource(R.string.msg_no_messages),
                         modifier = Modifier.align(Alignment.Center),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center
@@ -143,14 +182,14 @@ fun ConversationScreen(
                                     onDismissRequest = { showMenu = false }
                                 ) {
                                     DropdownMenuItem(
-                                        text = { Text("Edit") },
+                                        text = { Text(stringResource(R.string.action_edit)) },
                                         onClick = {
                                             showMenu = false
                                             onStartEditing(message)
                                         }
                                     )
                                     DropdownMenuItem(
-                                        text = { Text("Delete") },
+                                        text = { Text(stringResource(R.string.action_delete)) },
                                         onClick = {
                                             showMenu = false
                                             onDeleteMessage(message.id, message.conversationId)
@@ -176,16 +215,31 @@ fun ConversationScreen(
                         Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(8.dp))
                         Text(
-                            "Editing: ${state.editingMessage.content.take(60)}",
+                            "${stringResource(R.string.action_edit)}: ${state.editingMessage.content.take(60)}",
                             style = MaterialTheme.typography.bodySmall,
                             modifier = Modifier.weight(1f)
                         )
                         IconButton(onClick = onCancelEditing, modifier = Modifier.size(24.dp)) {
-                            Icon(Icons.Default.Close, contentDescription = "Cancel edit", modifier = Modifier.size(16.dp))
+                            Icon(Icons.Default.Close, contentDescription = stringResource(R.string.action_cancel), modifier = Modifier.size(16.dp))
                         }
                     }
                 }
                 HorizontalDivider()
+            }
+
+            // Typing indicator
+            if (state.typingUsers.isNotEmpty()) {
+                val typingText = if (state.typingUsers.size == 1) {
+                    stringResource(R.string.typing_indicator, state.typingUsers.first())
+                } else {
+                    stringResource(R.string.typing_indicator, state.typingUsers.joinToString(", "))
+                }
+                Text(
+                    text = typingText,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                )
             }
 
             // Compose bar
@@ -203,11 +257,18 @@ fun ConversationScreen(
                     .padding(horizontal = 8.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                IconButton(onClick = { filePickerLauncher.launch("*/*") }) {
+                    Icon(
+                        androidx.compose.material.icons.Icons.Default.Add,
+                        contentDescription = "Attach file",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
                 OutlinedTextField(
                     value = state.composingText,
                     onValueChange = onComposeTextChange,
                     modifier = Modifier.weight(1f),
-                    placeholder = { Text("Message") },
+                    placeholder = { Text(stringResource(R.string.hint_message)) },
                     maxLines = 4,
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
                     keyboardActions = KeyboardActions(onSend = { focusManager.clearFocus(); onSendClicked() }),
@@ -232,7 +293,7 @@ fun ConversationScreen(
                     } else {
                         Icon(
                             Icons.AutoMirrored.Filled.Send,
-                            contentDescription = "Send",
+                            contentDescription = stringResource(R.string.action_send),
                             tint = if (state.composingText.isNotBlank())
                                 MaterialTheme.colorScheme.onPrimary
                             else
@@ -281,19 +342,49 @@ private fun MessageBubble(
                         color = MaterialTheme.colorScheme.primary
                     )
                 }
-                Text(
-                    text = message.content,
-                    color = if (isOwn) MaterialTheme.colorScheme.onPrimary
-                    else MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.bodyMedium
-                )
+                
+                if (message.filePath != null) {
+                    if (message.fileType?.startsWith("image") == true) {
+                        AsyncImage(
+                            model = "${BuildConfig.API_BASE_URL}uploads/${message.filePath.substringAfterLast("/")}",
+                            contentDescription = "Attachment",
+                            modifier = Modifier.padding(bottom = 4.dp).size(200.dp).clip(RoundedCornerShape(8.dp))
+                        )
+                    } else {
+                        Row(
+                            modifier = Modifier
+                                .padding(bottom = 4.dp)
+                                .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(8.dp))
+                                .padding(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(androidx.compose.material.icons.Icons.Default.Add, contentDescription = "File")
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                "File attachment",
+                                color = MaterialTheme.colorScheme.onSurface,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+                    }
+                }
+
+                if (message.content.isNotBlank()) {
+                    Text(
+                        text = message.content,
+                        color = if (isOwn) MaterialTheme.colorScheme.onPrimary
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
                 val isEdited = message.isEdited == true
                 val time = message.displayTime.take(16) // trim seconds/tz
                 if (isEdited || time.isNotBlank()) {
+                    val editedStr = stringResource(R.string.edited_suffix)
                     Text(
                         text = buildString {
                             if (time.isNotBlank()) append(time)
-                            if (isEdited) append(" · edited")
+                            if (isEdited) append(" ").append(editedStr)
                         },
                         style = MaterialTheme.typography.labelSmall,
                         color = if (isOwn) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)

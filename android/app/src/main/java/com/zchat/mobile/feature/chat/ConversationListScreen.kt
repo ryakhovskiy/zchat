@@ -32,15 +32,19 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.zchat.mobile.R
 import com.zchat.mobile.data.remote.dto.ConversationDto
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ConversationListScreen(
-    state: ChatUiState,
+    state: ConversationListState,
     currentUserId: Long?,
+    isDarkMode: Boolean,
+    onToggleDarkMode: (Boolean) -> Unit,
     onConversationClicked: (Long) -> Unit,
     onNewConversationClicked: () -> Unit,
     onLogout: () -> Unit,
@@ -48,7 +52,7 @@ fun ConversationListScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Messages") },
+                title = { Text(stringResource(R.string.title_messages)) },
                 actions = {
                     if (state.wsConnected) {
                         Box(
@@ -59,15 +63,19 @@ fun ConversationListScreen(
                                 .background(MaterialTheme.colorScheme.tertiary)
                         )
                     }
+                    // Theme Toggle
+                    IconButton(onClick = { onToggleDarkMode(!isDarkMode) }) {
+                        Text(if (isDarkMode) "☀️" else "🌙")
+                    }
                     IconButton(onClick = onLogout) {
-                        Icon(Icons.Default.Close, contentDescription = "Logout")
+                        Icon(Icons.Default.Close, contentDescription = stringResource(R.string.action_logout))
                     }
                 }
             )
         },
         floatingActionButton = {
             FloatingActionButton(onClick = onNewConversationClicked) {
-                Icon(Icons.Default.Add, contentDescription = "New conversation")
+                Icon(Icons.Default.Add, contentDescription = stringResource(R.string.title_new_conversation))
             }
         }
     ) { innerPadding ->
@@ -80,7 +88,7 @@ fun ConversationListScreen(
                 state.loading -> CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
                 state.conversations.isEmpty() -> {
                     Text(
-                        "No conversations yet. Tap + to start one.",
+                        stringResource(R.string.msg_no_conversations),
                         modifier = Modifier.align(Alignment.Center).padding(24.dp),
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
