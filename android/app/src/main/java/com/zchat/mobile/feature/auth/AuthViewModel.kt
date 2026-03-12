@@ -2,6 +2,7 @@ package com.zchat.mobile.feature.auth
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.zchat.mobile.data.repository.ApiResult
 import com.zchat.mobile.data.repository.AuthRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -66,12 +67,9 @@ class AuthViewModel @Inject constructor(
         }
         viewModelScope.launch {
             _uiState.update { it.copy(loading = true, error = null) }
-            runCatching {
-                authRepository.login(s.username, s.password, s.rememberMe)
-            }.onFailure { err ->
-                _uiState.update { it.copy(loading = false, error = err.message ?: "Login failed") }
-            }.onSuccess {
-                _uiState.update { it.copy(loading = false) }
+            when (val result = authRepository.login(s.username, s.password, s.rememberMe)) {
+                is ApiResult.Success -> _uiState.update { it.copy(loading = false) }
+                is ApiResult.Error -> _uiState.update { it.copy(loading = false, error = result.message) }
             }
         }
     }
@@ -84,17 +82,14 @@ class AuthViewModel @Inject constructor(
         }
         viewModelScope.launch {
             _uiState.update { it.copy(loading = true, error = null) }
-            runCatching {
-                authRepository.register(
-                    username = s.username,
-                    email = s.email.ifBlank { null },
-                    password = s.password,
-                    rememberMe = s.rememberMe
-                )
-            }.onFailure { err ->
-                _uiState.update { it.copy(loading = false, error = err.message ?: "Registration failed") }
-            }.onSuccess {
-                _uiState.update { it.copy(loading = false) }
+            when (val result = authRepository.register(
+                username = s.username,
+                email = s.email.ifBlank { null },
+                password = s.password,
+                rememberMe = s.rememberMe
+            )) {
+                is ApiResult.Success -> _uiState.update { it.copy(loading = false) }
+                is ApiResult.Error -> _uiState.update { it.copy(loading = false, error = result.message) }
             }
         }
     }

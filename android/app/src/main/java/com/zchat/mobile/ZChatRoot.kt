@@ -20,7 +20,8 @@ import androidx.navigation.NavType
 import com.zchat.mobile.feature.auth.AuthViewModel
 import com.zchat.mobile.feature.auth.LoginScreen
 import com.zchat.mobile.feature.auth.RegisterScreen
-import com.zchat.mobile.feature.chat.ChatViewModel
+import com.zchat.mobile.feature.chat.ConversationListViewModel
+import com.zchat.mobile.feature.chat.ConversationViewModel
 import com.zchat.mobile.feature.chat.ConversationListScreen
 import com.zchat.mobile.feature.chat.ConversationScreen
 import com.zchat.mobile.feature.chat.NewConversationScreen
@@ -38,12 +39,13 @@ fun ZChatRoot(
     isDarkMode: Boolean,
     onToggleDarkMode: (Boolean) -> Unit,
     authViewModel: AuthViewModel = hiltViewModel(),
-    chatViewModel: ChatViewModel = hiltViewModel()
+    listViewModel: ConversationListViewModel = hiltViewModel(),
+    convViewModel: ConversationViewModel = hiltViewModel()
 ) {
     val authState by authViewModel.uiState.collectAsStateWithLifecycle()
-    val listState by chatViewModel.listState.collectAsStateWithLifecycle()
-    val activeState by chatViewModel.activeState.collectAsStateWithLifecycle()
-    val newState by chatViewModel.newState.collectAsStateWithLifecycle()
+    val listState by listViewModel.listState.collectAsStateWithLifecycle()
+    val activeState by convViewModel.state.collectAsStateWithLifecycle()
+    val newState by listViewModel.newState.collectAsStateWithLifecycle()
     val navController = rememberNavController()
     val context = LocalContext.current
 
@@ -62,7 +64,7 @@ fun ZChatRoot(
     // Top-level: navigate to login whenever session is cleared (e.g. logout or token expiry)
     LaunchedEffect(authState.authenticated) {
         if (!authState.authenticated) {
-            chatViewModel.disconnectRealtime()
+            listViewModel.disconnectRealtime()
             navController.navigate(Routes.LOGIN) {
                 popUpTo(0) { inclusive = true }
             }
@@ -124,8 +126,8 @@ fun ZChatRoot(
             // Connect realtime and load conversations once authenticated
             LaunchedEffect(authState.token) {
                 if (!authState.token.isNullOrBlank()) {
-                    chatViewModel.connectRealtime(authState.token)
-                    chatViewModel.loadConversations()
+                    listViewModel.connectRealtime(authState.token)
+                    listViewModel.loadConversations()
                 }
             }
 
@@ -135,12 +137,14 @@ fun ZChatRoot(
                 isDarkMode = isDarkMode,
                 onToggleDarkMode = onToggleDarkMode,
                 onConversationClicked = { id ->
-                    chatViewModel.selectConversation(id)
+                    convViewModel.selectConversation(id)
+                    listViewModel.resetUnread(id)
                     navController.navigate("${Routes.CONVERSATION}/$id")
                 },
                 onNewConversationClicked = {
                     navController.navigate(Routes.NEW_CONVERSATION)
                 },
+                onRefresh = { listViewModel.loadConversations() },
                 onLogout = { authViewModel.logout() }
             )
         }
@@ -154,7 +158,7 @@ fun ZChatRoot(
             // Re-select if process died and recreated
             LaunchedEffect(conversationId) {
                 if (activeState.conversationId != conversationId) {
-                    chatViewModel.selectConversation(conversationId)
+                    convViewModel.selectConversation(conversationId)
                 }
             }
 
@@ -165,26 +169,33 @@ fun ZChatRoot(
                 conversation = conversation,
                 currentUserId = authState.currentUserId,
                 onBack = { navController.popBackStack() },
-                onComposeTextChange = chatViewModel::onComposeTextChange,
-                onSendClicked = chatViewModel::sendMessage,
-                onStartEditing = chatViewModel::startEditing,
-                onCancelEditing = chatViewModel::cancelEditing,
-                onDeleteMessage = chatViewModel::deleteMessage,
-                onFilePicked = { uri -> chatViewModel.uploadFile(uri, context) }
+                onComposeTextChange = convViewModel::onComposeTextChange,
+                onSendClicked = convViewModel::sendMessage,
+                onStartEditing = convViewModel::startEditing,
+                onCancelEditing = convViewModel::cancelEditing,
+                onDeleteMessage = convViewModel::deleteMessage,
+                onFilePicked = { uri -> convViewModel.uploadFile(uri, context) }
             )
         }
 
         composable(Routes.NEW_CONVERSATION) {
+            LaunchedEffect(Unit) {
+                listViewModel.navigateToConversation.collect { id ->
+                    convViewModel.selectConversation(id)
+                    listViewModel.resetUnread(id)
+                    navController.navigate("${Routes.CONVERSATION}/$id") {
+                        popUpTo(Routes.CONVERSATIONS)
+                    }
+                }
+            }
+
             NewConversationScreen(
                 state = newState,
                 currentUserId = authState.currentUserId,
                 onBack = { navController.popBackStack() },
-                onLoadUsers = chatViewModel::loadUsers,
+                onLoadUsers = listViewModel::loadUsers,
                 onCreateConversation = { ids, isGroup, name ->
-                    chatViewModel.createConversation(ids, isGroup, name)
-                    navController.navigate(Routes.CONVERSATIONS) {
-                        popUpTo(Routes.CONVERSATIONS)
-                    }
+                    listViewModel.createConversation(ids, isGroup, name)
                 }
             )
         }

@@ -29,6 +29,7 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.zchat.mobile.data.remote.dto.UserDto
 
@@ -129,5 +130,24 @@ private fun UserSelectItem(
                 color = MaterialTheme.colorScheme.tertiary
             )
         }
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun NewConversationScreenPreview() {
+    com.zchat.mobile.ui.theme.ZChatTheme {
+        NewConversationScreen(
+            state = NewConversationState(
+                users = listOf(
+                    UserDto(id = 2, username = "alice", isOnline = true),
+                    UserDto(id = 3, username = "bob", isOnline = false),
+                )
+            ),
+            currentUserId = 1L,
+            onBack = {},
+            onLoadUsers = {},
+            onCreateConversation = { _, _, _ -> },
+        )
     }
 }

@@ -12,7 +12,6 @@ import com.zchat.mobile.data.remote.dto.UploadResponseDto
 import com.zchat.mobile.data.remote.dto.UserDto
 import okhttp3.MultipartBody
 import okhttp3.ResponseBody
-import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
@@ -32,7 +31,7 @@ interface AuthApi {
     suspend fun login(@Body payload: LoginRequestDto): AuthResponseDto
 
     @POST("auth/logout")
-    suspend fun logout(): Response<Unit>
+    suspend fun logout()
 
     @GET("auth/me")
     suspend fun me(): UserDto
@@ -72,7 +71,7 @@ interface ConversationsApi {
     ): MessageDto
 
     @POST("conversations/{id}/read")
-    suspend fun markAsRead(@Path("id") conversationId: Long): Response<Unit>
+    suspend fun markAsRead(@Path("id") conversationId: Long)
 }
 
 interface FilesApi {
@@ -104,5 +103,5 @@ interface MessagesApi {
     suspend fun deleteMessage(
         @Path("id") messageId: Long,
         @Query("delete_type") deleteType: String
-    ): Response<Unit>
+    )
 }

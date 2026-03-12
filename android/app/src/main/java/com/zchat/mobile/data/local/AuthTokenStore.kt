@@ -1,23 +1,15 @@
 package com.zchat.mobile.data.local
 
 import android.content.Context
-import androidx.datastore.preferences.core.Preferences
-import androidx.datastore.preferences.core.MutablePreferences
-import androidx.datastore.preferences.core.edit
-import androidx.datastore.preferences.core.emptyPreferences
-import androidx.datastore.preferences.core.longPreferencesKey
-import androidx.datastore.preferences.core.stringPreferencesKey
-import androidx.datastore.preferences.core.booleanPreferencesKey
-import androidx.datastore.preferences.preferencesDataStore
+import android.content.SharedPreferences
+import androidx.security.crypto.EncryptedSharedPreferences
+import androidx.security.crypto.MasterKeys
 import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.catch
-import kotlinx.coroutines.flow.map
-import java.io.IOException
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import javax.inject.Inject
 import javax.inject.Singleton
-
-private val Context.authDataStore by preferencesDataStore(name = "auth_store")
 
 data class AuthSession(
     val token: String? = null,
@@ -30,51 +22,55 @@ data class AuthSession(
 class AuthTokenStore @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
-    private val tokenKey = stringPreferencesKey("token")
-    private val usernameKey = stringPreferencesKey("username")
-    private val userIdKey = longPreferencesKey("user_id")
-    private val rememberMeKey = booleanPreferencesKey("remember_me")
+    private companion object {
+        const val KEY_TOKEN = "token"
+        const val KEY_USERNAME = "username"
+        const val KEY_USER_ID = "user_id"
+        const val KEY_REMEMBER_ME = "remember_me"
+    }
+
+    private val prefs: SharedPreferences = EncryptedSharedPreferences.create(
+        "auth_encrypted_prefs",
+        MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC),
+        context,
+        EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+        EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+    )
 
     /** Synchronous in-memory cache so AuthInterceptor never needs runBlocking. */
     @Volatile
-    var memCache: AuthSession = AuthSession()
+    var memCache: AuthSession = readFromPrefs()
         private set
 
-    val session: Flow<AuthSession> = context.authDataStore.data
-        .catch { throwable ->
-            if (throwable is IOException) {
-                emit(emptyPreferences())
-            } else {
-                throw throwable
-            }
-        }
-        .map { prefs ->
-            AuthSession(
-                token = prefs[tokenKey],
-                username = prefs[usernameKey],
-                userId = prefs[userIdKey],
-                rememberMe = prefs[rememberMeKey] ?: false
-            ).also { memCache = it }
-        }
+    private val _session = MutableStateFlow(memCache)
+    val session: StateFlow<AuthSession> = _session.asStateFlow()
+
+    private fun readFromPrefs(): AuthSession {
+        val token = prefs.getString(KEY_TOKEN, null)
+        if (token.isNullOrBlank()) return AuthSession()
+        return AuthSession(
+            token = token,
+            username = prefs.getString(KEY_USERNAME, null),
+            userId = prefs.getLong(KEY_USER_ID, 0L).takeIf { it != 0L },
+            rememberMe = prefs.getBoolean(KEY_REMEMBER_ME, false)
+        )
+    }
 
     suspend fun saveSession(token: String, username: String, userId: Long, rememberMe: Boolean) {
         val newSession = AuthSession(token = token, username = username, userId = userId, rememberMe = rememberMe)
         memCache = newSession
-        context.authDataStore.edit { prefs: MutablePreferences ->
-            prefs[tokenKey] = token
-            prefs[usernameKey] = username
-            prefs[userIdKey] = userId
-            prefs[rememberMeKey] = rememberMe
-        }
+        prefs.edit()
+            .putString(KEY_TOKEN, token)
+            .putString(KEY_USERNAME, username)
+            .putLong(KEY_USER_ID, userId)
+            .putBoolean(KEY_REMEMBER_ME, rememberMe)
+            .apply()
+        _session.value = newSession
     }
 
     suspend fun clear() {
         memCache = AuthSession()
-        context.authDataStore.edit { prefs ->
-            prefs.remove(tokenKey)
-            prefs.remove(usernameKey)
-            prefs.remove(userIdKey)
-            prefs.remove(rememberMeKey)
-        }
+        prefs.edit().clear().apply()
+        _session.value = AuthSession()
     }
 }

@@ -1,6 +1,7 @@
 package com.zchat.mobile.data.remote.network
 
 import com.zchat.mobile.data.local.AuthTokenStore
+import kotlinx.coroutines.runBlocking
 import okhttp3.Interceptor
 import okhttp3.Response
 import javax.inject.Inject
@@ -17,6 +18,13 @@ class AuthInterceptor @Inject constructor(
         if (!token.isNullOrBlank()) {
             reqBuilder.addHeader("Authorization", "Bearer $token")
         }
-        return chain.proceed(reqBuilder.build())
+        val response = chain.proceed(reqBuilder.build())
+
+        // Clear session on 401 — triggers navigation to login via AuthUiState flow
+        if (response.code == 401 && !token.isNullOrBlank()) {
+            runBlocking { tokenStore.clear() }
+        }
+
+        return response
     }
 }

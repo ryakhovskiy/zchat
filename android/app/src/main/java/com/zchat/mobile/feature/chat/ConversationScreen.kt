@@ -60,6 +60,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.zchat.mobile.BuildConfig
@@ -394,5 +395,32 @@ private fun MessageBubble(
                 }
             }
         }
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun ConversationScreenPreview() {
+    com.zchat.mobile.ui.theme.ZChatTheme {
+        ConversationScreen(
+            state = ActiveConversationState(
+                conversationId = 1L,
+                messages = mapOf(
+                    1L to listOf(
+                        MessageDto(id = 1, conversationId = 1, content = "Hello!", senderId = 2, senderUsername = "alice", createdAt = "10:30"),
+                        MessageDto(id = 2, conversationId = 1, content = "Hi there!", senderId = 1, senderUsername = "me", createdAt = "10:31"),
+                    )
+                )
+            ),
+            conversation = ConversationDto(id = 1, isGroup = false, name = "Alice"),
+            currentUserId = 1L,
+            onBack = {},
+            onComposeTextChange = {},
+            onSendClicked = {},
+            onStartEditing = {},
+            onCancelEditing = {},
+            onDeleteMessage = { _, _ -> },
+            onFilePicked = {},
+        )
     }
 }

@@ -28,15 +28,18 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.zchat.mobile.R
 import com.zchat.mobile.data.remote.dto.ConversationDto
+import com.zchat.mobile.ui.theme.ZChatTheme
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -47,6 +50,7 @@ fun ConversationListScreen(
     onToggleDarkMode: (Boolean) -> Unit,
     onConversationClicked: (Long) -> Unit,
     onNewConversationClicked: () -> Unit,
+    onRefresh: () -> Unit,
     onLogout: () -> Unit,
 ) {
     Scaffold(
@@ -79,14 +83,15 @@ fun ConversationListScreen(
             }
         }
     ) { innerPadding ->
-        Box(
+        PullToRefreshBox(
+            isRefreshing = state.loading,
+            onRefresh = onRefresh,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
             when {
-                state.loading -> CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-                state.conversations.isEmpty() -> {
+                state.conversations.isEmpty() && !state.loading -> {
                     Text(
                         stringResource(R.string.msg_no_conversations),
                         modifier = Modifier.align(Alignment.Center).padding(24.dp),
@@ -201,5 +206,28 @@ private fun ConversationItem(
                 )
             }
         }
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun ConversationListScreenPreview() {
+    ZChatTheme {
+        ConversationListScreen(
+            state = ConversationListState(
+                conversations = listOf(
+                    ConversationDto(id = 1, isGroup = true, name = "Team Chat", unreadCount = 3),
+                    ConversationDto(id = 2, isGroup = false, name = "Alice"),
+                ),
+                wsConnected = true
+            ),
+            currentUserId = 1L,
+            isDarkMode = false,
+            onToggleDarkMode = {},
+            onConversationClicked = {},
+            onNewConversationClicked = {},
+            onRefresh = {},
+            onLogout = {},
+        )
     }
 }

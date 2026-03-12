@@ -28,26 +28,25 @@ class ChatRepository @Inject constructor(
     val wsEvents = webSocketClient.events
 
     // ── Conversations ──────────────────────────────────────────────────────────
-    suspend fun getConversations(): List<ConversationDto> =
-        conversationsApi.listConversations()
+    suspend fun getConversations(): ApiResult<List<ConversationDto>> =
+        apiCall { conversationsApi.listConversations() }
 
-    suspend fun createConversation(participantIds: List<Long>, isGroup: Boolean, name: String?): ConversationDto =
-        conversationsApi.createConversation(CreateConversationRequestDto(participantIds, isGroup, name))
+    suspend fun createConversation(participantIds: List<Long>, isGroup: Boolean, name: String?): ApiResult<ConversationDto> =
+        apiCall { conversationsApi.createConversation(CreateConversationRequestDto(participantIds, isGroup, name)) }
 
     // ── Messages ───────────────────────────────────────────────────────────────
-    suspend fun getMessages(conversationId: Long, limit: Int = 100): List<MessageDto> =
-        conversationsApi.listMessages(conversationId, limit)
+    suspend fun getMessages(conversationId: Long, limit: Int = 100): ApiResult<List<MessageDto>> =
+        apiCall { conversationsApi.listMessages(conversationId, limit) }
 
-    suspend fun sendMessage(conversationId: Long, content: String): MessageDto? {
-        return sendMessageWithFile(conversationId, content, null, null)
-    }
+    suspend fun sendMessage(conversationId: Long, content: String): ApiResult<MessageDto?> =
+        sendMessageWithFile(conversationId, content, null, null)
 
     suspend fun sendMessageWithFile(
         conversationId: Long,
         content: String,
         filePath: String?,
         fileType: String?
-    ): MessageDto? {
+    ): ApiResult<MessageDto?> {
         return if (wsConnected.value) {
             webSocketClient.send(
                 mapOf(
@@ -58,17 +57,19 @@ class ChatRepository @Inject constructor(
                     "file_type" to fileType
                 ).filterValues { it != null }
             )
-            null
+            ApiResult.Success(null)
         } else {
-            conversationsApi.sendMessage(conversationId, SendMessageRequestDto(content, filePath, fileType))
+            apiCall {
+                conversationsApi.sendMessage(conversationId, SendMessageRequestDto(content, filePath, fileType))
+            }
         }
     }
 
-    suspend fun editMessage(messageId: Long, content: String): MessageDto =
-        messagesApi.editMessage(messageId, EditMessageRequestDto(content))
+    suspend fun editMessage(messageId: Long, content: String): ApiResult<MessageDto> =
+        apiCall { messagesApi.editMessage(messageId, EditMessageRequestDto(content)) }
 
-    suspend fun deleteMessage(messageId: Long, deleteType: String = "for_everyone") =
-        messagesApi.deleteMessage(messageId, deleteType)
+    suspend fun deleteMessage(messageId: Long, deleteType: String = "for_everyone"): ApiResult<Unit> =
+        apiCall { messagesApi.deleteMessage(messageId, deleteType) }
 
     suspend fun markRead(conversationId: Long) {
         runCatching { conversationsApi.markAsRead(conversationId) }
@@ -82,13 +83,15 @@ class ChatRepository @Inject constructor(
     }
 
     // ── Files ──────────────────────────────────────────────────────────────────
-    suspend fun uploadFile(part: MultipartBody.Part): UploadResponseDto =
-        filesApi.upload(part)
+    suspend fun uploadFile(part: MultipartBody.Part): ApiResult<UploadResponseDto> =
+        apiCall { filesApi.upload(part) }
 
     // ── Users ──────────────────────────────────────────────────────────────────
-    suspend fun getUsers(): List<UserDto> = usersApi.listUsers()
+    suspend fun getUsers(): ApiResult<List<UserDto>> =
+        apiCall { usersApi.listUsers() }
 
-    suspend fun getOnlineUsers(): List<UserDto> = usersApi.listOnlineUsers()
+    suspend fun getOnlineUsers(): ApiResult<List<UserDto>> =
+        apiCall { usersApi.listOnlineUsers() }
 
     // ── Realtime ───────────────────────────────────────────────────────────────
     fun connectRealtime(token: String) = webSocketClient.connect(token)
