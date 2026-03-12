@@ -25,6 +25,8 @@ import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -38,6 +40,9 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -120,13 +125,39 @@ fun ConversationScreen(
                         )
                     ) {
                         items(messages, key = { it.id }) { message ->
-                            MessageBubble(
-                                message = message,
-                                isOwn = message.senderId == currentUserId,
-                                onLongPress = {
-                                    // Show context menu
+                            var showMenu by remember { mutableStateOf(false) }
+
+                            Box {
+                                MessageBubble(
+                                    message = message,
+                                    isOwn = message.senderId == currentUserId,
+                                    onLongPress = {
+                                        if (message.senderId == currentUserId) {
+                                            showMenu = true
+                                        }
+                                    }
+                                )
+                                
+                                DropdownMenu(
+                                    expanded = showMenu,
+                                    onDismissRequest = { showMenu = false }
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text("Edit") },
+                                        onClick = {
+                                            showMenu = false
+                                            onStartEditing(message)
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Delete") },
+                                        onClick = {
+                                            showMenu = false
+                                            onDeleteMessage(message.id, message.conversationId)
+                                        }
+                                    )
                                 }
-                            )
+                            }
                         }
                     }
                 }

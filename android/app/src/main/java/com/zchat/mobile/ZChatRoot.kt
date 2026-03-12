@@ -14,6 +14,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
+import androidx.navigation.NavType
 import com.zchat.mobile.feature.auth.AuthViewModel
 import com.zchat.mobile.feature.auth.LoginScreen
 import com.zchat.mobile.feature.auth.RegisterScreen
@@ -126,7 +128,7 @@ fun ZChatRoot(
                 currentUserId = authState.currentUserId,
                 onConversationClicked = { id ->
                     chatViewModel.selectConversation(id)
-                    navController.navigate(Routes.CONVERSATION)
+                    navController.navigate("${Routes.CONVERSATION}/$id")
                 },
                 onNewConversationClicked = {
                     navController.navigate(Routes.NEW_CONVERSATION)
@@ -135,10 +137,20 @@ fun ZChatRoot(
             )
         }
 
-        composable(Routes.CONVERSATION) {
-            val conversation = chatState.activeConversationId?.let { id ->
-                chatState.conversations.find { it.id == id }
+        composable(
+            route = "${Routes.CONVERSATION}/{id}",
+            arguments = listOf(navArgument("id") { type = NavType.LongType })
+        ) { backStackEntry ->
+            val conversationId = backStackEntry.arguments?.getLong("id") ?: return@composable
+            
+            // Re-select if process died and recreated
+            LaunchedEffect(conversationId) {
+                if (chatState.activeConversationId != conversationId) {
+                    chatViewModel.selectConversation(conversationId)
+                }
             }
+
+            val conversation = chatState.conversations.find { it.id == conversationId }
 
             ConversationScreen(
                 state = chatState,
@@ -161,7 +173,11 @@ fun ZChatRoot(
                 onLoadUsers = chatViewModel::loadUsers,
                 onCreateConversation = { ids, isGroup, name ->
                     chatViewModel.createConversation(ids, isGroup, name)
-                    navController.navigate(Routes.CONVERSATION) {
+                    // The view model selects the conversation automatically and active conversation ID is set.
+                    // But here we need the ID to navigate immediately.
+                    // Since createConversation is async and we don't return the ID immediately, we should navigate back to list or wait.
+                    // For now, let's pop to conversations and UI will handle it when conversation is created.
+                    navController.navigate(Routes.CONVERSATIONS) {
                         popUpTo(Routes.CONVERSATIONS)
                     }
                 }

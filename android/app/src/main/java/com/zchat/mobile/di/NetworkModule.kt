@@ -1,7 +1,6 @@
 package com.zchat.mobile.di
 
 import com.squareup.moshi.Moshi
-import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import com.zchat.mobile.BuildConfig
 import com.zchat.mobile.data.remote.api.AuthApi
 import com.zchat.mobile.data.remote.api.BrowserApi
@@ -27,7 +26,6 @@ object NetworkModule {
     @Provides
     @Singleton
     fun provideMoshi(): Moshi = Moshi.Builder()
-        .add(KotlinJsonAdapterFactory())
         .build()
 
     @Provides
