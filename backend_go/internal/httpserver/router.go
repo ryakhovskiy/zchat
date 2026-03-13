@@ -84,6 +84,9 @@ func NewRouter(cfg *config.Config, db *sql.DB, hub *ws.Hub, tokenSvc *security.T
 		httpSwagger.URL("/docs/doc.json"),
 	))
 
+	// Static app downloads (APK, etc.)
+	r.Handle("/app/*", http.StripPrefix("/app/", http.FileServer(http.Dir("app"))))
+
 	// API routes
 	r.Route("/api", func(r chi.Router) {
 		// Auth routes (no auth required)
