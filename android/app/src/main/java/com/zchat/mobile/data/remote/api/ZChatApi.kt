@@ -103,5 +103,5 @@ interface MessagesApi {
     suspend fun deleteMessage(
         @Path("id") messageId: Long,
         @Query("delete_type") deleteType: String
-    )
+    ): MessageDto
 }

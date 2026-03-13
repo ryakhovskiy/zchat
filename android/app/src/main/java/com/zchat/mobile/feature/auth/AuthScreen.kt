@@ -149,7 +149,11 @@ fun RegisterScreen(
             singleLine = true,
             visualTransformation = PasswordVisualTransformation(),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
-            keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus(); onRegisterClicked() })
+            keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus(); onRegisterClicked() }),
+            isError = !state.passwordError.isNullOrBlank(),
+            supportingText = if (!state.passwordError.isNullOrBlank()) {
+                { Text(state.passwordError, color = MaterialTheme.colorScheme.error) }
+            } else null
         )
         Spacer(Modifier.height(8.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {

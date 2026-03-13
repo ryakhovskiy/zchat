@@ -1,5 +1,6 @@
 package com.zchat.mobile.feature.chat
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -15,9 +16,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
@@ -25,6 +29,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -47,11 +52,14 @@ fun ConversationListScreen(
     state: ConversationListState,
     currentUserId: Long?,
     isDarkMode: Boolean,
+    incomingCall: IncomingCallEvent? = null,
     onToggleDarkMode: (Boolean) -> Unit,
     onConversationClicked: (Long) -> Unit,
     onNewConversationClicked: () -> Unit,
     onRefresh: () -> Unit,
     onLogout: () -> Unit,
+    onRejectCall: () -> Unit = {},
+    onDismissCall: () -> Unit = {},
 ) {
     Scaffold(
         topBar = {
@@ -83,13 +91,58 @@ fun ConversationListScreen(
             }
         }
     ) { innerPadding ->
-        PullToRefreshBox(
-            isRefreshing = state.loading,
-            onRefresh = onRefresh,
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
+            // Incoming call banner
+            AnimatedVisibility(visible = incomingCall != null) {
+                incomingCall?.let { call ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(
+                                MaterialTheme.colorScheme.tertiaryContainer,
+                                RoundedCornerShape(bottomStart = 12.dp, bottomEnd = 12.dp)
+                            )
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                "Incoming call",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onTertiaryContainer
+                            )
+                            Text(
+                                call.senderUsername,
+                                style = MaterialTheme.typography.titleSmall,
+                                color = MaterialTheme.colorScheme.onTertiaryContainer
+                            )
+                        }
+                        OutlinedButton(onClick = onRejectCall) {
+                            Text("Reject")
+                        }
+                        Spacer(Modifier.width(8.dp))
+                        Button(
+                            onClick = onDismissCall,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.outline
+                            )
+                        ) {
+                            Text("Dismiss")
+                        }
+                    }
+                }
+            }
+
+            PullToRefreshBox(
+                isRefreshing = state.loading,
+                onRefresh = onRefresh,
+                modifier = Modifier.fillMaxSize()
+            ) {
             when {
                 state.conversations.isEmpty() && !state.loading -> {
                     Text(
@@ -122,6 +175,7 @@ fun ConversationListScreen(
                     color = MaterialTheme.colorScheme.error,
                     style = MaterialTheme.typography.bodySmall
                 )
+            }
             }
         }
     }

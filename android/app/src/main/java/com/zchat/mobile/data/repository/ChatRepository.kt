@@ -12,6 +12,7 @@ import com.zchat.mobile.data.remote.dto.SendMessageRequestDto
 import com.zchat.mobile.data.remote.dto.UploadResponseDto
 import com.zchat.mobile.data.remote.dto.UserDto
 import com.zchat.mobile.data.remote.network.ZChatWebSocketClient
+import android.util.Log
 import okhttp3.MultipartBody
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -25,6 +26,7 @@ class ChatRepository @Inject constructor(
     private val webSocketClient: ZChatWebSocketClient
 ) {
     val wsConnected = webSocketClient.connected
+    val wsConnectionFailed = webSocketClient.connectionFailed
     val wsEvents = webSocketClient.events
 
     // ── Conversations ──────────────────────────────────────────────────────────
@@ -68,17 +70,30 @@ class ChatRepository @Inject constructor(
     suspend fun editMessage(messageId: Long, content: String): ApiResult<MessageDto> =
         apiCall { messagesApi.editMessage(messageId, EditMessageRequestDto(content)) }
 
-    suspend fun deleteMessage(messageId: Long, deleteType: String = "for_everyone"): ApiResult<Unit> =
+    suspend fun deleteMessage(messageId: Long, deleteType: String = "for_everyone"): ApiResult<MessageDto> =
         apiCall { messagesApi.deleteMessage(messageId, deleteType) }
 
     suspend fun markRead(conversationId: Long) {
         runCatching { conversationsApi.markAsRead(conversationId) }
+            .onFailure { Log.w("ChatRepository", "markRead failed for conversation $conversationId", it) }
         webSocketClient.send(mapOf("type" to "mark_read", "conversation_id" to conversationId))
     }
 
     fun sendTyping(conversationId: Long) {
         if (wsConnected.value) {
             webSocketClient.send(mapOf("type" to "typing", "conversation_id" to conversationId))
+        }
+    }
+
+    fun sendCallRejected(targetUserId: Long, conversationId: Long) {
+        if (wsConnected.value) {
+            webSocketClient.send(
+                mapOf(
+                    "type" to "call_rejected",
+                    "target_user_id" to targetUserId,
+                    "conversation_id" to conversationId
+                )
+            )
         }
     }
 

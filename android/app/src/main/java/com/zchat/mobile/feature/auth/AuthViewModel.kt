@@ -21,6 +21,7 @@ data class AuthUiState(
     val rememberMe: Boolean = false,   // default false — opt-in, not opt-out
     val isRegisterMode: Boolean = false,
     val error: String? = null,
+    val passwordError: String? = null,
     val token: String? = null,
     val currentUserId: Long? = null
 )
@@ -54,7 +55,7 @@ class AuthViewModel @Inject constructor(
 
     fun onUsernameChange(value: String) = _uiState.update { it.copy(username = value, error = null) }
     fun onEmailChange(value: String) = _uiState.update { it.copy(email = value, error = null) }
-    fun onPasswordChange(value: String) = _uiState.update { it.copy(password = value, error = null) }
+    fun onPasswordChange(value: String) = _uiState.update { it.copy(password = value, error = null, passwordError = null) }
     fun onRememberMeChange(value: Boolean) = _uiState.update { it.copy(rememberMe = value) }
     fun switchToRegister() = _uiState.update { it.copy(isRegisterMode = true, error = null) }
     fun switchToLogin() = _uiState.update { it.copy(isRegisterMode = false, error = null) }
@@ -80,6 +81,11 @@ class AuthViewModel @Inject constructor(
             _uiState.update { it.copy(error = "Username and password are required") }
             return
         }
+        val pwError = validatePassword(s.password)
+        if (pwError != null) {
+            _uiState.update { it.copy(passwordError = pwError) }
+            return
+        }
         viewModelScope.launch {
             _uiState.update { it.copy(loading = true, error = null) }
             when (val result = authRepository.register(
@@ -96,5 +102,23 @@ class AuthViewModel @Inject constructor(
 
     fun logout() {
         viewModelScope.launch { authRepository.logout() }
+    }
+
+    companion object {
+        private val SPECIAL_CHARS = Regex("""[!@#$%^&*()\\,.?":{}|<>]""")
+
+        fun validatePassword(password: String): String? {
+            if (password.length < 10)
+                return "Password must be at least 10 characters"
+            if (!password.any { it.isUpperCase() })
+                return "Password must contain at least one uppercase letter"
+            if (!password.any { it.isLowerCase() })
+                return "Password must contain at least one lowercase letter"
+            if (!password.any { it.isDigit() })
+                return "Password must contain at least one digit"
+            if (!SPECIAL_CHARS.containsMatchIn(password))
+                return """Password must contain at least one special character (!@#$%^&*()\,.?":{}|<>)"""
+            return null
+        }
     }
 }

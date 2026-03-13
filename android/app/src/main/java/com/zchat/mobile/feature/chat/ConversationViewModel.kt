@@ -16,9 +16,11 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 data class ActiveConversationState(
@@ -59,8 +61,8 @@ class ConversationViewModel @Inject constructor(
                 appendMessage(msg)
             }
             "message_edited" -> {
-                val msgId = (event["message_id"] as? Double)?.toLong() ?: return
-                val convId = (event["conversation_id"] as? Double)?.toLong() ?: return
+                val msgId = (event["message_id"] as? Number)?.toLong() ?: return
+                val convId = (event["conversation_id"] as? Number)?.toLong() ?: return
                 val content = event["content"] as? String ?: return
                 _state.update { state ->
                     val updated = state.messages[convId]?.map {
@@ -70,16 +72,16 @@ class ConversationViewModel @Inject constructor(
                 }
             }
             "message_deleted" -> {
-                val msgId = (event["message_id"] as? Double)?.toLong() ?: return
-                val convId = (event["conversation_id"] as? Double)?.toLong() ?: return
+                val msgId = (event["message_id"] as? Number)?.toLong() ?: return
+                val convId = (event["conversation_id"] as? Number)?.toLong() ?: return
                 _state.update { state ->
                     val updated = state.messages[convId]?.filter { it.id != msgId }
                     state.copy(messages = if (updated != null) state.messages + (convId to updated) else state.messages)
                 }
             }
             "typing" -> {
-                val convId = (event["conversation_id"] as? Double)?.toLong() ?: return
-                val userId = (event["user_id"] as? Double)?.toLong() ?: return
+                val convId = (event["conversation_id"] as? Number)?.toLong() ?: return
+                val userId = (event["user_id"] as? Number)?.toLong() ?: return
                 val username = event["username"] as? String ?: return
 
                 if (_state.value.conversationId == convId) {
@@ -112,13 +114,13 @@ class ConversationViewModel @Inject constructor(
     }
 
     private fun wsEventToMessage(event: Map<String, Any?>): MessageDto? {
-        val id = (event["message_id"] as? Double)?.toLong() ?: return null
-        val convId = (event["conversation_id"] as? Double)?.toLong() ?: return null
+        val id = (event["message_id"] as? Number)?.toLong() ?: return null
+        val convId = (event["conversation_id"] as? Number)?.toLong() ?: return null
         return MessageDto(
             id = id,
             conversationId = convId,
             content = event["content"] as? String ?: "",
-            senderId = (event["sender_id"] as? Double)?.toLong() ?: 0L,
+            senderId = (event["sender_id"] as? Number)?.toLong() ?: 0L,
             senderUsername = event["sender_username"] as? String,
             filePath = event["file_path"] as? String,
             fileType = event["file_type"] as? String,
@@ -181,27 +183,29 @@ class ConversationViewModel @Inject constructor(
         viewModelScope.launch {
             _state.update { it.copy(isUploading = true) }
             try {
-                val contentResolver = context.contentResolver
-                val mimeType = contentResolver.getType(uri) ?: "application/octet-stream"
+                val part = withContext(Dispatchers.IO) {
+                    val contentResolver = context.contentResolver
+                    val mimeType = contentResolver.getType(uri) ?: "application/octet-stream"
 
-                var fileName = "upload"
-                contentResolver.query(uri, null, null, null, null)?.use { cursor ->
-                    if (cursor.moveToFirst()) {
-                        val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-                        if (nameIndex != -1) fileName = cursor.getString(nameIndex)
+                    var fileName = "upload"
+                    contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                        if (cursor.moveToFirst()) {
+                            val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                            if (nameIndex != -1) fileName = cursor.getString(nameIndex)
+                        }
                     }
-                }
 
-                val mediaType = mimeType.toMediaTypeOrNull()
-                val requestBody = object : okhttp3.RequestBody() {
-                    override fun contentType() = mediaType
-                    override fun writeTo(sink: okio.BufferedSink) {
-                        contentResolver.openInputStream(uri)?.use { input ->
-                            sink.writeAll(input.source())
-                        } ?: throw Exception("Cannot open file")
+                    val mediaType = mimeType.toMediaTypeOrNull()
+                    val requestBody = object : okhttp3.RequestBody() {
+                        override fun contentType() = mediaType
+                        override fun writeTo(sink: okio.BufferedSink) {
+                            contentResolver.openInputStream(uri)?.use { input ->
+                                sink.writeAll(input.source())
+                            } ?: throw Exception("Cannot open file")
+                        }
                     }
+                    MultipartBody.Part.createFormData("file", fileName, requestBody)
                 }
-                val part = MultipartBody.Part.createFormData("file", fileName, requestBody)
 
                 when (val result = chatRepository.uploadFile(part)) {
                     is ApiResult.Success -> {

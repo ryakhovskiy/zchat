@@ -53,20 +53,26 @@ object NetworkModule {
             .build()
 
     @Provides
+    @Singleton
     fun provideAuthApi(retrofit: Retrofit): AuthApi = retrofit.create(AuthApi::class.java)
 
     @Provides
+    @Singleton
     fun provideUsersApi(retrofit: Retrofit): UsersApi = retrofit.create(UsersApi::class.java)
 
     @Provides
+    @Singleton
     fun provideConversationsApi(retrofit: Retrofit): ConversationsApi = retrofit.create(ConversationsApi::class.java)
 
     @Provides
+    @Singleton
     fun provideFilesApi(retrofit: Retrofit): FilesApi = retrofit.create(FilesApi::class.java)
 
     @Provides
+    @Singleton
     fun provideBrowserApi(retrofit: Retrofit): BrowserApi = retrofit.create(BrowserApi::class.java)
 
     @Provides
+    @Singleton
     fun provideMessagesApi(retrofit: Retrofit): MessagesApi = retrofit.create(MessagesApi::class.java)
 }

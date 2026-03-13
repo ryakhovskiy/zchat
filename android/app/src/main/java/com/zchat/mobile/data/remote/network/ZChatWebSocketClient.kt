@@ -38,6 +38,9 @@ class ZChatWebSocketClient @Inject constructor(
     private val _connected = MutableStateFlow(false)
     val connected: StateFlow<Boolean> = _connected.asStateFlow()
 
+    private val _connectionFailed = MutableStateFlow(false)
+    val connectionFailed: StateFlow<Boolean> = _connectionFailed.asStateFlow()
+
     private var reconnectAttempt = 0
     private var reconnectJob: Job? = null
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -50,6 +53,7 @@ class ZChatWebSocketClient @Inject constructor(
     fun connect(token: String) {
         currentToken = token
         reconnectAttempt = 0
+        _connectionFailed.value = false
         connectInternal()
     }
 
@@ -95,7 +99,11 @@ class ZChatWebSocketClient @Inject constructor(
     }
 
     private fun scheduleReconnect() {
-        if (reconnectAttempt >= 5) return
+        if (reconnectAttempt >= 5) {
+            Log.w("ZChatWS", "Max reconnect attempts reached")
+            _connectionFailed.value = true
+            return
+        }
         reconnectJob?.cancel()
         reconnectJob = scope.launch {
             val delayMs = 1000L * (1 shl reconnectAttempt)
@@ -120,6 +128,7 @@ class ZChatWebSocketClient @Inject constructor(
         reconnectJob?.cancel()
         currentToken = null
         reconnectAttempt = 0
+        _connectionFailed.value = false
         disconnectInternal()
     }
 }

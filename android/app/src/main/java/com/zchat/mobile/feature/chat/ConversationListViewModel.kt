@@ -31,6 +31,12 @@ data class NewConversationState(
     val error: String? = null
 )
 
+data class IncomingCallEvent(
+    val senderUsername: String,
+    val senderId: Long,
+    val conversationId: Long
+)
+
 @HiltViewModel
 class ConversationListViewModel @Inject constructor(
     private val chatRepository: ChatRepository
@@ -45,10 +51,18 @@ class ConversationListViewModel @Inject constructor(
     private val _navigateToConversation = MutableSharedFlow<Long>(extraBufferCapacity = 1)
     val navigateToConversation: SharedFlow<Long> = _navigateToConversation.asSharedFlow()
 
+    private val _incomingCall = MutableStateFlow<IncomingCallEvent?>(null)
+    val incomingCall: StateFlow<IncomingCallEvent?> = _incomingCall.asStateFlow()
+
     init {
         viewModelScope.launch {
             chatRepository.wsConnected.collect { connected ->
-                _listState.update { it.copy(wsConnected = connected) }
+                _listState.update { it.copy(wsConnected = connected, error = if (connected) null else it.error) }
+            }
+        }
+        viewModelScope.launch {
+            chatRepository.wsConnectionFailed.collect { failed ->
+                if (failed) _listState.update { it.copy(error = "Connection lost. Pull to refresh to reconnect.") }
             }
         }
         viewModelScope.launch {
@@ -86,7 +100,7 @@ class ConversationListViewModel @Inject constructor(
                 }
             }
             "messages_read" -> {
-                val convId = (event["conversation_id"] as? Double)?.toLong() ?: return
+                val convId = (event["conversation_id"] as? Number)?.toLong() ?: return
                 _listState.update { state ->
                     state.copy(conversations = state.conversations.map { c ->
                         if (c.id == convId) c.copy(unreadCount = 0) else c
@@ -94,16 +108,25 @@ class ConversationListViewModel @Inject constructor(
                 }
             }
             "user_online" -> {
-                val userId = (event["user_id"] as? Double)?.toLong() ?: return
+                val userId = (event["user_id"] as? Number)?.toLong() ?: return
                 _newState.update { state ->
                     state.copy(users = state.users.map { u -> if (u.id == userId) u.copy(isOnline = true) else u })
                 }
             }
             "user_offline" -> {
-                val userId = (event["user_id"] as? Double)?.toLong() ?: return
+                val userId = (event["user_id"] as? Number)?.toLong() ?: return
                 _newState.update { state ->
                     state.copy(users = state.users.map { u -> if (u.id == userId) u.copy(isOnline = false) else u })
                 }
+            }
+            "call_offer" -> {
+                val senderId = (event["sender_id"] as? Number)?.toLong() ?: return
+                val senderUsername = event["sender_username"] as? String ?: return
+                val convId = (event["conversation_id"] as? Number)?.toLong() ?: return
+                _incomingCall.value = IncomingCallEvent(senderUsername, senderId, convId)
+            }
+            "call_end", "call_rejected" -> {
+                _incomingCall.value = null
             }
         }
     }
@@ -157,14 +180,24 @@ class ConversationListViewModel @Inject constructor(
         _newState.update { it.copy(error = null) }
     }
 
+    fun rejectIncomingCall() {
+        val call = _incomingCall.value ?: return
+        chatRepository.sendCallRejected(call.senderId, call.conversationId)
+        _incomingCall.value = null
+    }
+
+    fun dismissIncomingCall() {
+        _incomingCall.value = null
+    }
+
     private fun wsEventToMessage(event: Map<String, Any?>): MessageDto? {
-        val id = (event["message_id"] as? Double)?.toLong() ?: return null
-        val convId = (event["conversation_id"] as? Double)?.toLong() ?: return null
+        val id = (event["message_id"] as? Number)?.toLong() ?: return null
+        val convId = (event["conversation_id"] as? Number)?.toLong() ?: return null
         return MessageDto(
             id = id,
             conversationId = convId,
             content = event["content"] as? String ?: "",
-            senderId = (event["sender_id"] as? Double)?.toLong() ?: 0L,
+            senderId = (event["sender_id"] as? Number)?.toLong() ?: 0L,
             senderUsername = event["sender_username"] as? String,
             filePath = event["file_path"] as? String,
             fileType = event["file_type"] as? String,

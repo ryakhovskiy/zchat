@@ -46,6 +46,7 @@ fun ZChatRoot(
     val listState by listViewModel.listState.collectAsStateWithLifecycle()
     val activeState by convViewModel.state.collectAsStateWithLifecycle()
     val newState by listViewModel.newState.collectAsStateWithLifecycle()
+    val incomingCall by listViewModel.incomingCall.collectAsStateWithLifecycle()
     val navController = rememberNavController()
     val context = LocalContext.current
 
@@ -135,6 +136,7 @@ fun ZChatRoot(
                 state = listState,
                 currentUserId = authState.currentUserId,
                 isDarkMode = isDarkMode,
+                incomingCall = incomingCall,
                 onToggleDarkMode = onToggleDarkMode,
                 onConversationClicked = { id ->
                     convViewModel.selectConversation(id)
@@ -145,7 +147,9 @@ fun ZChatRoot(
                     navController.navigate(Routes.NEW_CONVERSATION)
                 },
                 onRefresh = { listViewModel.loadConversations() },
-                onLogout = { authViewModel.logout() }
+                onLogout = { authViewModel.logout() },
+                onRejectCall = { listViewModel.rejectIncomingCall() },
+                onDismissCall = { listViewModel.dismissIncomingCall() }
             )
         }
 

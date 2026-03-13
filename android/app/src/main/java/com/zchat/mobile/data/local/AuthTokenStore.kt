@@ -42,6 +42,12 @@ class AuthTokenStore @Inject constructor(
     var memCache: AuthSession = readFromPrefs()
         private set
 
+    /** Synchronously clear the in-memory cache without touching disk. */
+    fun clearMemCache() {
+        memCache = AuthSession()
+        _session.value = AuthSession()
+    }
+
     private val _session = MutableStateFlow(memCache)
     val session: StateFlow<AuthSession> = _session.asStateFlow()
 

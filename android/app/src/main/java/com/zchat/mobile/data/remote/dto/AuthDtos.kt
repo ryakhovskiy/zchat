@@ -8,7 +8,10 @@ data class UserDto(
     val id: Long,
     val username: String,
     val email: String? = null,
-    @Json(name = "is_online") val isOnline: Boolean? = null
+    @Json(name = "is_online") val isOnline: Boolean? = null,
+    @Json(name = "is_active") val isActive: Boolean? = null,
+    @Json(name = "created_at") val createdAt: String? = null,
+    @Json(name = "last_seen") val lastSeen: String? = null
 )
 
 @JsonClass(generateAdapter = true)
@@ -56,6 +59,7 @@ data class ConversationDto(
     val id: Long,
     val name: String? = null,
     @Json(name = "is_group") val isGroup: Boolean,
+    @Json(name = "created_at") val createdAt: String? = null,
     @Json(name = "updated_at") val updatedAt: String? = null,
     val participants: List<UserDto>? = null,
     @Json(name = "unread_count") val unreadCount: Int? = null,

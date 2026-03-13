@@ -1,7 +1,10 @@
 package com.zchat.mobile.data.remote.network
 
 import com.zchat.mobile.data.local.AuthTokenStore
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import okhttp3.Interceptor
 import okhttp3.Response
 import javax.inject.Inject
@@ -11,8 +14,10 @@ import javax.inject.Singleton
 class AuthInterceptor @Inject constructor(
     private val tokenStore: AuthTokenStore
 ) : Interceptor {
+
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
     override fun intercept(chain: Interceptor.Chain): Response {
-        // Use synchronous in-memory cache — avoids runBlocking on OkHttp dispatcher
         val token = tokenStore.memCache.token
         val reqBuilder = chain.request().newBuilder()
         if (!token.isNullOrBlank()) {
@@ -20,9 +25,10 @@ class AuthInterceptor @Inject constructor(
         }
         val response = chain.proceed(reqBuilder.build())
 
-        // Clear session on 401 — triggers navigation to login via AuthUiState flow
+        // On 401: clear in-memory cache synchronously, persist asynchronously
         if (response.code == 401 && !token.isNullOrBlank()) {
-            runBlocking { tokenStore.clear() }
+            tokenStore.clearMemCache()
+            scope.launch { tokenStore.clear() }
         }
 
         return response
