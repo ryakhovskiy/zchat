@@ -19,11 +19,29 @@
   z-index: 100;
 }
 
+.top-bar-branding {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 .top-bar-branding h1 {
   margin: 0;
   font-size: 1.25rem;
   color: var(--text-primary);
   font-weight: 600;
+}
+
+.android-download {
+  display: flex;
+  align-items: center;
+  color: var(--text-secondary);
+  opacity: 0.7;
+  transition: opacity 0.2s;
+}
+
+.android-download:hover {
+  opacity: 1;
 }
 
 /* Adjust chat-container to fill remaining space */

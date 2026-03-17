@@ -2,17 +2,91 @@ package httpserver
 
 import (
 	"fmt"
+	"html"
 	"log"
 	"net"
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/playwright-community/playwright-go"
 )
 
-const maxProxiedHTMLBytes = 2 * 1024 * 1024
+const (
+	maxProxiedHTMLBytes = 2 * 1024 * 1024
+	maxConcurrentProxy  = 3
+	rateWindowSeconds   = 60
+	maxRequestsPerUser  = 10
+)
+
+// BrowserPool manages a singleton Playwright + Chromium instance with concurrency control.
+type BrowserPool struct {
+	pw      *playwright.Playwright
+	browser playwright.Browser
+	sem     chan struct{} // concurrency semaphore
+
+	mu    sync.Mutex
+	rates map[int64][]time.Time // per-user rate tracking
+}
+
+// NewBrowserPool initialises Playwright and launches a shared headless Chromium instance.
+func NewBrowserPool() (*BrowserPool, error) {
+	pw, err := playwright.Run()
+	if err != nil {
+		return nil, fmt.Errorf("playwright start: %w", err)
+	}
+	browser, err := pw.Chromium.Launch(playwright.BrowserTypeLaunchOptions{
+		Headless: playwright.Bool(true),
+	})
+	if err != nil {
+		pw.Stop()
+		return nil, fmt.Errorf("chromium launch: %w", err)
+	}
+	return &BrowserPool{
+		pw:      pw,
+		browser: browser,
+		sem:     make(chan struct{}, maxConcurrentProxy),
+		rates:   make(map[int64][]time.Time),
+	}, nil
+}
+
+// Close tears down the shared browser and Playwright runtime.
+func (bp *BrowserPool) Close() {
+	if bp.browser != nil {
+		bp.browser.Close()
+	}
+	if bp.pw != nil {
+		bp.pw.Stop()
+	}
+}
+
+// checkRate returns true if the user is within the rate limit.
+func (bp *BrowserPool) checkRate(userID int64) bool {
+	bp.mu.Lock()
+	defer bp.mu.Unlock()
+
+	now := time.Now()
+	cutoff := now.Add(-time.Duration(rateWindowSeconds) * time.Second)
+
+	// Prune old entries
+	recent := bp.rates[userID]
+	start := 0
+	for start < len(recent) && recent[start].Before(cutoff) {
+		start++
+	}
+	recent = recent[start:]
+
+	if len(recent) >= maxRequestsPerUser {
+		bp.rates[userID] = recent
+		return false
+	}
+
+	bp.rates[userID] = append(recent, now)
+	return true
+}
 
 func isBlockedIP(ip net.IP) bool {
 	if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsMulticast() || ip.IsUnspecified() {
@@ -54,11 +128,23 @@ func validateProxyURL(targetURL string) error {
 	return nil
 }
 
-func RegisterBrowserRoutes(r chi.Router) {
-	r.Get("/proxy", handleBrowserProxy)
+// RegisterBrowserRoutes registers the browser proxy endpoint using the shared pool.
+func RegisterBrowserRoutes(r chi.Router, pool *BrowserPool) {
+	r.Get("/proxy", pool.handleBrowserProxy)
 }
 
-func handleBrowserProxy(w http.ResponseWriter, r *http.Request) {
+func (bp *BrowserPool) handleBrowserProxy(w http.ResponseWriter, r *http.Request) {
+	// Per-user rate limiting
+	user := CurrentUser(r)
+	if user == nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	if !bp.checkRate(user.ID) {
+		http.Error(w, "rate limit exceeded", http.StatusTooManyRequests)
+		return
+	}
+
 	targetURL := r.URL.Query().Get("url")
 	if targetURL == "" {
 		http.Error(w, "missing url parameter", http.StatusBadRequest)
@@ -70,42 +156,33 @@ func handleBrowserProxy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Initialize Playwright
-	pw, err := playwright.Run()
-	if err != nil {
-		log.Printf("could not start playwright: %v", err)
-		http.Error(w, "browser service unavailable", http.StatusInternalServerError)
+	// Acquire concurrency slot (blocks until available or request is cancelled)
+	select {
+	case bp.sem <- struct{}{}:
+		defer func() { <-bp.sem }()
+	case <-r.Context().Done():
+		http.Error(w, "request cancelled", http.StatusServiceUnavailable)
 		return
 	}
-	defer pw.Stop()
 
-	browser, err := pw.Chromium.Launch(playwright.BrowserTypeLaunchOptions{
-		Headless: playwright.Bool(true),
+	// Create an isolated context per request (reuses the shared browser)
+	ctx, err := bp.browser.NewContext(playwright.BrowserNewContextOptions{
+		UserAgent: playwright.String("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"),
 	})
 	if err != nil {
-		log.Printf("could not launch browser: %v", err)
-		http.Error(w, "browser launch failed", http.StatusInternalServerError)
-		return
-	}
-	defer browser.Close()
-
-	context, err := browser.NewContext(playwright.BrowserNewContextOptions{
-		UserAgent: playwright.String("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"),
-	})
-	if err != nil {
-		log.Printf("could not create context: %v", err)
+		log.Printf("could not create browser context: %v", err)
 		http.Error(w, "browser context failed", http.StatusInternalServerError)
 		return
 	}
+	defer ctx.Close()
 
-	page, err := context.NewPage()
+	page, err := ctx.NewPage()
 	if err != nil {
 		log.Printf("could not create page: %v", err)
 		http.Error(w, "browser page failed", http.StatusInternalServerError)
 		return
 	}
 
-	// Go to URL
 	if _, err = page.Goto(targetURL, playwright.PageGotoOptions{
 		WaitUntil: playwright.WaitUntilStateNetworkidle,
 		Timeout:   playwright.Float(30000),
@@ -126,8 +203,8 @@ func handleBrowserProxy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Inject <base> tag to fix relative links
-	baseTag := `<base href="` + targetURL + `">`
+	// Inject <base> tag with HTML-escaped URL to prevent attribute injection
+	baseTag := `<base href="` + html.EscapeString(targetURL) + `">`
 	if strings.Contains(content, "<head>") {
 		content = strings.Replace(content, "<head>", "<head>"+baseTag, 1)
 	} else {
@@ -135,5 +212,6 @@ func handleBrowserProxy(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Content-Security-Policy", "default-src * 'unsafe-inline' 'unsafe-eval' data: blob:; frame-ancestors 'self'")
 	w.Write([]byte(content))
 }

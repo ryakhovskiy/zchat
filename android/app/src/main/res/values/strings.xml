@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">zChat</string>
+    <string name="title_messages">Messages</string>
+    <string name="title_new_conversation">New Conversation</string>
+    <string name="action_logout">Logout</string>
+    <string name="action_send">Send</string>
+    <string name="action_edit">Edit</string>
+    <string name="action_delete">Delete</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="msg_no_conversations">No conversations yet. Tap + to start one.</string>
+    <string name="msg_no_messages">No messages yet. Say hello!</string>
+    <string name="msg_no_users">No other users found.</string>
+    <string name="hint_message">Message</string>
+    <string name="typing_indicator">%1$s is typing…</string>
+    <string name="status_online">Online</string>
+    <string name="edited_suffix">· edited</string>
+</resources>
