@@ -81,6 +81,8 @@ All REST routes live under the `/api` prefix. The WebSocket endpoint is at `/ws`
 |------|------|-------------|
 | GET | `/ws` | Bearer token via `Authorization` header or `Sec-WebSocket-Protocol: bearer, <token>` |
 
+**Keep-alive & online-status TTL**: The server sends WebSocket **Ping** control frames every `WS_PING_INTERVAL_SEC` seconds. Clients must respond with a Pong (browsers and OkHttp do this automatically). Connections that fail to respond within `WS_PONG_TIMEOUT_SEC` are closed and the user is marked offline. On server startup, all `is_online` flags are reset to `false` to clear stale state from unclean shutdowns. A user is only broadcast as `user_offline` when **all** of their connections close (supports multiple tabs/devices per user).
+
 ### Middleware Stack (order)
 `RequestID` → `RealIP` → `Logger` → `Recoverer` → `Timeout(60s)` → `CORS` → `AuthMiddleware` (protected routes only)
 
@@ -135,6 +137,8 @@ Flat JSON structure: `{ "type": "...", ...fields }`. All event types:
 | `MAX_MESSAGES_PER_CONVERSATION` | `1000` | Message pruning limit per conversation |
 | `UPLOAD_DIR` | `uploads` | File upload directory |
 | `DEBUG` | `true` | Debug mode |
+| `WS_PING_INTERVAL_SEC` | `30` | How often (seconds) the server sends WebSocket Ping frames |
+| `WS_PONG_TIMEOUT_SEC` | `60` | Seconds to wait for a Pong before closing a stale connection |
 | `ENCRYPTION_KEY_LEGACY` | _(empty)_ | Comma-separated legacy Fernet keys for migration |
 
 ## Error Handling Conventions

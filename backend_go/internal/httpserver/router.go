@@ -142,7 +142,8 @@ func NewRouter(cfg *config.Config, db *sql.DB, hub *ws.Hub, tokenSvc *security.T
 	})
 
 	// WebSocket endpoint
-	r.Get("/ws", ws.MakeHandler(hub, tokenSvc, userRepo, convRepo, msgSvc, encryptor, cfg.CORSOrigins))
+	pongTimeout := time.Duration(cfg.WSPongTimeoutSec) * time.Second
+	r.Get("/ws", ws.MakeHandler(hub, tokenSvc, userRepo, convRepo, msgSvc, encryptor, cfg.CORSOrigins, pongTimeout))
 
 	return r
 }

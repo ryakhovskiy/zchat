@@ -95,6 +95,12 @@ func (r *UserRepo) SetOnlineStatus(ctx context.Context, id int64, isOnline bool)
 	return err
 }
 
+func (r *UserRepo) ResetAllOnlineStatus(ctx context.Context) error {
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE users SET is_online = FALSE, last_seen = NOW() WHERE is_online = TRUE`)
+	return err
+}
+
 // ── helpers ──────────────────────────────────────────────────────────────────
 
 func (r *UserRepo) scanUser(ctx context.Context, query string, args ...any) (*domain.User, error) {

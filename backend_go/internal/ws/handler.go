@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/gorilla/websocket"
 
@@ -113,6 +114,7 @@ func MakeHandler(
 	msgSvc *service.MessageService,
 	encryptor *security.Encryptor,
 	allowedOrigins []string,
+	pongTimeout time.Duration,
 ) http.HandlerFunc {
 	checkOrigin := makeCheckOrigin(allowedOrigins)
 	upgrader := websocket.Upgrader{
@@ -162,20 +164,31 @@ func MakeHandler(
 		}
 		defer conn.Close()
 
+		// Configure ping/pong keep-alive.
+		conn.SetReadDeadline(time.Now().Add(pongTimeout))
+		conn.SetPongHandler(func(string) error {
+			conn.SetReadDeadline(time.Now().Add(pongTimeout))
+			hub.NotifyPong(conn)
+			return nil
+		})
+
 		if err := users.SetOnlineStatus(ctx, user.ID, true); err != nil {
 			log.Printf("ws: set online for %d: %v", user.ID, err)
 		}
 		hub.Register(user.ID, conn)
 		defer func() {
 			hub.Unregister(user.ID, conn)
-			if err := users.SetOnlineStatus(context.Background(), user.ID, false); err != nil {
-				log.Printf("ws: set offline for %d: %v", user.ID, err)
+			// Only mark user offline in DB and broadcast if they have no remaining connections.
+			if !hub.IsOnline(user.ID) {
+				if err := users.SetOnlineStatus(context.Background(), user.ID, false); err != nil {
+					log.Printf("ws: set offline for %d: %v", user.ID, err)
+				}
+				hub.BroadcastAll(map[string]any{
+					"type":     "user_offline",
+					"user_id":  user.ID,
+					"username": user.Username,
+				})
 			}
-			hub.BroadcastAll(map[string]any{
-				"type":     "user_offline",
-				"user_id":  user.ID,
-				"username": user.Username,
-			})
 		}()
 		hub.BroadcastAll(map[string]any{
 			"type":     "user_online",

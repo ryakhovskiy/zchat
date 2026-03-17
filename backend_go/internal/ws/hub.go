@@ -1,23 +1,38 @@
 package ws
 
 import (
+	"log"
+	"time"
+
 	"github.com/gorilla/websocket"
 )
 
 // Hub maintains the set of active clients and broadcasts messages to the
-// clients.
+// clients. It also sends periodic WebSocket Ping frames and evicts connections
+// that fail to respond with a Pong within the configured timeout.
 type Hub struct {
-	// Registered clients.
+	// Registered clients: userID → set of connections.
 	clients map[int64]map[*websocket.Conn]bool
 
-	// Inbound messages from the clients.
-	broadcast chan broadcastMessage
+	// lastPong tracks the most recent pong (or register) time per connection.
+	lastPong map[*websocket.Conn]time.Time
 
-	// Register requests from the clients.
-	register chan registerRequest
+	// connUser is a reverse lookup: connection → owning userID.
+	connUser map[*websocket.Conn]int64
 
-	// Unregister requests from clients.
-	unregister chan unregisterRequest
+	broadcast     chan broadcastMessage
+	register      chan registerRequest
+	unregister    chan unregisterRequest
+	pong          chan *websocket.Conn
+	isOnlineQuery chan isOnlineRequest
+
+	pingInterval time.Duration
+	pongTimeout  time.Duration
+}
+
+type isOnlineRequest struct {
+	userID int64
+	reply  chan bool
 }
 
 type registerRequest struct {
@@ -35,16 +50,25 @@ type broadcastMessage struct {
 	payload       any
 }
 
-func NewHub() *Hub {
+func NewHub(pingInterval, pongTimeout time.Duration) *Hub {
 	return &Hub{
-		broadcast:  make(chan broadcastMessage),
-		register:   make(chan registerRequest),
-		unregister: make(chan unregisterRequest),
-		clients:    make(map[int64]map[*websocket.Conn]bool),
+		clients:       make(map[int64]map[*websocket.Conn]bool),
+		lastPong:      make(map[*websocket.Conn]time.Time),
+		connUser:      make(map[*websocket.Conn]int64),
+		broadcast:     make(chan broadcastMessage),
+		register:      make(chan registerRequest),
+		unregister:    make(chan unregisterRequest),
+		pong:          make(chan *websocket.Conn, 64),
+		isOnlineQuery: make(chan isOnlineRequest),
+		pingInterval:  pingInterval,
+		pongTimeout:   pongTimeout,
 	}
 }
 
 func (h *Hub) Run() {
+	ticker := time.NewTicker(h.pingInterval)
+	defer ticker.Stop()
+
 	for {
 		select {
 		case req := <-h.register:
@@ -52,51 +76,89 @@ func (h *Hub) Run() {
 				h.clients[req.userID] = make(map[*websocket.Conn]bool)
 			}
 			h.clients[req.userID][req.conn] = true
+			h.lastPong[req.conn] = time.Now()
+			h.connUser[req.conn] = req.userID
 
 		case req := <-h.unregister:
-			if conns, ok := h.clients[req.userID]; ok {
-				if _, ok := conns[req.conn]; ok {
-					delete(conns, req.conn)
-					req.conn.Close()
-					if len(conns) == 0 {
-						delete(h.clients, req.userID)
-					}
-				}
+			h.removeConn(req.userID, req.conn)
+
+		case conn := <-h.pong:
+			if _, ok := h.lastPong[conn]; ok {
+				h.lastPong[conn] = time.Now()
 			}
 
 		case msg := <-h.broadcast:
 			if msg.targetUserIDs == nil {
-				// Broadcast to all
 				for uid, conns := range h.clients {
 					for conn := range conns {
 						if err := conn.WriteJSON(msg.payload); err != nil {
-							conn.Close()
-							delete(conns, conn)
+							h.removeConn(uid, conn)
 						}
-					}
-					if len(conns) == 0 {
-						delete(h.clients, uid)
 					}
 				}
 			} else {
-				// Broadcast to specific users
 				for _, uid := range msg.targetUserIDs {
 					if conns, ok := h.clients[uid]; ok {
 						for conn := range conns {
 							if err := conn.WriteJSON(msg.payload); err != nil {
-								conn.Close()
-								delete(conns, conn)
+								h.removeConn(uid, conn)
 							}
-						}
-						// If all connections for a user are dead, remove the user map
-						if len(conns) == 0 {
-							delete(h.clients, uid)
 						}
 					}
 				}
 			}
+
+		case req := <-h.isOnlineQuery:
+			_, online := h.clients[req.userID]
+			req.reply <- online
+
+		case <-ticker.C:
+			now := time.Now()
+			for conn, last := range h.lastPong {
+				if now.Sub(last) > h.pongTimeout {
+					uid := h.connUser[conn]
+					log.Printf("ws: closing stale connection for user %d (no pong for %v)", uid, now.Sub(last))
+					h.removeConn(uid, conn)
+					continue
+				}
+				deadline := time.Now().Add(10 * time.Second)
+				if err := conn.WriteControl(websocket.PingMessage, nil, deadline); err != nil {
+					uid := h.connUser[conn]
+					h.removeConn(uid, conn)
+				}
+			}
 		}
 	}
+}
+
+// removeConn closes a connection and cleans up all tracking state.
+// Safe to call even if the connection is already removed.
+func (h *Hub) removeConn(userID int64, conn *websocket.Conn) {
+	if conns, ok := h.clients[userID]; ok {
+		if _, exists := conns[conn]; exists {
+			delete(conns, conn)
+			conn.Close()
+			if len(conns) == 0 {
+				delete(h.clients, userID)
+			}
+		}
+	}
+	delete(h.lastPong, conn)
+	delete(h.connUser, conn)
+}
+
+// NotifyPong should be called by the connection's PongHandler to record
+// that the connection is still alive.
+func (h *Hub) NotifyPong(conn *websocket.Conn) {
+	h.pong <- conn
+}
+
+// IsOnline returns true if the given user has at least one active connection.
+// Safe to call from any goroutine; it queries the Run loop via a channel.
+func (h *Hub) IsOnline(userID int64) bool {
+	ch := make(chan bool, 1)
+	h.isOnlineQuery <- isOnlineRequest{userID: userID, reply: ch}
+	return <-ch
 }
 
 // Register adds a connection for the given user.

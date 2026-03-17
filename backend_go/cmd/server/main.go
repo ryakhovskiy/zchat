@@ -53,6 +53,12 @@ func main() {
 		log.Fatalf("failed to run migrations: %v", err)
 	}
 
+	// Reset stale online statuses from previous unclean shutdown
+	userRepo := postgres.NewUserRepo(db)
+	if err := userRepo.ResetAllOnlineStatus(context.Background()); err != nil {
+		log.Printf("warning: failed to reset online statuses: %v", err)
+	}
+
 	// Security components
 	tokenSvc := security.NewTokenService(cfg.JWTSecret, time.Duration(cfg.AccessTokenMinutes)*time.Minute)
 	passwordHasher := security.NewPasswordHasher(0)
@@ -63,7 +69,9 @@ func main() {
 	}
 
 	// Initialize WebSocket hub
-	hub := ws.NewHub()
+	pingInterval := time.Duration(cfg.WSPingIntervalSec) * time.Second
+	pongTimeout := time.Duration(cfg.WSPongTimeoutSec) * time.Second
+	hub := ws.NewHub(pingInterval, pongTimeout)
 	go hub.Run()
 
 	// Build HTTP router
