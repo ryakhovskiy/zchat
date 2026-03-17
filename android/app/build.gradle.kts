@@ -86,6 +86,8 @@ dependencies {
     implementation(libs.coil.compose)
 
     implementation(libs.security.crypto)
+    implementation(libs.stream.webrtc)
+    implementation(libs.accompanist.permissions)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.junit.android)

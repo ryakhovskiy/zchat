@@ -2,6 +2,8 @@ package com.zchat.mobile.feature.chat
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.zchat.mobile.call.CallManager
+import com.zchat.mobile.call.CallSignalingEvent
 import com.zchat.mobile.data.remote.dto.ConversationDto
 import com.zchat.mobile.data.remote.dto.MessageDto
 import com.zchat.mobile.data.remote.dto.UserDto
@@ -39,7 +41,8 @@ data class IncomingCallEvent(
 
 @HiltViewModel
 class ConversationListViewModel @Inject constructor(
-    private val chatRepository: ChatRepository
+    private val chatRepository: ChatRepository,
+    private val callManager: CallManager
 ) : ViewModel() {
 
     private val _listState = MutableStateFlow(ConversationListState())
@@ -123,9 +126,43 @@ class ConversationListViewModel @Inject constructor(
                 val senderId = (event["sender_id"] as? Number)?.toLong() ?: return
                 val senderUsername = event["sender_username"] as? String ?: return
                 val convId = (event["conversation_id"] as? Number)?.toLong() ?: return
+                val sdpMap = event["sdp"] as? Map<*, *>
+                val sdp = sdpMap?.get("sdp") as? String ?: return
+                chatRepository.emitCallEvent(
+                    CallSignalingEvent.Offer(senderId, senderUsername, convId, sdp)
+                )
                 _incomingCall.value = IncomingCallEvent(senderUsername, senderId, convId)
             }
-            "call_end", "call_rejected" -> {
+            "call_answer" -> {
+                val senderId = (event["sender_id"] as? Number)?.toLong() ?: return
+                val convId = (event["conversation_id"] as? Number)?.toLong() ?: return
+                val sdpMap = event["sdp"] as? Map<*, *>
+                val sdp = sdpMap?.get("sdp") as? String ?: return
+                chatRepository.emitCallEvent(
+                    CallSignalingEvent.Answer(senderId, convId, sdp)
+                )
+            }
+            "ice_candidate" -> {
+                val senderId = (event["sender_id"] as? Number)?.toLong() ?: return
+                val convId = (event["conversation_id"] as? Number)?.toLong() ?: return
+                val candidateMap = event["candidate"] as? Map<*, *> ?: return
+                val candidate = candidateMap["candidate"] as? String ?: return
+                val sdpMLineIndex = (candidateMap["sdpMLineIndex"] as? Number)?.toInt() ?: 0
+                val sdpMid = candidateMap["sdpMid"] as? String
+                chatRepository.emitCallEvent(
+                    CallSignalingEvent.IceCandidate(senderId, convId, candidate, sdpMLineIndex, sdpMid)
+                )
+            }
+            "call_end" -> {
+                val senderId = (event["sender_id"] as? Number)?.toLong() ?: 0
+                val convId = (event["conversation_id"] as? Number)?.toLong() ?: 0
+                chatRepository.emitCallEvent(CallSignalingEvent.Ended(senderId, convId))
+                _incomingCall.value = null
+            }
+            "call_rejected" -> {
+                val senderId = (event["sender_id"] as? Number)?.toLong() ?: 0
+                val convId = (event["conversation_id"] as? Number)?.toLong() ?: 0
+                chatRepository.emitCallEvent(CallSignalingEvent.Rejected(senderId, convId))
                 _incomingCall.value = null
             }
         }
@@ -181,9 +218,13 @@ class ConversationListViewModel @Inject constructor(
     }
 
     fun rejectIncomingCall() {
-        val call = _incomingCall.value ?: return
-        chatRepository.sendCallRejected(call.senderId, call.conversationId)
         _incomingCall.value = null
+        callManager.rejectCall()
+    }
+
+    fun acceptIncomingCall() {
+        _incomingCall.value = null
+        callManager.acceptCall()
     }
 
     fun dismissIncomingCall() {

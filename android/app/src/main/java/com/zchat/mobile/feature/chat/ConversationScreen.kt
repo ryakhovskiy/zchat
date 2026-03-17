@@ -29,8 +29,6 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -81,11 +79,11 @@ fun ConversationScreen(
     onCancelEditing: () -> Unit,
     onDeleteMessage: (Long, Long) -> Unit,
     onFilePicked: (Uri) -> Unit,
+    onCallClicked: () -> Unit = {},
 ) {
     val messages = state.messages[state.conversationId] ?: emptyList()
     val listState = rememberLazyListState()
     val focusManager = LocalFocusManager.current
-    var showCallCallDialog by remember { mutableStateOf(false) }
 
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -120,7 +118,7 @@ fun ConversationScreen(
                 },
                 actions = {
                     if (conversation?.isGroup == false) {
-                        IconButton(onClick = { showCallCallDialog = true }) {
+                        IconButton(onClick = onCallClicked) {
                             Icon(Icons.Default.Call, contentDescription = "Call")
                         }
                     }
@@ -134,17 +132,6 @@ fun ConversationScreen(
                 .padding(innerPadding)
                 .imePadding()
         ) {
-            if (showCallCallDialog) {
-                AlertDialog(
-                    onDismissRequest = { showCallCallDialog = false },
-                    title = { Text("Audio Call") },
-                    text = { Text("Voice calling is not yet implemented natively. (WebRTC Skeleton)") },
-                    confirmButton = {
-                        TextButton(onClick = { showCallCallDialog = false }) { Text("OK") }
-                    }
-                )
-            }
-
             // Messages list
             Box(modifier = Modifier.weight(1f)) {
                 when {
@@ -424,6 +411,7 @@ private fun ConversationScreenPreview() {
             onCancelEditing = {},
             onDeleteMessage = { _, _ -> },
             onFilePicked = {},
+            onCallClicked = {},
         )
     }
 }

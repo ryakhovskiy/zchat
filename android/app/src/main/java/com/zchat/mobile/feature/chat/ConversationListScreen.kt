@@ -22,7 +22,6 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
@@ -133,11 +132,8 @@ fun ConversationListScreen(
                         Spacer(Modifier.width(8.dp))
                         Button(
                             onClick = onDismissCall,
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.outline
-                            )
                         ) {
-                            Text("Dismiss")
+                            Text("Accept")
                         }
                     }
                 }

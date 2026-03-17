@@ -8,6 +8,7 @@ import okhttp3.MultipartBody
 import okio.source
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.zchat.mobile.call.CallManager
 import com.zchat.mobile.data.local.ServerConfigManager
 import com.zchat.mobile.data.remote.dto.MessageDto
 import com.zchat.mobile.data.repository.ApiResult
@@ -39,6 +40,7 @@ data class ActiveConversationState(
 @HiltViewModel
 class ConversationViewModel @Inject constructor(
     private val chatRepository: ChatRepository,
+    private val callManager: CallManager,
     val serverConfig: ServerConfigManager
 ) : ViewModel() {
 
@@ -134,6 +136,10 @@ class ConversationViewModel @Inject constructor(
     }
 
     // ── Active conversation ────────────────────────────────────────────────────
+
+    fun startCall(targetUserId: Long, targetUsername: String, conversationId: Long) {
+        callManager.startCall(targetUserId, targetUsername, conversationId)
+    }
 
     fun selectConversation(id: Long) {
         _state.update { it.copy(conversationId = id, composingText = "", editingMessage = null) }

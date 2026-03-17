@@ -20,6 +20,7 @@ import androidx.navigation.NavType
 import com.zchat.mobile.feature.auth.AuthViewModel
 import com.zchat.mobile.feature.auth.LoginScreen
 import com.zchat.mobile.feature.auth.RegisterScreen
+import com.zchat.mobile.feature.call.CallScreen
 import com.zchat.mobile.feature.chat.ConversationListViewModel
 import com.zchat.mobile.feature.chat.ConversationViewModel
 import com.zchat.mobile.feature.chat.ConversationListScreen
@@ -34,6 +35,7 @@ private object Routes {
     const val CONVERSATION = "conversation"
     const val NEW_CONVERSATION = "new_conversation"
     const val SETTINGS = "settings"
+    const val CALL = "call"
 }
 
 @Composable
@@ -154,7 +156,10 @@ fun ZChatRoot(
                 onLogout = { authViewModel.logout() },
                 onSettingsClicked = { navController.navigate(Routes.SETTINGS) },
                 onRejectCall = { listViewModel.rejectIncomingCall() },
-                onDismissCall = { listViewModel.dismissIncomingCall() }
+                onDismissCall = {
+                    listViewModel.acceptIncomingCall()
+                    navController.navigate(Routes.CALL)
+                }
             )
         }
 
@@ -184,7 +189,16 @@ fun ZChatRoot(
                 onStartEditing = convViewModel::startEditing,
                 onCancelEditing = convViewModel::cancelEditing,
                 onDeleteMessage = convViewModel::deleteMessage,
-                onFilePicked = { uri -> convViewModel.uploadFile(uri, context) }
+                onFilePicked = { uri -> convViewModel.uploadFile(uri, context) },
+                onCallClicked = {
+                    // Determine the target user (the other participant in 1:1 chat)
+                    val target = conversation?.participants
+                        ?.firstOrNull { it.id != authState.currentUserId }
+                    if (target != null) {
+                        convViewModel.startCall(target.id, target.username, conversationId)
+                        navController.navigate(Routes.CALL)
+                    }
+                }
             )
         }
 
@@ -212,6 +226,20 @@ fun ZChatRoot(
 
         composable(Routes.SETTINGS) {
             SettingsScreen(onBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.CALL) {
+            CallScreen(
+                onNavigateBack = {
+                    if (navController.previousBackStackEntry != null) {
+                        navController.popBackStack()
+                    } else {
+                        navController.navigate(Routes.CONVERSATIONS) {
+                            popUpTo(0) { inclusive = true }
+                        }
+                    }
+                }
+            )
         }
     }
 }

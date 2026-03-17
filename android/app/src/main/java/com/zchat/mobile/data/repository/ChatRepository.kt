@@ -1,5 +1,6 @@
 package com.zchat.mobile.data.repository
 
+import com.zchat.mobile.call.CallSignalingEvent
 import com.zchat.mobile.data.remote.api.ConversationsApi
 import com.zchat.mobile.data.remote.api.FilesApi
 import com.zchat.mobile.data.remote.api.MessagesApi
@@ -13,6 +14,9 @@ import com.zchat.mobile.data.remote.dto.UploadResponseDto
 import com.zchat.mobile.data.remote.dto.UserDto
 import com.zchat.mobile.data.remote.network.ZChatWebSocketClient
 import android.util.Log
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import okhttp3.MultipartBody
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -28,6 +32,13 @@ class ChatRepository @Inject constructor(
     val wsConnected = webSocketClient.connected
     val wsConnectionFailed = webSocketClient.connectionFailed
     val wsEvents = webSocketClient.events
+
+    private val _callEvents = MutableSharedFlow<CallSignalingEvent>(extraBufferCapacity = 16)
+    val callEvents: SharedFlow<CallSignalingEvent> = _callEvents.asSharedFlow()
+
+    fun emitCallEvent(event: CallSignalingEvent) {
+        _callEvents.tryEmit(event)
+    }
 
     // ── Conversations ──────────────────────────────────────────────────────────
     suspend fun getConversations(): ApiResult<List<ConversationDto>> =
@@ -90,6 +101,61 @@ class ChatRepository @Inject constructor(
             webSocketClient.send(
                 mapOf(
                     "type" to "call_rejected",
+                    "target_user_id" to targetUserId,
+                    "conversation_id" to conversationId
+                )
+            )
+        }
+    }
+
+    fun sendCallOffer(targetUserId: Long, conversationId: Long, sdp: String) {
+        if (wsConnected.value) {
+            webSocketClient.send(
+                mapOf(
+                    "type" to "call_offer",
+                    "target_user_id" to targetUserId,
+                    "conversation_id" to conversationId,
+                    "sdp" to mapOf("type" to "offer", "sdp" to sdp)
+                )
+            )
+        }
+    }
+
+    fun sendCallAnswer(targetUserId: Long, conversationId: Long, sdp: String) {
+        if (wsConnected.value) {
+            webSocketClient.send(
+                mapOf(
+                    "type" to "call_answer",
+                    "target_user_id" to targetUserId,
+                    "conversation_id" to conversationId,
+                    "sdp" to mapOf("type" to "answer", "sdp" to sdp)
+                )
+            )
+        }
+    }
+
+    fun sendIceCandidate(targetUserId: Long, conversationId: Long, candidate: String, sdpMLineIndex: Int, sdpMid: String?) {
+        if (wsConnected.value) {
+            webSocketClient.send(
+                mapOf(
+                    "type" to "ice_candidate",
+                    "target_user_id" to targetUserId,
+                    "conversation_id" to conversationId,
+                    "candidate" to mapOf(
+                        "candidate" to candidate,
+                        "sdpMLineIndex" to sdpMLineIndex,
+                        "sdpMid" to sdpMid
+                    )
+                )
+            )
+        }
+    }
+
+    fun sendCallEnd(targetUserId: Long, conversationId: Long) {
+        if (wsConnected.value) {
+            webSocketClient.send(
+                mapOf(
+                    "type" to "call_end",
                     "target_user_id" to targetUserId,
                     "conversation_id" to conversationId
                 )
