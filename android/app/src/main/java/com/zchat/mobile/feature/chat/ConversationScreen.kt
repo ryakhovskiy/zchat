@@ -63,7 +63,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
-import com.zchat.mobile.BuildConfig
 import com.zchat.mobile.R
 import com.zchat.mobile.data.remote.dto.ConversationDto
 import com.zchat.mobile.data.remote.dto.MessageDto
@@ -74,6 +73,7 @@ fun ConversationScreen(
     state: ActiveConversationState,
     conversation: ConversationDto?,
     currentUserId: Long?,
+    apiBaseUrl: String,
     onBack: () -> Unit,
     onComposeTextChange: (String) -> Unit,
     onSendClicked: () -> Unit,
@@ -171,6 +171,7 @@ fun ConversationScreen(
                                 MessageBubble(
                                     message = message,
                                     isOwn = message.senderId == currentUserId,
+                                    apiBaseUrl = apiBaseUrl,
                                     onLongPress = {
                                         if (message.senderId == currentUserId) {
                                             showMenu = true
@@ -311,6 +312,7 @@ fun ConversationScreen(
 private fun MessageBubble(
     message: MessageDto,
     isOwn: Boolean,
+    apiBaseUrl: String,
     onLongPress: () -> Unit,
 ) {
     Row(
@@ -347,7 +349,7 @@ private fun MessageBubble(
                 if (message.filePath != null) {
                     if (message.fileType?.startsWith("image") == true) {
                         AsyncImage(
-                            model = "${BuildConfig.API_BASE_URL}uploads/${message.filePath.substringAfterLast("/")}",
+                            model = "${apiBaseUrl}uploads/${message.filePath.substringAfterLast("/")}",
                             contentDescription = "Attachment",
                             modifier = Modifier.padding(bottom = 4.dp).size(200.dp).clip(RoundedCornerShape(8.dp))
                         )
@@ -414,6 +416,7 @@ private fun ConversationScreenPreview() {
             ),
             conversation = ConversationDto(id = 1, isGroup = false, name = "Alice"),
             currentUserId = 1L,
+            apiBaseUrl = "http://localhost:8000/api/",
             onBack = {},
             onComposeTextChange = {},
             onSendClicked = {},

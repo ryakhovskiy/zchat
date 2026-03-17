@@ -33,9 +33,9 @@ android {
             )
         }
         debug {
-            buildConfigField("String", "API_BASE_URL", "\"http://10.0.2.2:8000/api/\"")
-            buildConfigField("String", "WS_BASE_URL", "\"ws://10.0.2.2:8000/ws\"")
-            buildConfigField("String", "WS_ORIGIN", "\"http://localhost:3000\"")
+            buildConfigField("String", "API_BASE_URL", "\"http://103.45.247.241:8000/api/\"")
+            buildConfigField("String", "WS_BASE_URL", "\"ws://103.45.247.241:8000/ws\"")
+            buildConfigField("String", "WS_ORIGIN", "\"http://103.45.247.241:3000\"")
         }
     }
 

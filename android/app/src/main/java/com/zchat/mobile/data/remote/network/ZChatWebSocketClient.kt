@@ -3,7 +3,7 @@ package com.zchat.mobile.data.remote.network
 import android.util.Log
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.Types
-import com.zchat.mobile.BuildConfig
+import com.zchat.mobile.data.local.ServerConfigManager
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -27,7 +27,8 @@ import javax.inject.Singleton
 @Singleton
 class ZChatWebSocketClient @Inject constructor(
     private val okHttpClient: OkHttpClient,
-    private val moshi: Moshi
+    private val moshi: Moshi,
+    private val serverConfig: ServerConfigManager
 ) {
     private val adapter = moshi.adapter<Map<String, Any?>>(
         Types.newParameterizedType(Map::class.java, String::class.java, Any::class.java)
@@ -61,9 +62,9 @@ class ZChatWebSocketClient @Inject constructor(
         if (currentToken.isNullOrBlank()) return
         disconnectInternal()
         val request = Request.Builder()
-            .url(BuildConfig.WS_BASE_URL)
+            .url(serverConfig.wsBaseUrl)
             .addHeader("Sec-WebSocket-Protocol", "bearer, $currentToken")
-            .addHeader("Origin", BuildConfig.WS_ORIGIN)
+            .addHeader("Origin", serverConfig.wsOrigin)
             .build()
         webSocket = okHttpClient.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {

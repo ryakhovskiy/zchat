@@ -20,6 +20,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -58,6 +59,7 @@ fun ConversationListScreen(
     onNewConversationClicked: () -> Unit,
     onRefresh: () -> Unit,
     onLogout: () -> Unit,
+    onSettingsClicked: () -> Unit = {},
     onRejectCall: () -> Unit = {},
     onDismissCall: () -> Unit = {},
 ) {
@@ -78,6 +80,9 @@ fun ConversationListScreen(
                     // Theme Toggle
                     IconButton(onClick = { onToggleDarkMode(!isDarkMode) }) {
                         Text(if (isDarkMode) "☀️" else "🌙")
+                    }
+                    IconButton(onClick = onSettingsClicked) {
+                        Icon(Icons.Default.Settings, contentDescription = "Settings")
                     }
                     IconButton(onClick = onLogout) {
                         Icon(Icons.Default.Close, contentDescription = stringResource(R.string.action_logout))

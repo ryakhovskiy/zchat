@@ -25,6 +25,7 @@ import com.zchat.mobile.feature.chat.ConversationViewModel
 import com.zchat.mobile.feature.chat.ConversationListScreen
 import com.zchat.mobile.feature.chat.ConversationScreen
 import com.zchat.mobile.feature.chat.NewConversationScreen
+import com.zchat.mobile.feature.settings.SettingsScreen
 
 private object Routes {
     const val LOGIN = "login"
@@ -32,6 +33,7 @@ private object Routes {
     const val CONVERSATIONS = "conversations"
     const val CONVERSATION = "conversation"
     const val NEW_CONVERSATION = "new_conversation"
+    const val SETTINGS = "settings"
 }
 
 @Composable
@@ -88,7 +90,8 @@ fun ZChatRoot(
                 onSwitchToRegister = {
                     authViewModel.switchToRegister()
                     navController.navigate(Routes.REGISTER)
-                }
+                },
+                onSettingsClicked = { navController.navigate(Routes.SETTINGS) }
             )
             // Navigate to chat when authenticated
             LaunchedEffect(authState.authenticated) {
@@ -111,7 +114,8 @@ fun ZChatRoot(
                 onSwitchToLogin = {
                     authViewModel.switchToLogin()
                     navController.popBackStack()
-                }
+                },
+                onSettingsClicked = { navController.navigate(Routes.SETTINGS) }
             )
             LaunchedEffect(authState.authenticated) {
                 if (authState.authenticated) {
@@ -148,6 +152,7 @@ fun ZChatRoot(
                 },
                 onRefresh = { listViewModel.loadConversations() },
                 onLogout = { authViewModel.logout() },
+                onSettingsClicked = { navController.navigate(Routes.SETTINGS) },
                 onRejectCall = { listViewModel.rejectIncomingCall() },
                 onDismissCall = { listViewModel.dismissIncomingCall() }
             )
@@ -172,6 +177,7 @@ fun ZChatRoot(
                 state = activeState,
                 conversation = conversation,
                 currentUserId = authState.currentUserId,
+                apiBaseUrl = convViewModel.serverConfig.apiBaseUrl,
                 onBack = { navController.popBackStack() },
                 onComposeTextChange = convViewModel::onComposeTextChange,
                 onSendClicked = convViewModel::sendMessage,
@@ -202,6 +208,10 @@ fun ZChatRoot(
                     listViewModel.createConversation(ids, isGroup, name)
                 }
             )
+        }
+
+        composable(Routes.SETTINGS) {
+            SettingsScreen(onBack = { navController.popBackStack() })
         }
     }
 }

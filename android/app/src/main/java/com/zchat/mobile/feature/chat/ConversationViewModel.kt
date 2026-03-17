@@ -8,6 +8,7 @@ import okhttp3.MultipartBody
 import okio.source
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.zchat.mobile.data.local.ServerConfigManager
 import com.zchat.mobile.data.remote.dto.MessageDto
 import com.zchat.mobile.data.repository.ApiResult
 import com.zchat.mobile.data.repository.ChatRepository
@@ -37,7 +38,8 @@ data class ActiveConversationState(
 
 @HiltViewModel
 class ConversationViewModel @Inject constructor(
-    private val chatRepository: ChatRepository
+    private val chatRepository: ChatRepository,
+    val serverConfig: ServerConfigManager
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(ActiveConversationState())

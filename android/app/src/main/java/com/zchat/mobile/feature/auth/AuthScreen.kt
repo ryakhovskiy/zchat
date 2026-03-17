@@ -1,6 +1,7 @@
 package com.zchat.mobile.feature.auth
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -10,9 +11,13 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -37,15 +42,24 @@ fun LoginScreen(
     onRememberChanged: (Boolean) -> Unit,
     onLoginClicked: () -> Unit,
     onSwitchToRegister: () -> Unit,
+    onSettingsClicked: () -> Unit = {},
 ) {
     val focusManager = LocalFocusManager.current
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp),
-        verticalArrangement = Arrangement.Center
-    ) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        IconButton(
+            onClick = onSettingsClicked,
+            modifier = Modifier.align(Alignment.TopEnd).padding(8.dp)
+        ) {
+            Icon(Icons.Default.Settings, contentDescription = "Settings")
+        }
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(24.dp),
+            verticalArrangement = Arrangement.Center
+        ) {
         Text("zChat", style = MaterialTheme.typography.headlineLarge)
         Spacer(Modifier.height(4.dp))
         Text("Sign in to continue", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -95,6 +109,7 @@ fun LoginScreen(
         TextButton(onClick = onSwitchToRegister, modifier = Modifier.fillMaxWidth()) {
             Text("Don't have an account? Register")
         }
+        }
     }
 }
 
@@ -107,15 +122,24 @@ fun RegisterScreen(
     onRememberChanged: (Boolean) -> Unit,
     onRegisterClicked: () -> Unit,
     onSwitchToLogin: () -> Unit,
+    onSettingsClicked: () -> Unit = {},
 ) {
     val focusManager = LocalFocusManager.current
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp),
-        verticalArrangement = Arrangement.Center
-    ) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        IconButton(
+            onClick = onSettingsClicked,
+            modifier = Modifier.align(Alignment.TopEnd).padding(8.dp)
+        ) {
+            Icon(Icons.Default.Settings, contentDescription = "Settings")
+        }
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(24.dp),
+            verticalArrangement = Arrangement.Center
+        ) {
         Text("Create Account", style = MaterialTheme.typography.headlineLarge)
         Spacer(Modifier.height(4.dp))
         Text("Join zChat today", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -178,6 +202,7 @@ fun RegisterScreen(
         Spacer(Modifier.height(8.dp))
         TextButton(onClick = onSwitchToLogin, modifier = Modifier.fillMaxWidth()) {
             Text("Already have an account? Sign In")
+        }
         }
     }
 }
