@@ -127,6 +127,19 @@ export const ChatWindow = () => {
     }
   };
 
+  const handlePaste = (e) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (const item of items) {
+      if (item.type.startsWith('image/')) {
+        e.preventDefault();
+        const file = item.getAsFile();
+        if (file) processFile(file);
+        return;
+      }
+    }
+  };
+
   const handleMessageRightClick = (e, message) => {
     if (message.is_deleted) return;
     e.preventDefault();
@@ -356,7 +369,7 @@ export const ChatWindow = () => {
   const formatTimestamp = (dateString) => {
     const d = new Date(dateString);
     const pad = (n) => String(n).padStart(2, '0');
-    return `[${pad(d.getMonth() + 1)}.${pad(d.getDate())}.${d.getFullYear()} - ${pad(d.getHours())}:${pad(d.getMinutes())}.${pad(d.getSeconds())}]`;
+    return `[${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()} - ${pad(d.getHours())}:${pad(d.getMinutes())}.${pad(d.getSeconds())}]`;
   };
 
   const getConversationTitle = () => {
@@ -673,6 +686,7 @@ export const ChatWindow = () => {
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
             placeholder={uploading ? t('chat.uploading') : t('chat.type_message')}
             maxLength={5000}
             className="message-input"

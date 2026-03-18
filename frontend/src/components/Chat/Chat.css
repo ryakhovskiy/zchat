@@ -849,7 +849,7 @@
 
 [data-theme="hacker"] .message-text {
   font-family: var(--font-terminal);
-  display: inline-block;
+  display: inline;
 }
 
 [data-theme="hacker"] .message-time {
