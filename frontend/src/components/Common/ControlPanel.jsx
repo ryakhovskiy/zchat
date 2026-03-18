@@ -7,7 +7,7 @@ import './ControlPanel.css';
 
 export const ControlPanel = ({ variant = 'standard' }) => {
   const { t, i18n } = useTranslation();
-  const { isDark, toggleTheme } = useTheme();
+  const { theme, cycleTheme } = useTheme();
   const { logout } = useAuth();
   const { setIsBrowserOpen, selectConversation } = useChat();
   const [showSettings, setShowSettings] = useState(false);
@@ -51,10 +51,19 @@ export const ControlPanel = ({ variant = 'standard' }) => {
 
       <button
         className="control-btn theme-btn"
-        onClick={toggleTheme}
-        title={isDark ? "Switch to light" : "Switch to dark"}
+        onClick={cycleTheme}
+        title={`Cycle theme (current: ${theme})`}
       >
-        {isDark ? (
+        {theme === 'hacker' ? (
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="4 17 10 11 4 5" />
+            <line x1="12" y1="19" x2="20" y2="19" />
+          </svg>
+        ) : theme === 'dark' ? (
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+          </svg>
+        ) : (
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <circle cx="12" cy="12" r="5" />
             <line x1="12" y1="1" x2="12" y2="3" />
@@ -65,10 +74,6 @@ export const ControlPanel = ({ variant = 'standard' }) => {
             <line x1="21" y1="12" x2="23" y2="12" />
             <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
             <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
-          </svg>
-        ) : (
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
           </svg>
         )}
       </button>

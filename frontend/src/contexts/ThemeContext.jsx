@@ -11,20 +11,27 @@ export const useTheme = () => {
 };
 
 export const ThemeProvider = ({ children }) => {
-  const [isDark, setIsDark] = useState(() => {
+  const [theme, setTheme] = useState(() => {
     const saved = localStorage.getItem('zchat-theme');
-    return saved ? saved === 'dark' : true; // Default to dark theme
+    // If it's old boolean or invalid, default to 'hacker'
+    return ['hacker', 'dark', 'light'].includes(saved) ? saved : 'hacker';
   });
 
   useEffect(() => {
-    localStorage.setItem('zchat-theme', isDark ? 'dark' : 'light');
-    document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
-  }, [isDark]);
+    localStorage.setItem('zchat-theme', theme);
+    document.documentElement.setAttribute('data-theme', theme);
+  }, [theme]);
 
-  const toggleTheme = () => setIsDark(!isDark);
+  const cycleTheme = () => {
+    setTheme(prev => {
+      if (prev === 'hacker') return 'dark';
+      if (prev === 'dark') return 'light';
+      return 'hacker';
+    });
+  };
 
   return (
-    <ThemeContext.Provider value={{ isDark, toggleTheme }}>
+    <ThemeContext.Provider value={{ theme, cycleTheme }}>
       {children}
     </ThemeContext.Provider>
   );

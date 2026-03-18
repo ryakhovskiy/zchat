@@ -16,6 +16,25 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
+enum class ThemeMode {
+    HACKER,
+    DARK,
+    LIGHT
+}
+
+private val HackerColorScheme = darkColorScheme(
+    primary = Color(0xFF00FF00),
+    secondary = Color(0xFF00AA00),
+    tertiary = Color(0xFF008800),
+    background = Color(0xFF000000),
+    surface = Color(0xFF001A00),
+    onPrimary = Color(0xFF000000),
+    onSecondary = Color(0xFF000000),
+    onTertiary = Color(0xFF000000),
+    onBackground = Color(0xFF00FF00),
+    onSurface = Color(0xFF00FF00)
+)
+
 private val DarkColorScheme = darkColorScheme(
     primary = Color(0xFF82C3FF),
     secondary = Color(0xFFBCC7DB),
@@ -44,18 +63,17 @@ private val LightColorScheme = lightColorScheme(
 
 @Composable
 fun ZChatTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
-    dynamicColor: Boolean = true,
+    themeMode: ThemeMode = ThemeMode.HACKER,
+    dynamicColor: Boolean = false, // Disabled by default for hacker theme consistency
     content: @Composable () -> Unit
 ) {
-    val colorScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            val context = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        }
-        darkTheme -> DarkColorScheme
-        else -> LightColorScheme
+    val colorScheme = when (themeMode) {
+        ThemeMode.HACKER -> HackerColorScheme
+        ThemeMode.DARK -> DarkColorScheme
+        ThemeMode.LIGHT -> LightColorScheme
     }
+    
+    val darkTheme = themeMode != ThemeMode.LIGHT
     
     val view = LocalView.current
     if (!view.isInEditMode) {

@@ -44,6 +44,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.zchat.mobile.R
 import com.zchat.mobile.data.remote.dto.ConversationDto
+import com.zchat.mobile.ui.theme.ThemeMode
 import com.zchat.mobile.ui.theme.ZChatTheme
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -51,9 +52,9 @@ import com.zchat.mobile.ui.theme.ZChatTheme
 fun ConversationListScreen(
     state: ConversationListState,
     currentUserId: Long?,
-    isDarkMode: Boolean,
+    themeMode: ThemeMode,
     incomingCall: IncomingCallEvent? = null,
-    onToggleDarkMode: (Boolean) -> Unit,
+    onToggleThemeMode: (ThemeMode) -> Unit,
     onConversationClicked: (Long) -> Unit,
     onNewConversationClicked: () -> Unit,
     onRefresh: () -> Unit,
@@ -77,8 +78,21 @@ fun ConversationListScreen(
                         )
                     }
                     // Theme Toggle
-                    IconButton(onClick = { onToggleDarkMode(!isDarkMode) }) {
-                        Text(if (isDarkMode) "☀️" else "🌙")
+                    IconButton(onClick = {
+                        val nextMode = when (themeMode) {
+                            ThemeMode.HACKER -> ThemeMode.DARK
+                            ThemeMode.DARK -> ThemeMode.LIGHT
+                            ThemeMode.LIGHT -> ThemeMode.HACKER
+                        }
+                        onToggleThemeMode(nextMode)
+                    }) {
+                        Text(
+                            when (themeMode) {
+                                ThemeMode.HACKER -> "💻"
+                                ThemeMode.DARK -> "🌙"
+                                ThemeMode.LIGHT -> "☀️"
+                            }
+                        )
                     }
                     IconButton(onClick = onSettingsClicked) {
                         Icon(Icons.Default.Settings, contentDescription = "Settings")
@@ -277,8 +291,8 @@ private fun ConversationListScreenPreview() {
                 wsConnected = true
             ),
             currentUserId = 1L,
-            isDarkMode = false,
-            onToggleDarkMode = {},
+            themeMode = ThemeMode.HACKER,
+            onToggleThemeMode = {},
             onConversationClicked = {},
             onNewConversationClicked = {},
             onRefresh = {},
