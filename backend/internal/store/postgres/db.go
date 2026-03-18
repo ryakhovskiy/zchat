@@ -146,6 +146,7 @@ func Migrate(db *sql.DB) error {
 	}
 
 	for _, stmt := range stmts {
+		log.Printf("migrating: executing statement:\n%s", stmt)
 		if _, err := db.Exec(stmt); err != nil {
 			return fmt.Errorf("migrate: %w\nSQL: %s", err, stmt)
 		}
