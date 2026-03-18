@@ -1,8 +1,9 @@
 package com.zchat.mobile.data.local
 
 import android.content.Context
-import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.edit
+import com.zchat.mobile.ui.theme.ThemeMode
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -13,15 +14,24 @@ import javax.inject.Singleton
 class SettingsManager @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
-    private val DARK_MODE_KEY = booleanPreferencesKey("dark_mode")
+    private val THEME_MODE_KEY = stringPreferencesKey("theme_mode")
 
-    val isDarkMode: Flow<Boolean?> = context.settingsDataStore.data.map { preferences ->
-        preferences[DARK_MODE_KEY]
+    val themeMode: Flow<ThemeMode> = context.settingsDataStore.data.map { preferences ->
+        try {
+            val themeStr = preferences[THEME_MODE_KEY]
+            if (themeStr != null) {
+                ThemeMode.valueOf(themeStr)
+            } else {
+                ThemeMode.HACKER
+            }
+        } catch (e: Exception) {
+            ThemeMode.HACKER
+        }
     }
 
-    suspend fun setDarkMode(enabled: Boolean) {
+    suspend fun setThemeMode(mode: ThemeMode) {
         context.settingsDataStore.edit { preferences ->
-            preferences[DARK_MODE_KEY] = enabled
+            preferences[THEME_MODE_KEY] = mode.name
         }
     }
 }

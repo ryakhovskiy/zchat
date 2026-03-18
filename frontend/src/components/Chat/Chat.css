@@ -797,3 +797,178 @@
   font-style: italic;
   font-size: 0.9rem;
 }
+/* Hacker Theme Exceptions - Terminal Style */
+[data-theme="hacker"] .message {
+  margin-bottom: 0.25rem;
+}
+
+[data-theme="hacker"] .message-sent {
+  justify-content: flex-start;
+}
+
+[data-theme="hacker"] .message-content {
+  max-width: 100%;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--accent-color);
+  box-shadow: none;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+
+[data-theme="hacker"] .message-sent .message-content {
+  background: transparent;
+  color: var(--accent-color);
+  border-radius: 0;
+}
+
+[data-theme="hacker"] .message-received .message-content {
+  background: transparent;
+  color: var(--accent-color);
+  border-radius: 0;
+  box-shadow: none;
+}
+
+[data-theme="hacker"] .message-sender {
+  display: inline-block;
+  font-family: var(--font-terminal);
+  font-weight: normal;
+  margin-bottom: 0;
+  margin-right: 0.5rem;
+  color: var(--accent-color);
+}
+
+[data-theme="hacker"] .message-sender::before {
+  content: "> ";
+}
+
+[data-theme="hacker"] .message-sender::after {
+  content: ":";
+}
+
+[data-theme="hacker"] .message-text {
+  font-family: var(--font-terminal);
+  display: inline-block;
+}
+
+[data-theme="hacker"] .message-time {
+  margin-top: 0;
+  margin-left: 0.5rem;
+  opacity: 0.5;
+  font-family: var(--font-terminal);
+  display: inline-block;
+}
+
+
+/* Hacker Theme Exceptions - Left Sidebar Terminal Style */
+[data-theme="hacker"] .sidebar {
+  border-right: 1px dashed var(--accent-color);
+}
+
+[data-theme="hacker"] .sidebar-header {
+  border-bottom: 1px dashed var(--accent-color);
+}
+
+[data-theme="hacker"] .sidebar-header h2,
+[data-theme="hacker"] .conversation-list-header h2 {
+  font-family: var(--font-terminal);
+  text-transform: uppercase;
+  font-weight: normal;
+}
+
+[data-theme="hacker"] .new-chat-button {
+  border-radius: 0;
+  border: 1px solid var(--accent-color);
+  background: transparent;
+  color: var(--accent-color);
+  font-family: var(--font-terminal);
+}
+
+[data-theme="hacker"] .new-chat-button:hover {
+  background: var(--accent-color);
+  color: var(--bg-primary);
+}
+
+[data-theme="hacker"] .conversation-item {
+  border-bottom: 1px dashed var(--accent-color);
+  font-family: var(--font-terminal);
+  padding: 0.25rem 0.5rem;
+}
+
+[data-theme="hacker"] .conversation-avatar {
+  display: none;
+}
+
+[data-theme="hacker"] .conversation-details {
+  margin-left: 0;
+}
+
+[data-theme="hacker"] .conversation-details h4 {
+  font-family: var(--font-terminal);
+  font-weight: normal;
+}
+
+[data-theme="hacker"] .conversation-time,
+[data-theme="hacker"] .conversation-preview {
+  font-family: var(--font-terminal);
+}
+
+[data-theme="hacker"] .unread-badge {
+  border-radius: 0;
+  background: transparent;
+  border: 1px solid var(--accent-color);
+  color: var(--accent-color);
+  font-family: var(--font-terminal);
+}
+
+/* Active State Inversion (Block Cursor) */
+[data-theme="hacker"] .conversation-item:hover {
+  background-color: transparent;
+  border-left: 2px solid var(--accent-color);
+}
+
+[data-theme="hacker"] .conversation-item.active {
+  background-color: var(--accent-color);
+  color: var(--bg-primary);
+}
+
+[data-theme="hacker"] .conversation-item.active .conversation-details h4,
+[data-theme="hacker"] .conversation-item.active .conversation-time,
+[data-theme="hacker"] .conversation-item.active .conversation-preview {
+  color: var(--bg-primary) !important;
+  font-weight: bold;
+}
+
+[data-theme="hacker"] .conversation-item.active .conversation-avatar {
+  border-color: var(--bg-primary);
+  color: var(--bg-primary);
+}
+
+[data-theme="hacker"] .conversation-item.active .unread-badge {
+  border-color: var(--bg-primary);
+  color: var(--bg-primary);
+}
+
+
+[data-theme="hacker"] .conversation-header-row {
+  margin-bottom: 0;
+}
+
+[data-theme="hacker"] .conversation-preview {
+  font-size: 0.8rem;
+  line-height: 1.2;
+}
+
+
+[data-theme="hacker"] .conversation-details h4 {
+  font-size: 0.85rem;
+}
+[data-theme="hacker"] .conversation-time {
+  font-size: 0.75rem;
+}
+[data-theme="hacker"] .conversation-preview {
+  font-size: 0.85rem;
+}
+

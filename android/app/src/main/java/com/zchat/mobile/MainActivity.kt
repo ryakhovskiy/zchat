@@ -10,6 +10,7 @@ import androidx.compose.runtime.getValue
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
 import com.zchat.mobile.data.local.SettingsManager
+import com.zchat.mobile.ui.theme.ThemeMode
 import com.zchat.mobile.ui.theme.ZChatTheme
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
@@ -25,16 +26,14 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         setContent {
-            val systemTheme = isSystemInDarkTheme()
-            val isDarkTheme by settingsManager.isDarkMode.collectAsState(initial = systemTheme)
-            val darkThemeToUse = isDarkTheme ?: systemTheme
+            val themeMode by settingsManager.themeMode.collectAsState(initial = ThemeMode.HACKER)
 
-            ZChatTheme(darkTheme = darkThemeToUse) {
+            ZChatTheme(themeMode = themeMode) {
                 ZChatRoot(
-                    isDarkMode = darkThemeToUse,
-                    onToggleDarkMode = { enabled ->
+                    themeMode = themeMode,
+                    onToggleThemeMode = { newMode ->
                         lifecycleScope.launch {
-                            settingsManager.setDarkMode(enabled)
+                            settingsManager.setThemeMode(newMode)
                         }
                     }
                 )

@@ -27,6 +27,7 @@ import com.zchat.mobile.feature.chat.ConversationListScreen
 import com.zchat.mobile.feature.chat.ConversationScreen
 import com.zchat.mobile.feature.chat.NewConversationScreen
 import com.zchat.mobile.feature.settings.SettingsScreen
+import com.zchat.mobile.ui.theme.ThemeMode
 
 private object Routes {
     const val LOGIN = "login"
@@ -40,8 +41,8 @@ private object Routes {
 
 @Composable
 fun ZChatRoot(
-    isDarkMode: Boolean,
-    onToggleDarkMode: (Boolean) -> Unit,
+    themeMode: ThemeMode,
+    onToggleThemeMode: (ThemeMode) -> Unit,
     authViewModel: AuthViewModel = hiltViewModel(),
     listViewModel: ConversationListViewModel = hiltViewModel(),
     convViewModel: ConversationViewModel = hiltViewModel()
@@ -141,9 +142,9 @@ fun ZChatRoot(
             ConversationListScreen(
                 state = listState,
                 currentUserId = authState.currentUserId,
-                isDarkMode = isDarkMode,
+                themeMode = themeMode,
                 incomingCall = incomingCall,
-                onToggleDarkMode = onToggleDarkMode,
+                onToggleThemeMode = onToggleThemeMode,
                 onConversationClicked = { id ->
                     convViewModel.selectConversation(id)
                     listViewModel.resetUnread(id)
