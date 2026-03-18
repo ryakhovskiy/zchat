@@ -171,6 +171,34 @@ func (r *MessageRepo) ListForConversationForUser(ctx context.Context, conversati
 	return messages, nil
 }
 
+// ListForConversationForUserBefore returns messages older than beforeID,
+// excluding messages the user has soft-deleted.
+func (r *MessageRepo) ListForConversationForUserBefore(ctx context.Context, conversationID, userID, beforeID int64, limit int) ([]*domain.Message, error) {
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT m.id, m.content, m.conversation_id, m.sender_id, m.created_at,
+		       m.file_path, m.file_type, m.fully_read_at, m.is_deleted, m.is_edited, m.is_read
+		FROM messages m
+		LEFT JOIN user_deleted_messages udm
+		       ON udm.message_id = m.id AND udm.user_id = $2
+		WHERE m.conversation_id = $1
+		  AND udm.user_id IS NULL
+		  AND m.id < $4
+		ORDER BY m.created_at DESC
+		LIMIT $3
+	`, conversationID, userID, limit, beforeID)
+	if err != nil {
+		return nil, fmt.Errorf("list messages before: %w", err)
+	}
+	messages, err := r.scanMessages(rows)
+	if err != nil {
+		return nil, err
+	}
+	if err := r.populateAttachments(ctx, messages); err != nil {
+		return nil, fmt.Errorf("populate attachments: %w", err)
+	}
+	return messages, nil
+}
+
 func (r *MessageRepo) MarkAllReadInConversation(ctx context.Context, conversationID, senderExcludeID int64) error {
 	_, err := r.db.ExecContext(ctx, `
 		UPDATE messages SET is_read=TRUE

@@ -808,14 +808,13 @@
 
 [data-theme="hacker"] .message-content {
   max-width: 100%;
-  padding: 0;
+  padding: 0 0 0 2rem;
+  text-indent: -2rem;
   border-radius: 0;
   background: transparent;
   color: var(--accent-color);
   box-shadow: none;
-  display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
+  display: block;
 }
 
 [data-theme="hacker"] .message-sent .message-content {

@@ -21,6 +21,8 @@ export const ChatProvider = ({ children }) => {
   const [messages, setMessages] = useState({});
   const [loading, setLoading] = useState(false);
   const [unreadCounts, setUnreadCounts] = useState({});
+  const [hasMoreMessages, setHasMoreMessages] = useState({});
+  const PAGE_SIZE = 15;
 
   const appendMessageToState = (messageData) => {
     if (!messageData?.conversation_id || !messageData?.id) {
@@ -163,6 +165,27 @@ export const ChatProvider = ({ children }) => {
       }
     };
 
+    const updateParticipantStatus = (userId, isOnline) => {
+      setConversations((prev) =>
+        prev.map((conv) => ({
+          ...conv,
+          participants: conv.participants.map((p) =>
+            p.id === userId ? { ...p, is_online: isOnline } : p
+          ),
+        }))
+      );
+      setSelectedConversation((prev) => {
+        if (!prev) return prev;
+        if (!prev.participants.some((p) => p.id === userId)) return prev;
+        return {
+          ...prev,
+          participants: prev.participants.map((p) =>
+            p.id === userId ? { ...p, is_online: isOnline } : p
+          ),
+        };
+      });
+    };
+
     const handleUserOnline = (data) => {
       setOnlineUsers((prev) => {
         if (!prev.some((u) => u.id === data.user_id)) {
@@ -176,6 +199,8 @@ export const ChatProvider = ({ children }) => {
           u.id === data.user_id ? { ...u, is_online: true } : u
         )
       );
+
+      updateParticipantStatus(data.user_id, true);
     };
 
     const handleUserOffline = (data) => {
@@ -186,6 +211,8 @@ export const ChatProvider = ({ children }) => {
           u.id === data.user_id ? { ...u, is_online: false } : u
         )
       );
+
+      updateParticipantStatus(data.user_id, false);
     };
 
     wsClient.on('message', handleMessage);
@@ -283,13 +310,49 @@ export const ChatProvider = ({ children }) => {
     if (messages[conversationId]) return; // Already loaded
 
     try {
-      const response = await conversationsAPI.getMessages(conversationId);
+      const response = await conversationsAPI.getMessages(conversationId, PAGE_SIZE);
       setMessages((prev) => ({
         ...prev,
         [conversationId]: response.data,
       }));
+      setHasMoreMessages((prev) => ({
+        ...prev,
+        [conversationId]: response.data.length >= PAGE_SIZE,
+      }));
     } catch (error) {
       console.error('Failed to load messages:', error);
+    }
+  };
+
+  const loadOlderMessages = async (conversationId) => {
+    if (!conversationId || !Number.isFinite(Number(conversationId))) return [];
+    if (!hasMoreMessages[conversationId]) return [];
+
+    const existing = messages[conversationId] || [];
+    if (existing.length === 0) return [];
+
+    const oldestId = existing[0].id;
+
+    try {
+      const response = await conversationsAPI.getMessages(conversationId, PAGE_SIZE, oldestId);
+      const olderMessages = response.data;
+
+      if (olderMessages.length > 0) {
+        setMessages((prev) => ({
+          ...prev,
+          [conversationId]: [...olderMessages, ...(prev[conversationId] || [])],
+        }));
+      }
+
+      setHasMoreMessages((prev) => ({
+        ...prev,
+        [conversationId]: olderMessages.length >= PAGE_SIZE,
+      }));
+
+      return olderMessages;
+    } catch (error) {
+      console.error('Failed to load older messages:', error);
+      return [];
     }
   };
 
@@ -383,12 +446,14 @@ export const ChatProvider = ({ children }) => {
     messages,
     loading,
     unreadCounts,
+    hasMoreMessages,
     loadConversations,
     createConversation,
     sendMessage,
     editMessage,
     deleteMessage,
     selectConversation,
+    loadOlderMessages,
     setMessages, 
   };
 

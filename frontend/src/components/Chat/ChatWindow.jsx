@@ -14,7 +14,7 @@ import './Chat.css';
 
 export const ChatWindow = () => {
   const { t } = useTranslation();
-  const { selectedConversation, messages, sendMessage, editMessage, deleteMessage, selectConversation, setMessages } = useChat();
+  const { selectedConversation, messages, sendMessage, editMessage, deleteMessage, selectConversation, setMessages, loadOlderMessages, hasMoreMessages } = useChat();
   const { user, wsClient } = useAuth();
   const { startCall } = useCall();
   const { theme } = useTheme();
@@ -30,18 +30,36 @@ export const ChatWindow = () => {
   const [editingMessage, setEditingMessage] = useState(null); // { id, content }
 
   const messagesEndRef = useRef(null);
+  const messagesContainerRef = useRef(null);
   const emojiPickerRef = useRef(null);
   const fileInputRef = useRef(null);
   const textareaRef = useRef(null);
   const contextMenuRef = useRef(null);
+  const isInitialLoadRef = useRef(true);
+  const [loadingOlder, setLoadingOlder] = useState(false);
 
   const conversationMessages = selectedConversation
     ? messages[selectedConversation.id] || []
     : [];
 
   useEffect(() => {
-    scrollToBottom();
+    if (isInitialLoadRef.current) {
+      scrollToBottom();
+      isInitialLoadRef.current = false;
+    } else {
+      const container = messagesContainerRef.current;
+      if (container) {
+        const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 150;
+        if (isNearBottom) {
+          scrollToBottom();
+        }
+      }
+    }
   }, [conversationMessages]);
+
+  useEffect(() => {
+    isInitialLoadRef.current = true;
+  }, [selectedConversation?.id]);
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -204,6 +222,29 @@ export const ChatWindow = () => {
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  const handleMessagesScroll = async () => {
+    const container = messagesContainerRef.current;
+    if (!container || loadingOlder) return;
+    if (!selectedConversation) return;
+    if (!hasMoreMessages[selectedConversation.id]) return;
+
+    if (container.scrollTop < 100) {
+      setLoadingOlder(true);
+      const prevScrollHeight = container.scrollHeight;
+
+      const olderMessages = await loadOlderMessages(selectedConversation.id);
+
+      if (olderMessages.length > 0) {
+        requestAnimationFrame(() => {
+          const newScrollHeight = container.scrollHeight;
+          container.scrollTop = newScrollHeight - prevScrollHeight;
+        });
+      }
+
+      setLoadingOlder(false);
+    }
   };
 
   const processFile = (file) => {
@@ -443,7 +484,12 @@ export const ChatWindow = () => {
 
       </div>
 
-      <div className="messages-container">
+      <div className="messages-container" ref={messagesContainerRef} onScroll={handleMessagesScroll}>
+        {loadingOlder && (
+          <div style={{ textAlign: 'center', padding: '0.5rem', color: 'var(--text-muted)', fontFamily: 'var(--font-terminal)', fontSize: '0.85rem' }}>
+            Loading...
+          </div>
+        )}
         {conversationMessages.length === 0 ? (
           <div className="no-messages">
             <p>{t('chat.no_messages')}</p>

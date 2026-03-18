@@ -84,7 +84,19 @@ func handleListMessages(msgSvc *service.MessageService) http.HandlerFunc {
 			}
 		}
 
-		msgs, err := msgSvc.ListMessages(r.Context(), convID, currentUser.ID, limit)
+		var beforeID int64
+		if s := r.URL.Query().Get("before_id"); s != "" {
+			if v, err := strconv.ParseInt(s, 10, 64); err == nil {
+				beforeID = v
+			}
+		}
+
+		var msgs []*domain.Message
+		if beforeID > 0 {
+			msgs, err = msgSvc.ListMessagesBefore(r.Context(), convID, currentUser.ID, beforeID, limit)
+		} else {
+			msgs, err = msgSvc.ListMessages(r.Context(), convID, currentUser.ID, limit)
+		}
 		if err != nil {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 			return

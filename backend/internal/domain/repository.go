@@ -39,6 +39,7 @@ type MessageRepository interface {
 	SoftDeleteForEveryone(ctx context.Context, id int64) error
 	ListForConversation(ctx context.Context, conversationID int64, limit int) ([]*Message, error)
 	ListForConversationForUser(ctx context.Context, conversationID, userID int64, limit int) ([]*Message, error)
+	ListForConversationForUserBefore(ctx context.Context, conversationID, userID, beforeID int64, limit int) ([]*Message, error)
 	MarkAllReadInConversation(ctx context.Context, conversationID, senderExcludeID int64) error
 	PruneOld(ctx context.Context, conversationID int64, keepLimit int) error
 }

@@ -231,6 +231,44 @@ func (s *MessageService) ListMessages(
 	return msgs, nil
 }
 
+func (s *MessageService) ListMessagesBefore(
+	ctx context.Context,
+	conversationID int64,
+	userID int64,
+	beforeID int64,
+	limit int,
+) ([]*domain.Message, error) {
+	conv, err := s.conversations.GetByID(ctx, conversationID)
+	if err != nil {
+		return nil, fmt.Errorf("get conversation: %w", err)
+	}
+	if conv == nil {
+		return nil, errors.New("conversation not found")
+	}
+	isParticipant, err := s.participants.IsParticipant(ctx, conversationID, userID)
+	if err != nil {
+		return nil, fmt.Errorf("check participant: %w", err)
+	}
+	if !isParticipant {
+		return nil, errors.New("you are not a participant in this conversation")
+	}
+
+	if limit <= 0 || limit > s.MaxMessagesPerConversation {
+		limit = s.MaxMessagesPerConversation
+	}
+
+	msgs, err := s.messages.ListForConversationForUserBefore(ctx, conversationID, userID, beforeID, limit)
+	if err != nil {
+		return nil, err
+	}
+
+	// Reverse to chronological order (DB returns DESC)
+	for i, j := 0, len(msgs)-1; i < j; i, j = i+1, j-1 {
+		msgs[i], msgs[j] = msgs[j], msgs[i]
+	}
+	return msgs, nil
+}
+
 func (s *MessageService) MarkAllReadInConversation(ctx context.Context, conversationID, callerID int64) error {
 	isParticipant, err := s.participants.IsParticipant(ctx, conversationID, callerID)
 	if err != nil {
