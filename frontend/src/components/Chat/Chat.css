@@ -797,3 +797,67 @@
   font-style: italic;
   font-size: 0.9rem;
 }
+/* Hacker Theme Exceptions - Terminal Style */
+[data-theme="hacker"] .message {
+  margin-bottom: 0.25rem;
+}
+
+[data-theme="hacker"] .message-sent {
+  justify-content: flex-start;
+}
+
+[data-theme="hacker"] .message-content {
+  max-width: 100%;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--accent-color);
+  box-shadow: none;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+
+[data-theme="hacker"] .message-sent .message-content {
+  background: transparent;
+  color: var(--accent-color);
+  border-radius: 0;
+}
+
+[data-theme="hacker"] .message-received .message-content {
+  background: transparent;
+  color: var(--accent-color);
+  border-radius: 0;
+  box-shadow: none;
+}
+
+[data-theme="hacker"] .message-sender {
+  display: inline-block;
+  font-family: var(--font-terminal);
+  font-weight: normal;
+  margin-bottom: 0;
+  margin-right: 0.5rem;
+  color: var(--accent-color);
+}
+
+[data-theme="hacker"] .message-sender::before {
+  content: "> ";
+}
+
+[data-theme="hacker"] .message-sender::after {
+  content: ":";
+}
+
+[data-theme="hacker"] .message-text {
+  font-family: var(--font-terminal);
+  display: inline-block;
+}
+
+[data-theme="hacker"] .message-time {
+  margin-top: 0;
+  margin-left: 0.5rem;
+  opacity: 0.5;
+  font-family: var(--font-terminal);
+  display: inline-block;
+}
+

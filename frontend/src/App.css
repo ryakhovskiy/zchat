@@ -12,8 +12,8 @@
   --card-bg: #001a00;
   --input-bg: #000000;
   --input-border: rgba(0, 255, 0, 0.4);
-  --message-sent-bg: linear-gradient(135deg, #00ff00 0%, #00aa00 100%);
-  --message-received-bg: #001a00;
+  --message-sent-bg: transparent;
+  --message-received-bg: transparent;
   --hover-bg: rgba(0, 255, 0, 0.15);
   --active-bg: rgba(0, 255, 0, 0.25);
   --shadow-color: rgba(0, 255, 0, 0.1);
@@ -23,6 +23,7 @@
   --scrollbar-track: #000000;
   --scrollbar-thumb: #008800;
   --gradient-primary: linear-gradient(135deg, #00ff00 0%, #00aa00 100%);
+  --font-terminal: 'Courier New', Courier, monospace;
 }
 
 [data-theme="dark"] {

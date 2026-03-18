@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { useChat } from '../../contexts/ChatContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { useCall } from '../../contexts/CallContext';
+import { useTheme } from '../../contexts/ThemeContext';
 import { textToEmoji } from '../../utils/emojiUtils';
 import { filesAPI } from '../../services/api';
 import { ControlPanel } from '../Common/ControlPanel';
@@ -15,6 +16,7 @@ export const ChatWindow = () => {
   const { selectedConversation, messages, sendMessage, editMessage, deleteMessage, selectConversation, setMessages } = useChat();
   const { user, wsClient } = useAuth();
   const { startCall } = useCall();
+  const { theme } = useTheme();
   const [inputValue, setInputValue] = useState('');
   const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
@@ -378,8 +380,8 @@ export const ChatWindow = () => {
               onContextMenu={(e) => handleMessageRightClick(e, message)}
             >
               <div className="message-content">
-                {message.sender_id !== user.id && (
-                  <div className="message-sender">{message.sender_username}</div>
+                {(theme === 'hacker' || message.sender_id !== user.id) && (
+                  <div className="message-sender">{message.sender_username || user.username}</div>
                 )}
                 {message.file_path && !message.is_deleted && (
                   <div className="message-attachment">
