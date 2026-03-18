@@ -44,6 +44,8 @@ Dev proxy: frontend Vite config proxies `/api` → `http://localhost:8000` and `
    - `ACCESS_TOKEN_EXPIRE_MINUTES` — JWT TTL (default: 1440 = 24h)
    - `REMEMBER_ME_TOKEN_EXPIRE_DAYS` — extended session TTL (default: 30)
    - `MAX_MESSAGES_PER_CONVERSATION` — message pruning limit (default: 1000)
+   - `WS_PING_INTERVAL_SEC` — WebSocket ping interval in seconds (default: 30)
+   - `WS_PONG_TIMEOUT_SEC` — WebSocket pong timeout in seconds (default: 60)
    - `VITE_API_URL`, `VITE_WS_URL` — frontend build-time API base paths (default: `/api`, `/ws`)
    - `DEBUG` — backend debug mode (default: true)
 

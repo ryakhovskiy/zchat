@@ -15,6 +15,7 @@ type UserRepository interface {
 	Update(ctx context.Context, u *User) error
 	SoftDelete(ctx context.Context, id int64) error
 	SetOnlineStatus(ctx context.Context, id int64, isOnline bool) error
+	ResetAllOnlineStatus(ctx context.Context) error
 }
 
 // ConversationRepository defines persistence operations for conversations.

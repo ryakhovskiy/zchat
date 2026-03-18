@@ -68,6 +68,10 @@ func (m *MockUserRepo) SetOnlineStatus(ctx context.Context, userID int64, isOnli
 	return args.Error(0)
 }
 
+func (m *MockUserRepo) ResetAllOnlineStatus(ctx context.Context) error {
+	return nil
+}
+
 func TestRegister(t *testing.T) {
 	mockRepo := new(MockUserRepo)
 	tokenSvc := security.NewTokenService("secret", time.Hour)

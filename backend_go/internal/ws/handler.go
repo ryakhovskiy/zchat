@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/gorilla/websocket"
 
@@ -113,6 +114,8 @@ func MakeHandler(
 	msgSvc *service.MessageService,
 	encryptor *security.Encryptor,
 	allowedOrigins []string,
+	pingInterval time.Duration,
+	pongTimeout time.Duration,
 ) http.HandlerFunc {
 	checkOrigin := makeCheckOrigin(allowedOrigins)
 	upgrader := websocket.Upgrader{
@@ -162,20 +165,36 @@ func MakeHandler(
 		}
 		defer conn.Close()
 
+		// Each connection gets a dedicated write goroutine to avoid blocking
+		// the hub's Run loop and to satisfy gorilla's no-concurrent-writes rule.
+		send := make(chan []byte, sendBufSize)
+		go writePump(conn, send, pingInterval)
+
+		// Configure pong keep-alive: refresh read deadline whenever a pong arrives.
+		// The ping is sent by writePump on its own ticker.
+		conn.SetReadDeadline(time.Now().Add(pongTimeout))
+		conn.SetPongHandler(func(string) error {
+			conn.SetReadDeadline(time.Now().Add(pongTimeout))
+			return nil
+		})
+
 		if err := users.SetOnlineStatus(ctx, user.ID, true); err != nil {
 			log.Printf("ws: set online for %d: %v", user.ID, err)
 		}
-		hub.Register(user.ID, conn)
+		hub.Register(user.ID, conn, send)
 		defer func() {
 			hub.Unregister(user.ID, conn)
-			if err := users.SetOnlineStatus(context.Background(), user.ID, false); err != nil {
-				log.Printf("ws: set offline for %d: %v", user.ID, err)
+			// Only mark user offline in DB and broadcast if they have no remaining connections.
+			if !hub.IsOnline(user.ID) {
+				if err := users.SetOnlineStatus(context.Background(), user.ID, false); err != nil {
+					log.Printf("ws: set offline for %d: %v", user.ID, err)
+				}
+				hub.BroadcastAll(map[string]any{
+					"type":     "user_offline",
+					"user_id":  user.ID,
+					"username": user.Username,
+				})
 			}
-			hub.BroadcastAll(map[string]any{
-				"type":     "user_offline",
-				"user_id":  user.ID,
-				"username": user.Username,
-			})
 		}()
 		hub.BroadcastAll(map[string]any{
 			"type":     "user_online",

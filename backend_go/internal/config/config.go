@@ -25,6 +25,9 @@ type Config struct {
 	CORSOrigins                []string
 	Debug                      bool
 	MaxMessagesPerConversation int
+
+	WSPingIntervalSec int
+	WSPongTimeoutSec  int
 }
 
 func Load() (*Config, error) {
@@ -58,6 +61,9 @@ func Load() (*Config, error) {
 		UploadDir:                  getEnv("UPLOAD_DIR", "uploads"),
 		Debug:                      getEnvAsBool("DEBUG", true),
 		MaxMessagesPerConversation: getEnvAsInt("MAX_MESSAGES_PER_CONVERSATION", 1000),
+
+		WSPingIntervalSec: getEnvAsInt("WS_PING_INTERVAL_SEC", 30),
+		WSPongTimeoutSec:  getEnvAsInt("WS_PONG_TIMEOUT_SEC", 60),
 	}
 
 	cors := getEnv("CORS_ORIGINS", "")
