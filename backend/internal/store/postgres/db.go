@@ -3,6 +3,7 @@ package postgres
 import (
 	"database/sql"
 	"fmt"
+	"log"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
@@ -21,6 +22,7 @@ func Open(dsn string) (*sql.DB, error) {
 
 // Migrate runs idempotent DDL migrations for the zchat schema on PostgreSQL.
 func Migrate(db *sql.DB) error {
+	log.Print("Migrating database...")
 	stmts := []string{
 		// Users
 		`CREATE TABLE IF NOT EXISTS users (
@@ -148,5 +150,6 @@ func Migrate(db *sql.DB) error {
 			return fmt.Errorf("migrate: %w\nSQL: %s", err, stmt)
 		}
 	}
+	log.Print("Database migraton completed")
 	return nil
 }
