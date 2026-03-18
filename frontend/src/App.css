@@ -22,7 +22,7 @@
   --success-color: #00ff00;
   --scrollbar-track: #000000;
   --scrollbar-thumb: #008800;
-  --gradient-primary: linear-gradient(135deg, #00ff00 0%, #00aa00 100%);
+  --gradient-primary: #00ff00;
   --font-terminal: 'Courier New', Courier, monospace;
 }
 

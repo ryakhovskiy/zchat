@@ -171,3 +171,142 @@
   gap: 1rem;
   justify-content: flex-end;
 }
+/* Hacker Theme Exceptions - Add Chat Modal Terminal Style */
+[data-theme="hacker"] .user-list-modal {
+  border-radius: 0;
+  box-shadow: none;
+  border: 1px solid var(--accent-color);
+  font-family: var(--font-terminal);
+}
+
+[data-theme="hacker"] .user-list-header {
+  border-bottom: 1px dashed var(--accent-color);
+  padding: 0.75rem 1rem;
+}
+
+[data-theme="hacker"] .user-list-header h2 {
+  font-family: var(--font-terminal);
+  text-transform: uppercase;
+  font-weight: normal;
+}
+
+[data-theme="hacker"] .close-button {
+  background: transparent;
+  border-radius: 0;
+  color: var(--accent-color);
+}
+
+[data-theme="hacker"] .close-button:hover {
+  background: var(--accent-color);
+  color: var(--bg-primary);
+}
+
+[data-theme="hacker"] .conversation-type-toggle {
+  border-bottom: 1px dashed var(--accent-color);
+  padding: 0.75rem 1rem;
+}
+
+[data-theme="hacker"] .toggle-option {
+  font-family: var(--font-terminal);
+}
+
+[data-theme="hacker"] .user-list-content {
+  padding: 1rem;
+}
+
+[data-theme="hacker"] .user-list-content h3 {
+  font-family: var(--font-terminal);
+  text-transform: uppercase;
+  font-weight: normal;
+}
+
+[data-theme="hacker"] .user-item {
+  border-radius: 0;
+  border: 1px dashed var(--accent-color);
+  padding: 0.25rem 0.5rem;
+  margin-bottom: 0.25rem;
+}
+
+[data-theme="hacker"] .user-item:hover {
+  background-color: transparent;
+  border-left: 2px solid var(--accent-color);
+}
+
+[data-theme="hacker"] .user-avatar {
+  display: none;
+}
+
+[data-theme="hacker"] .user-info {
+  margin-left: 0;
+}
+
+[data-theme="hacker"] .user-name,
+[data-theme="hacker"] .user-status {
+  font-family: var(--font-terminal);
+  font-weight: normal;
+}
+
+[data-theme="hacker"] .checkbox {
+  border-radius: 0;
+  background: transparent;
+  border: 1px solid var(--accent-color);
+  color: var(--accent-color);
+}
+
+/* Selected Block Cursor */
+[data-theme="hacker"] .user-item.selected {
+  background-color: var(--accent-color);
+  border: 1px solid var(--accent-color);
+}
+
+[data-theme="hacker"] .user-item.selected .user-name,
+[data-theme="hacker"] .user-item.selected .user-status {
+  color: var(--bg-primary) !important;
+  font-weight: bold;
+}
+
+[data-theme="hacker"] .user-item.selected .checkbox {
+  border-color: var(--bg-primary);
+  color: var(--bg-primary);
+}
+
+[data-theme="hacker"] .user-list-footer {
+  border-top: 1px dashed var(--accent-color);
+  padding: 0.75rem 1rem;
+}
+
+/* Target the buttons inside the modal footer */
+[data-theme="hacker"] .user-list-footer button {
+  border-radius: 0;
+  font-family: var(--font-terminal);
+  text-transform: uppercase;
+}
+
+[data-theme="hacker"] .form-group input {
+  font-family: var(--font-terminal);
+}
+
+
+[data-theme="hacker"] .btn-primary,
+[data-theme="hacker"] .btn-secondary {
+  border-radius: 0;
+  border: 1px solid var(--accent-color);
+  background: transparent;
+  color: var(--accent-color);
+  font-family: var(--font-terminal);
+  text-transform: uppercase;
+}
+
+[data-theme="hacker"] .btn-primary:not(:disabled):hover,
+[data-theme="hacker"] .btn-secondary:not(:disabled):hover {
+  background: var(--accent-color);
+  color: var(--bg-primary);
+}
+
+[data-theme="hacker"] .form-group input {
+  border-radius: 0;
+  border: 1px dashed var(--accent-color);
+  background: transparent;
+  color: var(--accent-color);
+}
+
