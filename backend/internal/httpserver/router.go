@@ -3,7 +3,6 @@ package httpserver
 import (
 	"database/sql"
 	"encoding/json"
-	"log"
 	"net/http"
 	"time"
 
@@ -126,15 +125,6 @@ func NewRouter(cfg *config.Config, db *sql.DB, hub *ws.Hub, tokenSvc *security.T
 				r.Delete("/{messageID}", handleDeleteMessage(msgSvc))
 			})
 
-			// Browser proxy
-			r.Route("/browser", func(r chi.Router) {
-				browserPool, err := NewBrowserPool()
-				if err != nil {
-					log.Printf("WARNING: browser proxy disabled: %v", err)
-				} else {
-					RegisterBrowserRoutes(r, browserPool)
-				}
-			})
 		})
 
 		// Moved outside of AuthMiddleware group to allow download via ?token= query param

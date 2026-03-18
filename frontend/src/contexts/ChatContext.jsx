@@ -18,7 +18,6 @@ export const ChatProvider = ({ children }) => {
   const [users, setUsers] = useState([]);
   const [onlineUsers, setOnlineUsers] = useState([]);
   const [selectedConversation, setSelectedConversation] = useState(null);
-  const [isBrowserOpen, setIsBrowserOpen] = useState(false);
   const [messages, setMessages] = useState({});
   const [loading, setLoading] = useState(false);
   const [unreadCounts, setUnreadCounts] = useState({});
@@ -363,11 +362,6 @@ export const ChatProvider = ({ children }) => {
   };
 
   const selectConversation = async (conversation) => {
-    // If opening a conversation, close the browser
-    if (conversation) {
-      setIsBrowserOpen(false);
-    }
-    
     const normalizedConversation = normalizeConversation(conversation);
     setSelectedConversation(normalizedConversation);
     
@@ -393,8 +387,6 @@ export const ChatProvider = ({ children }) => {
     users,
     onlineUsers,
     selectedConversation,
-    isBrowserOpen,
-    setIsBrowserOpen,
     messages,
     loading,
     unreadCounts,
