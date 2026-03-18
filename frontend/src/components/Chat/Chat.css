@@ -799,7 +799,7 @@
 }
 /* Hacker Theme Exceptions - Terminal Style */
 [data-theme="hacker"] .message {
-  margin-bottom: 0.25rem;
+  margin-bottom: 0.4rem;
 }
 
 [data-theme="hacker"] .message-sent {
@@ -820,7 +820,7 @@
 
 [data-theme="hacker"] .message-sent .message-content {
   background: transparent;
-  color: var(--accent-color);
+  color: rgba(0, 255, 0, 0.75);
   border-radius: 0;
 }
 
@@ -832,21 +832,20 @@
 }
 
 [data-theme="hacker"] .message-sender {
-  display: inline-block;
+  display: none;
+}
+
+[data-theme="hacker"] .message-header {
+  display: inline;
   font-family: var(--font-terminal);
-  font-size: inherit;
   font-weight: bold;
-  margin-bottom: 0;
+  color: rgba(0, 255, 0, 0.65);
   margin-right: 0.5rem;
-  color: var(--accent-color);
+  white-space: nowrap;
 }
 
-[data-theme="hacker"] .message-sender::before {
-  content: "> ";
-}
-
-[data-theme="hacker"] .message-sender::after {
-  content: ":";
+[data-theme="hacker"] .message-sent .message-header {
+  color: rgba(0, 255, 0, 0.55);
 }
 
 [data-theme="hacker"] .message-text {
@@ -855,13 +854,25 @@
 }
 
 [data-theme="hacker"] .message-time {
-  margin-top: 0;
-  margin-left: 0.5rem;
-  opacity: 0.5;
-  font-family: var(--font-terminal);
-  display: inline-block;
+  display: none;
 }
 
+
+/* Hacker Theme - Input Field Terminal Style */
+[data-theme="hacker"] .input-field-wrapper {
+  border-radius: 2px;
+  border: 1px dashed var(--accent-color);
+  background-color: rgba(0, 26, 0, 0.5);
+}
+
+[data-theme="hacker"] .input-field-wrapper:focus-within {
+  border-style: solid;
+  box-shadow: 0 0 8px rgba(0, 255, 0, 0.3);
+}
+
+[data-theme="hacker"] .message-input {
+  font-family: var(--font-terminal);
+}
 
 /* Hacker Theme Exceptions - Left Sidebar Terminal Style */
 [data-theme="hacker"] .sidebar {

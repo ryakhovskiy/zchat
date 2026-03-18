@@ -312,6 +312,12 @@ export const ChatWindow = () => {
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
+  const formatTimestamp = (dateString) => {
+    const d = new Date(dateString);
+    const pad = (n) => String(n).padStart(2, '0');
+    return `[${pad(d.getMonth() + 1)}.${pad(d.getDate())}.${d.getFullYear()} - ${pad(d.getHours())}:${pad(d.getMinutes())}.${pad(d.getSeconds())}]`;
+  };
+
   const getConversationTitle = () => {
     if (!selectedConversation) return '';
     
@@ -452,58 +458,114 @@ export const ChatWindow = () => {
               onContextMenu={(e) => handleMessageRightClick(e, message)}
             >
               <div className="message-content">
-                {(theme === 'hacker' || message.sender_id !== user.id) && (
-                  <div className="message-sender">{message.sender_username || user.username}</div>
-                )}
-                {getAttachments(message).length > 0 && !message.is_deleted && (
-                  <div className="message-attachments">
-                    {getAttachments(message).map((att, i) => {
-                      const fileName = att.original_name || att.file_path.split('\\').pop().split('/').pop();
-                      const fileUrl = filesAPI.getFileUrl(att.file_path.split('\\').pop().split('/').pop());
-                      return (
-                        <div key={att.id || i} className="message-attachment">
-                          {att.file_type === 'image' ? (
-                            <img 
-                              src={fileUrl} 
-                              alt={t('chat.attachment')} 
-                              className="attachment-image"
-                              onClick={() => setModalImageInfo({url: fileUrl, name: fileName})}
-                              style={{ cursor: 'pointer' }}
-                            />
-                          ) : (
-                            <div className="attachment-file">
-                              <a 
-                                href={fileUrl}
-                                target="_blank" 
-                                rel="noopener noreferrer"
-                              >
-                                📄 {fileName}
-                                {att.file_size && <span className="attachment-size" style={{fontSize: '0.8em', color: '#888', marginLeft: '5px'}}>({formatBytes(att.file_size)})</span>}
-                              </a>
+                {theme === 'hacker' ? (
+                  <>
+                    <span className="message-header">
+                      {formatTimestamp(message.created_at)} {'<'}@{message.sender_username || user.username}{'>'}:
+                    </span>{' '}
+                    {getAttachments(message).length > 0 && !message.is_deleted && (
+                      <div className="message-attachments">
+                        {getAttachments(message).map((att, i) => {
+                          const fileName = att.original_name || att.file_path.split('\\').pop().split('/').pop();
+                          const fileUrl = filesAPI.getFileUrl(att.file_path.split('\\').pop().split('/').pop());
+                          return (
+                            <div key={att.id || i} className="message-attachment">
+                              {att.file_type === 'image' ? (
+                                <img 
+                                  src={fileUrl} 
+                                  alt={t('chat.attachment')} 
+                                  className="attachment-image"
+                                  onClick={() => setModalImageInfo({url: fileUrl, name: fileName})}
+                                  style={{ cursor: 'pointer' }}
+                                />
+                              ) : (
+                                <div className="attachment-file">
+                                  <a 
+                                    href={fileUrl}
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                  >
+                                    📄 {fileName}
+                                    {att.file_size && <span className="attachment-size" style={{fontSize: '0.8em', color: '#888', marginLeft: '5px'}}>({formatBytes(att.file_size)})</span>}
+                                  </a>
+                                </div>
+                              )}
                             </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-                <div className="message-text">
-                  {message.is_deleted
-                    ? <em className="message-deleted-text">{t('chat.message_deleted', 'Message deleted')}</em>
-                    : formatMessageContent(message.content)
-                  }
-                </div>
-                <div className="message-time">
-                  {formatTime(message.created_at)}
-                  {message.is_edited && !message.is_deleted && (
-                    <span className="message-edited-label"> · {t('chat.edited', 'edited')}</span>
-                  )}
-                  {message.sender_id === user.id && (
-                    <span className="read-receipt" style={{ marginLeft: '4px', fontSize: '0.8em' }}>
-                      {!message.id ? '' : (message.is_read ? '✓✓' : '✓')}
+                          );
+                        })}
+                      </div>
+                    )}
+                    <span className="message-text">
+                      {message.is_deleted
+                        ? <em className="message-deleted-text">{t('chat.message_deleted', 'Message deleted')}</em>
+                        : formatMessageContent(message.content)
+                      }
                     </span>
-                  )}
-                </div>
+                    {message.is_edited && !message.is_deleted && (
+                      <span className="message-edited-label"> · {t('chat.edited', 'edited')}</span>
+                    )}
+                    {message.sender_id === user.id && (
+                      <span className="read-receipt" style={{ marginLeft: '4px', fontSize: '0.8em', opacity: 0.5 }}>
+                        {!message.id ? '' : (message.is_read ? '✓✓' : '✓')}
+                      </span>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    {message.sender_id !== user.id && (
+                      <div className="message-sender">{message.sender_username || user.username}</div>
+                    )}
+                    {getAttachments(message).length > 0 && !message.is_deleted && (
+                      <div className="message-attachments">
+                        {getAttachments(message).map((att, i) => {
+                          const fileName = att.original_name || att.file_path.split('\\').pop().split('/').pop();
+                          const fileUrl = filesAPI.getFileUrl(att.file_path.split('\\').pop().split('/').pop());
+                          return (
+                            <div key={att.id || i} className="message-attachment">
+                              {att.file_type === 'image' ? (
+                                <img 
+                                  src={fileUrl} 
+                                  alt={t('chat.attachment')} 
+                                  className="attachment-image"
+                                  onClick={() => setModalImageInfo({url: fileUrl, name: fileName})}
+                                  style={{ cursor: 'pointer' }}
+                                />
+                              ) : (
+                                <div className="attachment-file">
+                                  <a 
+                                    href={fileUrl}
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                  >
+                                    📄 {fileName}
+                                    {att.file_size && <span className="attachment-size" style={{fontSize: '0.8em', color: '#888', marginLeft: '5px'}}>({formatBytes(att.file_size)})</span>}
+                                  </a>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                    <div className="message-text">
+                      {message.is_deleted
+                        ? <em className="message-deleted-text">{t('chat.message_deleted', 'Message deleted')}</em>
+                        : formatMessageContent(message.content)
+                      }
+                    </div>
+                    <div className="message-time">
+                      {formatTime(message.created_at)}
+                      {message.is_edited && !message.is_deleted && (
+                        <span className="message-edited-label"> · {t('chat.edited', 'edited')}</span>
+                      )}
+                      {message.sender_id === user.id && (
+                        <span className="read-receipt" style={{ marginLeft: '4px', fontSize: '0.8em' }}>
+                          {!message.id ? '' : (message.is_read ? '✓✓' : '✓')}
+                        </span>
+                      )}
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           ))
