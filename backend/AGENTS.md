@@ -1,13 +1,13 @@
 # AGENTS.md
 
-## Project: zchat backend_go
+## Project: zchat backend
 A Go-based scalable REST API and WebSocket server interacting with a PostgreSQL database.
 
 ## Setup & Dev Scripts
 - **Go Version:** Go 1.24.
 - **Run local server directly:** `go run cmd/server/main.go`
 - **Helper Scripts:** Use `./start.ps1` (Windows) or `./start.sh` (UNIX/Linux) to setup the environment and launch the backend server.
-- **Docker build:** `docker build -t zchat-backend .` from `backend_go/`, or use `docker-compose -f docker-compose.go.yml up -d` from root.
+- **Docker build:** `docker build -t zchat-backend .` from `backend/`, or use `docker-compose -f docker-compose.yml up -d` from root.
 - **Formatting:** Ensure `gofmt` and `golangci-lint` (if installed) are passed on all Go code before committing.
 - **Tests:** `go test ./...` — uses testify with mock implementations of domain interfaces. Currently only `auth_service_test.go` exists (covers `Register`).
 

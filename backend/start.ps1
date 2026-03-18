@@ -18,7 +18,7 @@ if (-not (Test-Command -Name "go")) {
 
 Write-Host "Found Go: $(go version)"
 
-# Switch to backend_go directory (script location)
+# Switch to backend directory (script location)
 $scriptPath = $PSScriptRoot
 Set-Location $scriptPath
 

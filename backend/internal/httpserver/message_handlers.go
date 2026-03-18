@@ -8,7 +8,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"backend_go/internal/service"
+	"backend/internal/service"
 )
 
 type messageCreateRequest struct {

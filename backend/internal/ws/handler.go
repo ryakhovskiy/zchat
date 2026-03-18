@@ -11,9 +11,9 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"backend_go/internal/domain"
-	"backend_go/internal/security"
-	"backend_go/internal/service"
+	"backend/internal/domain"
+	"backend/internal/security"
+	"backend/internal/service"
 )
 
 type wsAuthError struct {

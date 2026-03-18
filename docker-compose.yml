@@ -14,9 +14,9 @@ services:
       timeout: 5s
       retries: 5
 
-  backend_go:
+  backend:
     build:
-      context: ./backend_go
+      context: ./backend
     ports:
       - "8000:8000"
     environment:
@@ -40,7 +40,7 @@ services:
         condition: service_healthy
     volumes:
       - go_uploads:/app/uploads
-      - ./backend_go/app:/app/app
+      - ./backend/app:/app/app
 
 #  frontend:
 #    build:
@@ -53,7 +53,7 @@ services:
 #    volumes:
 #      - ./frontend/nginx.conf:/etc/nginx/conf.d/default.conf
 #    depends_on:
-#      - backend_go
+#      - backend
 
 volumes:
   postgres_data:

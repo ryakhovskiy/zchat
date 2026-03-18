@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 
-	"backend_go/internal/domain"
+	"backend/internal/domain"
 )
 
 type UserRepo struct {

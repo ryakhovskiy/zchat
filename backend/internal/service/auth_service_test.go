@@ -8,9 +8,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
-	"backend_go/internal/domain"
-	"backend_go/internal/security"
-	"backend_go/internal/service"
+	"backend/internal/domain"
+	"backend/internal/security"
+	"backend/internal/service"
 )
 
 // Mock mocks

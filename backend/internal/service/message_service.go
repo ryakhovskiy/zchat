@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	"backend_go/internal/domain"
-	"backend_go/internal/security"
+	"backend/internal/domain"
+	"backend/internal/security"
 )
 
 // Sentinel errors used by handlers to map to HTTP status codes.

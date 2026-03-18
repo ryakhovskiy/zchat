@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"backend_go/internal/domain"
+	"backend/internal/domain"
 )
 
 type ConversationService struct {

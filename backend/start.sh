@@ -14,7 +14,7 @@ fi
 
 echo "Found Go: $(go version)"
 
-# Ensure we are in the script's directory (backend_go root)
+# Ensure we are in the script's directory (backend root)
 cd "$(dirname "$0")"
 
 # Ensure Go dependencies are installed (modules downloaded)

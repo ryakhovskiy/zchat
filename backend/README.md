@@ -1,4 +1,4 @@
-### zChat Go backend (`backend_go`)
+### zChat Go backend (`backend`)
 
 This is a Go rewrite of the existing Python/FastAPI backend. It provides the same core features (auth, users, conversations, messages, uploads, WebSockets) with an idiomatic Go architecture.
 
@@ -27,7 +27,7 @@ You can reuse values from the existing `.env` used by the Python backend (e.g. `
 From the repo root:
 
 ```bash
-cd backend_go
+cd backend
 chmod +x start.sh
 ./start.sh
 ```
@@ -47,7 +47,7 @@ The server listens on `http://localhost:8000` by default.
 From the repo root in PowerShell:
 
 ```powershell
-cd backend_go
+cd backend
 .\start.ps1
 ```
 
@@ -61,12 +61,12 @@ The script behaves similarly to `start.sh`:
 
 ### Docker image
 
-The `Dockerfile` is located in `backend_go/Dockerfile`.
+The `Dockerfile` is located in `backend/Dockerfile`.
 
 Build the image from the repo root:
 
 ```bash
-docker build -t zchat-backend-go ./backend_go
+docker build -t zchat-backend-go ./backend
 ```
 
 Run the container:

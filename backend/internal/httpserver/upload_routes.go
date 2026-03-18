@@ -11,8 +11,8 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
-	"backend_go/internal/config"
-	"backend_go/internal/security"
+	"backend/internal/config"
+	"backend/internal/security"
 )
 
 // forbiddenExtensions are rejected on upload.

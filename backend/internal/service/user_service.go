@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"backend_go/internal/domain"
+	"backend/internal/domain"
 )
 
 // UserService provides user-related operations.

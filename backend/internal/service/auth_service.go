@@ -9,8 +9,8 @@ import (
 	"time"
 	"unicode"
 
-	"backend_go/internal/domain"
-	"backend_go/internal/security"
+	"backend/internal/domain"
+	"backend/internal/security"
 )
 
 var (

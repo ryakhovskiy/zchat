@@ -11,13 +11,13 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
 
-	"backend_go/internal/config"
-	"backend_go/internal/security"
-	"backend_go/internal/service"
-	"backend_go/internal/store/postgres"
-	"backend_go/internal/ws"
+	"backend/internal/config"
+	"backend/internal/security"
+	"backend/internal/service"
+	"backend/internal/store/postgres"
+	"backend/internal/ws"
 
-	_ "backend_go/docs"
+	_ "backend/docs"
 
 	httpSwagger "github.com/swaggo/http-swagger"
 )

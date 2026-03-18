@@ -1,4 +1,4 @@
-module backend_go
+module backend
 
 go 1.24.0
 
