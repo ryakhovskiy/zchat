@@ -178,7 +178,7 @@ func MakeHandler(
 			return nil
 		})
 
-		if err := users.SetOnlineStatus(ctx, user.ID, true); err != nil {
+		if err := users.SetOnlineStatus(context.Background(), user.ID, true); err != nil {
 			log.Printf("ws: set online for %d: %v", user.ID, err)
 		}
 		hub.Register(user.ID, conn, send)
@@ -207,6 +207,10 @@ func MakeHandler(
 			if err := conn.ReadJSON(&payload); err != nil {
 				break
 			}
+			// Use a fresh context for each message — the original HTTP request
+			// context may carry a timeout that expires long before the WebSocket
+			// connection is closed.
+			ctx := context.Background()
 			msgType, _ := payload["type"].(string)
 			switch msgType {
 

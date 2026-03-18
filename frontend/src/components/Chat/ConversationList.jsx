@@ -30,9 +30,11 @@ export const ConversationList = ({ onNewChat }) => {
   const formatTime = (dateString) => {
     const date = new Date(dateString);
     const now = new Date();
-    const diffInHours = (now - date) / (1000 * 60 * 60);
+    const isToday = date.getFullYear() === now.getFullYear() &&
+                    date.getMonth() === now.getMonth() &&
+                    date.getDate() === now.getDate();
 
-    if (diffInHours < 24) {
+    if (isToday) {
       return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     }
     return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
@@ -70,7 +72,7 @@ export const ConversationList = ({ onNewChat }) => {
             </button>
           </div>
         ) : (
-          conversations
+          [...conversations]
             .sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at))
             .map((conversation) => {
               const unreadCount = unreadCounts[conversation.id] || 0;
