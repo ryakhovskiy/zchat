@@ -114,6 +114,7 @@ func MakeHandler(
 	msgSvc *service.MessageService,
 	encryptor *security.Encryptor,
 	allowedOrigins []string,
+	pingInterval time.Duration,
 	pongTimeout time.Duration,
 ) http.HandlerFunc {
 	checkOrigin := makeCheckOrigin(allowedOrigins)
@@ -164,18 +165,23 @@ func MakeHandler(
 		}
 		defer conn.Close()
 
-		// Configure ping/pong keep-alive.
+		// Each connection gets a dedicated write goroutine to avoid blocking
+		// the hub's Run loop and to satisfy gorilla's no-concurrent-writes rule.
+		send := make(chan []byte, sendBufSize)
+		go writePump(conn, send, pingInterval)
+
+		// Configure pong keep-alive: refresh read deadline whenever a pong arrives.
+		// The ping is sent by writePump on its own ticker.
 		conn.SetReadDeadline(time.Now().Add(pongTimeout))
 		conn.SetPongHandler(func(string) error {
 			conn.SetReadDeadline(time.Now().Add(pongTimeout))
-			hub.NotifyPong(conn)
 			return nil
 		})
 
 		if err := users.SetOnlineStatus(ctx, user.ID, true); err != nil {
 			log.Printf("ws: set online for %d: %v", user.ID, err)
 		}
-		hub.Register(user.ID, conn)
+		hub.Register(user.ID, conn, send)
 		defer func() {
 			hub.Unregister(user.ID, conn)
 			// Only mark user offline in DB and broadcast if they have no remaining connections.

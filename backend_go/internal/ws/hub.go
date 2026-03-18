@@ -1,29 +1,35 @@
 package ws
 
 import (
+	"encoding/json"
 	"log"
 	"time"
 
 	"github.com/gorilla/websocket"
 )
 
-// Hub maintains the set of active clients and broadcasts messages to the
-// clients. It also sends periodic WebSocket Ping frames and evicts connections
-// that fail to respond with a Pong within the configured timeout.
+const (
+	// writeWait is the maximum duration allowed for a single write to the connection.
+	writeWait = 10 * time.Second
+
+	// sendBufSize is the number of outbound messages that can be queued per connection
+	// before the connection is considered a slow consumer and closed.
+	sendBufSize = 256
+)
+
+// Hub maintains the set of active clients and broadcasts messages to them.
+// All socket I/O is delegated to per-connection writePump goroutines so the
+// Run loop is never blocked by a slow or unresponsive client.
 type Hub struct {
-	// Registered clients: userID → set of connections.
+	// clients: userID → set of connections.
 	clients map[int64]map[*websocket.Conn]bool
 
-	// lastPong tracks the most recent pong (or register) time per connection.
-	lastPong map[*websocket.Conn]time.Time
-
-	// connUser is a reverse lookup: connection → owning userID.
-	connUser map[*websocket.Conn]int64
+	// sendChans: per-connection outbound channel drained by writePump.
+	sendChans map[*websocket.Conn]chan []byte
 
 	broadcast     chan broadcastMessage
 	register      chan registerRequest
 	unregister    chan unregisterRequest
-	pong          chan *websocket.Conn
 	isOnlineQuery chan isOnlineRequest
 
 	pingInterval time.Duration
@@ -38,6 +44,7 @@ type isOnlineRequest struct {
 type registerRequest struct {
 	userID int64
 	conn   *websocket.Conn
+	send   chan []byte
 }
 
 type unregisterRequest struct {
@@ -53,12 +60,10 @@ type broadcastMessage struct {
 func NewHub(pingInterval, pongTimeout time.Duration) *Hub {
 	return &Hub{
 		clients:       make(map[int64]map[*websocket.Conn]bool),
-		lastPong:      make(map[*websocket.Conn]time.Time),
-		connUser:      make(map[*websocket.Conn]int64),
+		sendChans:     make(map[*websocket.Conn]chan []byte),
 		broadcast:     make(chan broadcastMessage),
 		register:      make(chan registerRequest),
 		unregister:    make(chan unregisterRequest),
-		pong:          make(chan *websocket.Conn, 64),
 		isOnlineQuery: make(chan isOnlineRequest),
 		pingInterval:  pingInterval,
 		pongTimeout:   pongTimeout,
@@ -66,9 +71,6 @@ func NewHub(pingInterval, pongTimeout time.Duration) *Hub {
 }
 
 func (h *Hub) Run() {
-	ticker := time.NewTicker(h.pingInterval)
-	defer ticker.Stop()
-
 	for {
 		select {
 		case req := <-h.register:
@@ -76,22 +78,21 @@ func (h *Hub) Run() {
 				h.clients[req.userID] = make(map[*websocket.Conn]bool)
 			}
 			h.clients[req.userID][req.conn] = true
-			h.lastPong[req.conn] = time.Now()
-			h.connUser[req.conn] = req.userID
+			h.sendChans[req.conn] = req.send
 
 		case req := <-h.unregister:
 			h.removeConn(req.userID, req.conn)
 
-		case conn := <-h.pong:
-			if _, ok := h.lastPong[conn]; ok {
-				h.lastPong[conn] = time.Now()
-			}
-
 		case msg := <-h.broadcast:
+			data, err := json.Marshal(msg.payload)
+			if err != nil {
+				log.Printf("ws: marshal broadcast payload: %v", err)
+				continue
+			}
 			if msg.targetUserIDs == nil {
 				for uid, conns := range h.clients {
 					for conn := range conns {
-						if err := conn.WriteJSON(msg.payload); err != nil {
+						if !h.enqueue(uid, conn, data) {
 							h.removeConn(uid, conn)
 						}
 					}
@@ -100,7 +101,7 @@ func (h *Hub) Run() {
 				for _, uid := range msg.targetUserIDs {
 					if conns, ok := h.clients[uid]; ok {
 						for conn := range conns {
-							if err := conn.WriteJSON(msg.payload); err != nil {
+							if !h.enqueue(uid, conn, data) {
 								h.removeConn(uid, conn)
 							}
 						}
@@ -111,46 +112,42 @@ func (h *Hub) Run() {
 		case req := <-h.isOnlineQuery:
 			_, online := h.clients[req.userID]
 			req.reply <- online
-
-		case <-ticker.C:
-			now := time.Now()
-			for conn, last := range h.lastPong {
-				if now.Sub(last) > h.pongTimeout {
-					uid := h.connUser[conn]
-					log.Printf("ws: closing stale connection for user %d (no pong for %v)", uid, now.Sub(last))
-					h.removeConn(uid, conn)
-					continue
-				}
-				deadline := time.Now().Add(10 * time.Second)
-				if err := conn.WriteControl(websocket.PingMessage, nil, deadline); err != nil {
-					uid := h.connUser[conn]
-					h.removeConn(uid, conn)
-				}
-			}
 		}
 	}
 }
 
-// removeConn closes a connection and cleans up all tracking state.
+// enqueue puts data on the connection's send channel without blocking.
+// Returns false if the channel is full — the connection should be closed.
+func (h *Hub) enqueue(userID int64, conn *websocket.Conn, data []byte) bool {
+	ch, ok := h.sendChans[conn]
+	if !ok {
+		return false
+	}
+	select {
+	case ch <- data:
+		return true
+	default:
+		log.Printf("ws: send buffer full for user %d, closing connection", userID)
+		return false
+	}
+}
+
+// removeConn closes the connection's send channel (which causes writePump to
+// exit and close the socket) and cleans up all Hub tracking state.
 // Safe to call even if the connection is already removed.
 func (h *Hub) removeConn(userID int64, conn *websocket.Conn) {
 	if conns, ok := h.clients[userID]; ok {
 		if _, exists := conns[conn]; exists {
 			delete(conns, conn)
-			conn.Close()
+			if ch, ok := h.sendChans[conn]; ok {
+				close(ch)
+				delete(h.sendChans, conn)
+			}
 			if len(conns) == 0 {
 				delete(h.clients, userID)
 			}
 		}
 	}
-	delete(h.lastPong, conn)
-	delete(h.connUser, conn)
-}
-
-// NotifyPong should be called by the connection's PongHandler to record
-// that the connection is still alive.
-func (h *Hub) NotifyPong(conn *websocket.Conn) {
-	h.pong <- conn
 }
 
 // IsOnline returns true if the given user has at least one active connection.
@@ -162,8 +159,10 @@ func (h *Hub) IsOnline(userID int64) bool {
 }
 
 // Register adds a connection for the given user.
-func (h *Hub) Register(userID int64, conn *websocket.Conn) {
-	h.register <- registerRequest{userID: userID, conn: conn}
+// send is the buffered channel the writePump goroutine reads from; it must be
+// created by the caller before calling Register.
+func (h *Hub) Register(userID int64, conn *websocket.Conn, send chan []byte) {
+	h.register <- registerRequest{userID: userID, conn: conn, send: send}
 }
 
 // Unregister removes a connection for the given user.
@@ -180,4 +179,46 @@ func (h *Hub) BroadcastToUsers(userIDs []int64, payload any) {
 // BroadcastAll sends the payload to all connected users.
 func (h *Hub) BroadcastAll(payload any) {
 	h.broadcast <- broadcastMessage{targetUserIDs: nil, payload: payload}
+}
+
+// writePump runs as a dedicated goroutine for each WebSocket connection.
+// It is the sole writer on the connection, which satisfies gorilla/websocket's
+// requirement that writes are not concurrent. It also sends periodic Ping
+// frames so the server can detect dead connections via the pong read-deadline
+// set in the handler's PongHandler.
+//
+// writePump exits when:
+//   - the hub closes the send channel (clean disconnect)
+//   - a write to the socket fails (dead connection)
+//
+// In both cases it closes the connection, which causes the read loop in the
+// handler to also exit via a read error, triggering the deferred cleanup.
+func writePump(conn *websocket.Conn, send <-chan []byte, pingInterval time.Duration) {
+	ticker := time.NewTicker(pingInterval)
+	defer func() {
+		ticker.Stop()
+		conn.Close()
+	}()
+
+	for {
+		select {
+		case msg, ok := <-send:
+			conn.SetWriteDeadline(time.Now().Add(writeWait))
+			if !ok {
+				// Hub closed the channel — send a clean close frame.
+				conn.WriteMessage(websocket.CloseMessage,
+					websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
+				return
+			}
+			if err := conn.WriteMessage(websocket.TextMessage, msg); err != nil {
+				return
+			}
+
+		case <-ticker.C:
+			conn.SetWriteDeadline(time.Now().Add(writeWait))
+			if err := conn.WriteControl(websocket.PingMessage, nil, time.Now().Add(writeWait)); err != nil {
+				return
+			}
+		}
+	}
 }

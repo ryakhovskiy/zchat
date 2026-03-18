@@ -142,8 +142,9 @@ func NewRouter(cfg *config.Config, db *sql.DB, hub *ws.Hub, tokenSvc *security.T
 	})
 
 	// WebSocket endpoint
+	pingInterval := time.Duration(cfg.WSPingIntervalSec) * time.Second
 	pongTimeout := time.Duration(cfg.WSPongTimeoutSec) * time.Second
-	r.Get("/ws", ws.MakeHandler(hub, tokenSvc, userRepo, convRepo, msgSvc, encryptor, cfg.CORSOrigins, pongTimeout))
+	r.Get("/ws", ws.MakeHandler(hub, tokenSvc, userRepo, convRepo, msgSvc, encryptor, cfg.CORSOrigins, pingInterval, pongTimeout))
 
 	return r
 }
