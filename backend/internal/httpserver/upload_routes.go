@@ -1,6 +1,7 @@
 package httpserver
 
 import (
+	"database/sql"
 	"io"
 	"mime"
 	"net/http"
@@ -66,7 +67,7 @@ func categoriseFileType(ext string) string {
 }
 
 // UploadRoutes returns a sub-router mounted at /api/uploads.
-func UploadRoutes(cfg *config.Config, tokenSvc *security.TokenService) chi.Router {
+func UploadRoutes(cfg *config.Config, db *sql.DB, tokenSvc *security.TokenService) chi.Router {
 	r := chi.NewRouter()
 
 	r.Post("/", func(w http.ResponseWriter, r *http.Request) {
@@ -91,6 +92,20 @@ func UploadRoutes(cfg *config.Config, tokenSvc *security.TokenService) chi.Route
 			return
 		}
 
+		// Read first 512 bytes to detect content type
+		buf := make([]byte, 512)
+		n, err := file.Read(buf)
+		if err != nil && err != io.EOF {
+			http.Error(w, "error reading file", http.StatusInternalServerError)
+			return
+		}
+		mimeType := http.DetectContentType(buf[:n])
+		// Rewind file pointer
+		if _, err := file.Seek(0, io.SeekStart); err != nil {
+			http.Error(w, "error processing file", http.StatusInternalServerError)
+			return
+		}
+
 		filename := uuid.New().String() + ext
 		destPath := filepath.Join(cfg.UploadDir, filename)
 
@@ -112,10 +127,20 @@ func UploadRoutes(cfg *config.Config, tokenSvc *security.TokenService) chi.Route
 			return
 		}
 
+		fileSize := header.Size
+		if fileSize == 0 {
+			if fi, err := out.Stat(); err == nil {
+				fileSize = fi.Size()
+			}
+		}
+
 		writeJSON(w, http.StatusOK, map[string]any{
-			"file_path": "uploads/" + filename,
-			"file_type": categoriseFileType(ext),
-			"filename":  filename,
+			"file_path":     "uploads/" + filename,
+			"file_type":     categoriseFileType(ext),
+			"filename":      filename,
+			"mime_type":     mimeType,
+			"original_name": header.Filename,
+			"file_size":     fileSize,
 		})
 	})
 
@@ -143,6 +168,17 @@ func UploadRoutes(cfg *config.Config, tokenSvc *security.TokenService) chi.Route
 			http.Error(w, "invalid filename", http.StatusBadRequest)
 			return
 		}
+
+		// Try to fetch metadata from DB
+		filePathKey := "uploads/" + filename
+		var originalName string
+		err := db.QueryRowContext(r.Context(), "SELECT original_name FROM attachments WHERE file_path = $1", filePathKey).Scan(&originalName)
+		if err == nil && originalName != "" {
+			w.Header().Set("Content-Disposition", "attachment; filename=\""+originalName+"\"")
+			// Increment read_count
+			_, _ = db.ExecContext(r.Context(), "UPDATE attachments SET read_count = read_count + 1 WHERE file_path = $1", filePathKey)
+		}
+
 		http.ServeFile(w, r, filepath.Join(cfg.UploadDir, filename))
 	})
 

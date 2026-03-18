@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strconv"
+	"strings"
 
 	"backend/internal/domain"
 )
@@ -19,7 +21,13 @@ func NewMessageRepo(db *sql.DB) *MessageRepo {
 var _ domain.MessageRepository = (*MessageRepo)(nil)
 
 func (r *MessageRepo) Create(ctx context.Context, m *domain.Message) error {
-	return r.db.QueryRowContext(ctx, `
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin message create tx: %w", err)
+	}
+	defer tx.Rollback()
+
+	err = tx.QueryRowContext(ctx, `
 		INSERT INTO messages
 			(content, conversation_id, sender_id, created_at, file_path, file_type, fully_read_at, is_deleted, is_edited, is_read)
 		VALUES ($1, $2, $3, NOW(), $4, $5, $6, FALSE, FALSE, FALSE)
@@ -27,6 +35,55 @@ func (r *MessageRepo) Create(ctx context.Context, m *domain.Message) error {
 	`, m.Content, m.ConversationID, m.SenderID,
 		m.FilePath, m.FileType, m.FullyReadAt,
 	).Scan(&m.ID, &m.CreatedAt)
+
+	if err != nil {
+		return fmt.Errorf("insert message: %w", err)
+	}
+
+	for i := range m.Attachments {
+		att := &m.Attachments[i]
+		att.MessageID = m.ID
+		err = tx.QueryRowContext(ctx, `
+			INSERT INTO attachments
+				(message_id, file_path, original_name, file_size, file_type, mime_type, read_count, created_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+			RETURNING id, created_at
+		`, att.MessageID, att.FilePath, att.OriginalName, att.FileSize, att.FileType, att.MimeType, att.ReadCount,
+		).Scan(&att.ID, &att.CreatedAt)
+		if err != nil {
+			return fmt.Errorf("insert attachment: %w", err)
+		}
+	}
+
+	return tx.Commit()
+}
+
+func (r *MessageRepo) CreateAttachment(ctx context.Context, a *domain.Attachment) error {
+	return r.db.QueryRowContext(ctx, `
+		INSERT INTO attachments
+			(message_id, file_path, original_name, file_size, file_type, mime_type, read_count, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+		RETURNING id, created_at
+	`, a.MessageID, a.FilePath, a.OriginalName, a.FileSize, a.FileType, a.MimeType, a.ReadCount,
+	).Scan(&a.ID, &a.CreatedAt)
+}
+
+func (r *MessageRepo) GetAttachment(ctx context.Context, id int64) (*domain.Attachment, error) {
+	a := &domain.Attachment{}
+	err := r.db.QueryRowContext(ctx, `
+		SELECT id, message_id, file_path, original_name, file_size, file_type, mime_type, read_count, created_at
+		FROM attachments WHERE id = $1
+	`, id).Scan(
+		&a.ID, &a.MessageID, &a.FilePath, &a.OriginalName,
+		&a.FileSize, &a.FileType, &a.MimeType, &a.ReadCount, &a.CreatedAt,
+	)
+	if err == sql.ErrNoRows {
+		return nil, domain.ErrNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get attachment: %w", err)
+	}
+	return a, nil
 }
 
 func (r *MessageRepo) GetByID(ctx context.Context, id int64) (*domain.Message, error) {
@@ -45,6 +102,11 @@ func (r *MessageRepo) GetByID(ctx context.Context, id int64) (*domain.Message, e
 	if err != nil {
 		return nil, fmt.Errorf("get message: %w", err)
 	}
+
+	if err := r.populateAttachments(ctx, []*domain.Message{m}); err != nil {
+		return nil, fmt.Errorf("populate attachments: %w", err)
+	}
+
 	return m, nil
 }
 
@@ -72,7 +134,14 @@ func (r *MessageRepo) ListForConversation(ctx context.Context, conversationID in
 	if err != nil {
 		return nil, fmt.Errorf("list messages: %w", err)
 	}
-	return r.scanMessages(rows)
+	messages, err := r.scanMessages(rows)
+	if err != nil {
+		return nil, err
+	}
+	if err := r.populateAttachments(ctx, messages); err != nil {
+		return nil, fmt.Errorf("populate attachments: %w", err)
+	}
+	return messages, nil
 }
 
 // ListForConversationForUser is like ListForConversation but excludes messages
@@ -92,7 +161,14 @@ func (r *MessageRepo) ListForConversationForUser(ctx context.Context, conversati
 	if err != nil {
 		return nil, fmt.Errorf("list messages for user: %w", err)
 	}
-	return r.scanMessages(rows)
+	messages, err := r.scanMessages(rows)
+	if err != nil {
+		return nil, err
+	}
+	if err := r.populateAttachments(ctx, messages); err != nil {
+		return nil, fmt.Errorf("populate attachments: %w", err)
+	}
+	return messages, nil
 }
 
 func (r *MessageRepo) MarkAllReadInConversation(ctx context.Context, conversationID, senderExcludeID int64) error {
@@ -161,4 +237,53 @@ func (r *MessageRepo) scanMessages(rows *sql.Rows) ([]*domain.Message, error) {
 		res = append(res, m)
 	}
 	return res, rows.Err()
+}
+
+func (r *MessageRepo) populateAttachments(ctx context.Context, messages []*domain.Message) error {
+	if len(messages) == 0 {
+		return nil
+	}
+
+	msgIDs := make([]int64, len(messages))
+	msgMap := make(map[int64]*domain.Message)
+	for i, m := range messages {
+		msgIDs[i] = m.ID
+		msgMap[m.ID] = m
+		m.Attachments = []domain.Attachment{}
+	}
+
+	args := make([]interface{}, len(msgIDs))
+	placeholders := make([]string, len(msgIDs))
+	for i, id := range msgIDs {
+		args[i] = id
+		placeholders[i] = "$" + strconv.Itoa(i+1)
+	}
+
+	query := fmt.Sprintf(`
+		SELECT id, message_id, file_path, original_name, file_size, file_type, mime_type, read_count, created_at
+		FROM attachments
+		WHERE message_id IN (%s)
+		ORDER BY created_at ASC
+	`, strings.Join(placeholders, ","))
+
+	rows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return fmt.Errorf("query attachments: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var a domain.Attachment
+		if err := rows.Scan(
+			&a.ID, &a.MessageID, &a.FilePath, &a.OriginalName,
+			&a.FileSize, &a.FileType, &a.MimeType, &a.ReadCount, &a.CreatedAt,
+		); err != nil {
+			return fmt.Errorf("scan attachment: %w", err)
+		}
+		if m, ok := msgMap[a.MessageID]; ok {
+			m.Attachments = append(m.Attachments, a)
+		}
+	}
+
+	return rows.Err()
 }

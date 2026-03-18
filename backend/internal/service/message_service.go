@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"time"
 
 	"backend/internal/domain"
@@ -25,6 +27,7 @@ type MessageService struct {
 	encryptor     *security.Encryptor
 
 	MaxMessagesPerConversation int
+	UploadDir                  string
 }
 
 func NewMessageService(
@@ -35,6 +38,7 @@ func NewMessageService(
 	users domain.UserRepository,
 	encryptor *security.Encryptor,
 	maxMessages int,
+	uploadDir string,
 ) *MessageService {
 	return &MessageService{
 		conversations:              conversations,
@@ -44,6 +48,7 @@ func NewMessageService(
 		users:                      users,
 		encryptor:                  encryptor,
 		MaxMessagesPerConversation: maxMessages,
+		UploadDir:                  uploadDir,
 	}
 }
 
@@ -52,6 +57,7 @@ type MessageCreateInput struct {
 	Content        string
 	FilePath       *string
 	FileType       *string
+	Attachments    []domain.Attachment
 }
 
 func (s *MessageService) CreateMessage(
@@ -94,6 +100,7 @@ func (s *MessageService) CreateMessage(
 		FilePath:       in.FilePath,
 		FileType:       in.FileType,
 		IsDeleted:      false,
+		Attachments:    in.Attachments,
 	}
 
 	if err := s.messages.Create(ctx, msg); err != nil {
@@ -167,6 +174,15 @@ func (s *MessageService) DeleteMessage(
 			return nil, fmt.Errorf("soft delete: %w", err)
 		}
 		msg.IsDeleted = true
+
+		if msg.FilePath != nil && *msg.FilePath != "" {
+			_ = os.Remove(filepath.Join(s.UploadDir, filepath.Base(*msg.FilePath)))
+		}
+		for _, att := range msg.Attachments {
+			if att.FilePath != "" {
+				_ = os.Remove(filepath.Join(s.UploadDir, filepath.Base(att.FilePath)))
+			}
+		}
 	case "for_me":
 		if err := s.deletedMsgs.Create(ctx, callerID, messageID); err != nil {
 			return nil, fmt.Errorf("delete for me: %w", err)

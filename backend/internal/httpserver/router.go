@@ -56,7 +56,7 @@ func NewRouter(cfg *config.Config, db *sql.DB, hub *ws.Hub, tokenSvc *security.T
 	authSvc := service.NewAuthService(userRepo, tokenSvc, passwordHasher, defaultTTL, rememberMeTTL)
 	userSvc := service.NewUserService(userRepo)
 	convSvc := service.NewConversationService(convRepo, partRepo, msgRepo)
-	msgSvc := service.NewMessageService(convRepo, partRepo, msgRepo, deletedMsgRepo, userRepo, encryptor, cfg.MaxMessagesPerConversation)
+	msgSvc := service.NewMessageService(convRepo, partRepo, msgRepo, deletedMsgRepo, userRepo, encryptor, cfg.MaxMessagesPerConversation, cfg.UploadDir)
 	// wire circular reference
 	convSvc.SetMessageService(msgSvc)
 
@@ -137,7 +137,7 @@ func NewRouter(cfg *config.Config, db *sql.DB, hub *ws.Hub, tokenSvc *security.T
 			})
 
 			// Uploads (auth enforced inside for download via token param)
-			r.Mount("/uploads", UploadRoutes(cfg, tokenSvc))
+			r.Mount("/uploads", UploadRoutes(cfg, db, tokenSvc))
 		})
 	})
 

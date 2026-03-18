@@ -86,13 +86,14 @@ export const conversationsAPI = {
 
 // Files API
 export const filesAPI = {
-  upload: (file) => {
+  upload: (file, onUploadProgress) => {
     const formData = new FormData();
     formData.append('file', file);
     return api.post('/uploads/', formData, {
       headers: {
-        'Content-Type': undefined,
+        'Content-Type': 'multipart/form-data',
       },
+      onUploadProgress
     });
   },
   getFileUrl: (filename) => {

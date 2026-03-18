@@ -33,17 +33,31 @@ type ConversationParticipant struct {
 
 // Message represents a single chat message.
 type Message struct {
-	ID             int64      `db:"id"`
-	Content        string     `db:"content"` // encrypted at rest
-	ConversationID int64      `db:"conversation_id"`
-	SenderID       int64      `db:"sender_id"`
-	CreatedAt      time.Time  `db:"created_at"`
-	FilePath       *string    `db:"file_path"`
-	FileType       *string    `db:"file_type"`
-	FullyReadAt    *time.Time `db:"fully_read_at"`
-	IsDeleted      bool       `db:"is_deleted"`
-	IsEdited       bool       `db:"is_edited"`
-	IsRead         bool       `db:"is_read"`
+	ID             int64        `db:"id"`
+	Content        string       `db:"content"` // encrypted at rest
+	ConversationID int64        `db:"conversation_id"`
+	SenderID       int64        `db:"sender_id"`
+	CreatedAt      time.Time    `db:"created_at"`
+	FilePath       *string      `db:"file_path"`
+	FileType       *string      `db:"file_type"`
+	FullyReadAt    *time.Time   `db:"fully_read_at"`
+	IsDeleted      bool         `db:"is_deleted"`
+	IsEdited       bool         `db:"is_edited"`
+	IsRead         bool         `db:"is_read"`
+	Attachments    []Attachment `json:"attachments,omitempty"`
+}
+
+// Attachment represents a file attached to a message.
+type Attachment struct {
+	ID           int64     `db:"id" json:"id"`
+	MessageID    int64     `db:"message_id" json:"message_id"`
+	FilePath     string    `db:"file_path" json:"file_path"`
+	OriginalName string    `db:"original_name" json:"original_name"`
+	FileSize     int64     `db:"file_size" json:"file_size"`
+	FileType     string    `db:"file_type" json:"file_type"`
+	MimeType     string    `db:"mime_type" json:"mime_type"`
+	ReadCount    int       `db:"read_count" json:"read_count"`
+	CreatedAt    time.Time `db:"created_at" json:"created_at"`
 }
 
 // UserDeletedMessage tracks per-user "delete for me" deletions.

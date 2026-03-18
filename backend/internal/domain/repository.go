@@ -33,6 +33,8 @@ type ConversationRepository interface {
 type MessageRepository interface {
 	Create(ctx context.Context, m *Message) error
 	GetByID(ctx context.Context, id int64) (*Message, error)
+	CreateAttachment(ctx context.Context, a *Attachment) error
+	GetAttachment(ctx context.Context, id int64) (*Attachment, error)
 	Update(ctx context.Context, m *Message) error
 	SoftDeleteForEveryone(ctx context.Context, id int64) error
 	ListForConversation(ctx context.Context, conversationID int64, limit int) ([]*Message, error)

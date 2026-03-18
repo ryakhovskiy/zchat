@@ -75,6 +75,19 @@ func Migrate(db *sql.DB) error {
 			PRIMARY KEY (user_id, message_id)
 		)`,
 
+		// Attachments
+		`CREATE TABLE IF NOT EXISTS attachments (
+			id            BIGSERIAL   PRIMARY KEY,
+			message_id    BIGINT      NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+			file_path     TEXT        NOT NULL,
+			original_name TEXT        NOT NULL,
+			file_size     BIGINT      NOT NULL,
+			file_type     TEXT        NOT NULL,
+			mime_type     TEXT        NOT NULL,
+			read_count    INT         NOT NULL DEFAULT 0,
+			created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)`,
+
 		// Indexes
 		`CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)`,
 		`CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)`,
@@ -86,6 +99,7 @@ func Migrate(db *sql.DB) error {
 		`CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_messages_sender ON messages(sender_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_messages_created_at ON messages(created_at)`,
+		`CREATE INDEX IF NOT EXISTS idx_attachments_message_id ON attachments(message_id)`,
 
 		// Add new columns to existing tables if they were created by an older schema
 		`ALTER TABLE messages ADD COLUMN IF NOT EXISTS is_edited BOOLEAN NOT NULL DEFAULT FALSE`,

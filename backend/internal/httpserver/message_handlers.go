@@ -8,13 +8,15 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"backend/internal/domain"
 	"backend/internal/service"
 )
 
 type messageCreateRequest struct {
-	Content  string  `json:"content"`
-	FilePath *string `json:"file_path"`
-	FileType *string `json:"file_type"`
+	Content     string              `json:"content"`
+	FilePath    *string             `json:"file_path"`
+	FileType    *string             `json:"file_type"`
+	Attachments []domain.Attachment `json:"attachments,omitempty"`
 }
 
 type messageEditRequest struct {
@@ -45,6 +47,7 @@ func handleCreateMessage(msgSvc *service.MessageService) http.HandlerFunc {
 			Content:        req.Content,
 			FilePath:       req.FilePath,
 			FileType:       req.FileType,
+			Attachments:    req.Attachments,
 		}, currentUser.ID)
 		if err != nil {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
