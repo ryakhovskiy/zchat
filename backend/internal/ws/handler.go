@@ -11,6 +11,8 @@ import (
 
 	"github.com/gorilla/websocket"
 
+	webpush "github.com/SherClockHolmes/webpush-go"
+
 	"backend/internal/domain"
 	"backend/internal/security"
 	"backend/internal/service"
@@ -113,6 +115,7 @@ func MakeHandler(
 	convs domain.ConversationRepository,
 	msgSvc *service.MessageService,
 	encryptor *security.Encryptor,
+	pushSvc *service.PushService,
 	allowedOrigins []string,
 	pingInterval time.Duration,
 	pongTimeout time.Duration,
@@ -266,6 +269,31 @@ func MakeHandler(
 					"is_read":         false,
 				})
 
+				// Push notifications to offline participants
+				if pushSvc != nil {
+					var offlineIDs []int64
+					for _, pid := range participantIDs {
+						if pid != user.ID && !hub.IsOnline(pid) {
+							offlineIDs = append(offlineIDs, pid)
+						}
+					}
+					if len(offlineIDs) > 0 {
+						body := resp.Content
+						if resp.FilePath != nil {
+							body = "Sent a file"
+						}
+						if len(body) > 80 {
+							body = body[:80] + "…"
+						}
+						pushSvc.NotifyUsersAsync(offlineIDs, service.NotificationPayload{
+							Title: resp.SenderUsername,
+							Body:  body,
+							URL:   fmt.Sprintf("/chat/%d", resp.ConversationID),
+							Tag:   "msg",
+						}, webpush.UrgencyNormal, 3600)
+					}
+				}
+
 			// ── mark read ────────────────────────────────────────────────────
 			case "mark_read":
 				convIDf, _ := payload["conversation_id"].(float64)
@@ -399,6 +427,16 @@ func MakeHandler(
 					fwd["candidate"] = candidate
 				}
 				hub.BroadcastToUsers([]int64{targetID}, fwd)
+
+				// Push notification for offline call target
+				if pushSvc != nil && msgType == "call_offer" && !hub.IsOnline(targetID) {
+					pushSvc.NotifyUsersAsync([]int64{targetID}, service.NotificationPayload{
+						Title: user.Username + " is calling",
+						Body:  "Tap to answer",
+						URL:   fmt.Sprintf("/call/%d", convID),
+						Tag:   "call",
+					}, webpush.UrgencyHigh, 30)
+				}
 
 			default:
 				log.Printf("ws: unknown event type %q from user %d", msgType, user.ID)

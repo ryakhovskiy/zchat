@@ -53,3 +53,11 @@ type ParticipantRepository interface {
 	ListParticipants(ctx context.Context, conversationID int64) ([]*User, error)
 	IsParticipant(ctx context.Context, conversationID, userID int64) (bool, error)
 }
+
+// PushSubscriptionRepository defines persistence operations for Web Push subscriptions.
+type PushSubscriptionRepository interface {
+	UpsertByUserAndEndpoint(ctx context.Context, sub *PushSubscription) error
+	ListByUserID(ctx context.Context, userID int64) ([]*PushSubscription, error)
+	DeleteByUserAndEndpoint(ctx context.Context, userID int64, endpoint string) error
+	DeleteByUserID(ctx context.Context, userID int64) error
+}

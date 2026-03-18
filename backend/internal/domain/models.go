@@ -67,6 +67,17 @@ type UserDeletedMessage struct {
 	DeletedAt time.Time `db:"deleted_at"`
 }
 
+// PushSubscription represents a Web Push subscription for a user's browser.
+type PushSubscription struct {
+	ID        int64     `db:"id"`
+	UserID    int64     `db:"user_id"`
+	Endpoint  string    `db:"endpoint"`
+	P256dh    string    `db:"p256dh"`
+	Auth      string    `db:"auth"`
+	UserAgent string    `db:"user_agent"`
+	CreatedAt time.Time `db:"created_at"`
+}
+
 // ConversationResponse is the rich DTO returned by conversation endpoints.
 type ConversationResponse struct {
 	*Conversation

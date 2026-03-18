@@ -21,6 +21,9 @@ type Config struct {
 	EncryptKey         string
 	LegacyEncryptKeys  []string
 
+	VAPIDPublicKey  string
+	VAPIDPrivateKey string
+
 	UploadDir                  string
 	CORSOrigins                []string
 	Debug                      bool
@@ -57,6 +60,9 @@ func Load() (*Config, error) {
 		AccessTokenMinutes: getEnvAsInt("ACCESS_TOKEN_EXPIRE_MINUTES", 60*24),
 		RememberMeDays:     getEnvAsInt("REMEMBER_ME_TOKEN_EXPIRE_DAYS", 30),
 		EncryptKey:         os.Getenv("ENCRYPTION_KEY"),
+
+		VAPIDPublicKey:  os.Getenv("VAPID_PUBLIC_KEY"),
+		VAPIDPrivateKey: os.Getenv("VAPID_PRIVATE_KEY"),
 
 		UploadDir:                  getEnv("UPLOAD_DIR", "uploads"),
 		Debug:                      getEnvAsBool("DEBUG", true),

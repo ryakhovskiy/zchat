@@ -8,6 +8,9 @@ import (
 	"backend/internal/domain"
 )
 
+// MaxGroupParticipants is the maximum number of users allowed in a group conversation.
+const MaxGroupParticipants = 20
+
 type ConversationService struct {
 	conversations domain.ConversationRepository
 	participants  domain.ParticipantRepository
@@ -70,6 +73,9 @@ func (s *ConversationService) CreateConversation(
 	}
 	if in.IsGroup && otherCount < 2 {
 		return nil, errors.New("a group conversation requires at least two other participants")
+	}
+	if in.IsGroup && len(uniqueIDs) > MaxGroupParticipants {
+		return nil, fmt.Errorf("group conversations are limited to %d participants", MaxGroupParticipants)
 	}
 
 	// Idempotency check

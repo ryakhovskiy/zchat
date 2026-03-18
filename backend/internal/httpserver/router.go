@@ -47,6 +47,7 @@ func NewRouter(cfg *config.Config, db *sql.DB, hub *ws.Hub, tokenSvc *security.T
 	msgRepo := postgres.NewMessageRepo(db)
 	partRepo := postgres.NewParticipantRepo(db)
 	deletedMsgRepo := postgres.NewUserDeletedMessageRepo(db)
+	pushSubRepo := postgres.NewPushSubscriptionRepo(db)
 
 	// Services
 	defaultTTL := time.Duration(cfg.AccessTokenMinutes) * time.Minute
@@ -58,6 +59,12 @@ func NewRouter(cfg *config.Config, db *sql.DB, hub *ws.Hub, tokenSvc *security.T
 	msgSvc := service.NewMessageService(convRepo, partRepo, msgRepo, deletedMsgRepo, userRepo, encryptor, cfg.MaxMessagesPerConversation, cfg.UploadDir)
 	// wire circular reference
 	convSvc.SetMessageService(msgSvc)
+
+	// Push notification service (optional — disabled if VAPID keys are not configured)
+	var pushSvc *service.PushService
+	if cfg.VAPIDPublicKey != "" && cfg.VAPIDPrivateKey != "" {
+		pushSvc = service.NewPushService(pushSubRepo, cfg.VAPIDPrivateKey, cfg.VAPIDPublicKey)
+	}
 
 	// Static endpoints
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
@@ -94,6 +101,9 @@ func NewRouter(cfg *config.Config, db *sql.DB, hub *ws.Hub, tokenSvc *security.T
 			r.Post("/login", handleLogin(authSvc))
 		})
 
+		// Public VAPID key endpoint (no auth required)
+		r.Get("/push/vapid-key", handleVAPIDKey(cfg.VAPIDPublicKey))
+
 		// Authenticated routes
 		r.Group(func(r chi.Router) {
 			r.Use(AuthMiddleware(tokenSvc, userRepo))
@@ -125,6 +135,10 @@ func NewRouter(cfg *config.Config, db *sql.DB, hub *ws.Hub, tokenSvc *security.T
 				r.Delete("/{messageID}", handleDeleteMessage(msgSvc))
 			})
 
+			// Push notification subscription management
+			r.Post("/push/subscribe", handlePushSubscribe(pushSubRepo))
+			r.Delete("/push/unsubscribe", handlePushUnsubscribe(pushSubRepo))
+
 		})
 
 		// Moved outside of AuthMiddleware group to allow download via ?token= query param
@@ -134,7 +148,7 @@ func NewRouter(cfg *config.Config, db *sql.DB, hub *ws.Hub, tokenSvc *security.T
 	// WebSocket endpoint
 	pingInterval := time.Duration(cfg.WSPingIntervalSec) * time.Second
 	pongTimeout := time.Duration(cfg.WSPongTimeoutSec) * time.Second
-	r.Get("/ws", ws.MakeHandler(hub, tokenSvc, userRepo, convRepo, msgSvc, encryptor, cfg.CORSOrigins, pingInterval, pongTimeout))
+	r.Get("/ws", ws.MakeHandler(hub, tokenSvc, userRepo, convRepo, msgSvc, encryptor, pushSvc, cfg.CORSOrigins, pingInterval, pongTimeout))
 
 	return r
 }

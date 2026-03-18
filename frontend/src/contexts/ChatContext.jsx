@@ -91,13 +91,6 @@ export const ChatProvider = ({ children }) => {
     }
   }, [user]);
 
-  // Request notification permission
-  useEffect(() => {
-    if ('Notification' in window && Notification.permission === 'default') {
-      Notification.requestPermission();
-    }
-  }, []);
-
   // Handle window focus to clear unread counts for active chat
   useEffect(() => {
     const handleFocus = async () => {
