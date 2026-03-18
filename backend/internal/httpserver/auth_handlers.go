@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"backend_go/internal/service"
+	"backend/internal/service"
 )
 
 type registerRequest struct {

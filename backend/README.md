@@ -85,6 +85,50 @@ The container listens on `0.0.0.0:8000` by default, which matches the Nginx conf
 
 ---
 
+### Development Commands
+
+Use these commands for common development tasks from the `backend/` directory:
+
+#### Compile
+Check if the code compiles without producing a binary:
+```bash
+go build ./...
+```
+
+#### Build
+Compile the application into an executable binary named `zchat-server`:
+```bash
+# General build
+go build -o zchat-server ./cmd/server
+
+# Optimized build (smaller binary)
+go build -ldflags="-s -w" -o zchat-server ./cmd/server
+```
+
+#### Clean
+Remove build artifacts, object files, and cached tests:
+```bash
+# Remove the built binary (Windows: del zchat-server.exe)
+rm zchat-server
+
+# Clean Go build cache and test results
+go clean -cache -testcache -modcache
+```
+
+#### Rebuild
+Force a complete rebuild of all packages, including dependencies:
+```bash
+go build -a -o zchat-server ./cmd/server
+```
+
+#### Tidy Dependencies
+Sync and clean up `go.mod` and `go.sum`:
+```bash
+go mod tidy
+```
+
+---
+
 ### Notes
 
 - The Go backend now targets PostgreSQL by default. Configure `DATABASE_URL` to your local/dev/prod Postgres instance.
