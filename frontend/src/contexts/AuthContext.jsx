@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { authAPI, WebSocketClient, clearAuthStorage, getStoredToken, UNAUTHORIZED_EVENT } from '../services/api';
+import { registerPushNotifications, unregisterPushNotifications } from '../services/pushNotifications';
 
 const AuthContext = createContext(null);
 
@@ -62,6 +63,7 @@ export const AuthProvider = ({ children }) => {
         setToken(storedToken);
         setUser(userData);
         initializeWebSocket(storedToken, isMounted);
+        registerPushNotifications().catch(() => {});
       } catch (error) {
         if (isMounted) {
           resetAuthState();
@@ -130,6 +132,7 @@ export const AuthProvider = ({ children }) => {
       }
 
       initializeWebSocket(access_token);
+      registerPushNotifications().catch(() => {});
 
       return { success: true };
     } catch (error) {
@@ -154,6 +157,7 @@ export const AuthProvider = ({ children }) => {
       setUser(userData);
 
       initializeWebSocket(access_token);
+      registerPushNotifications().catch(() => {});
 
       return { success: true };
     } catch (error) {
@@ -165,6 +169,11 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = async () => {
+    try {
+      await unregisterPushNotifications();
+    } catch (error) {
+      console.error('Push unregister error:', error);
+    }
     try {
       await authAPI.logout();
     } catch (error) {

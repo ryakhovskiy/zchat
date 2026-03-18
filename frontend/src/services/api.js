@@ -77,8 +77,11 @@ export const conversationsAPI = {
   create: (data) => api.post('/conversations/', data),
   getAll: () => api.get('/conversations/'),
   getById: (id) => api.get(`/conversations/${id}`),
-  getMessages: (id, limit = 1000) => 
-    api.get(`/conversations/${id}/messages?limit=${limit}`),
+  getMessages: (id, limit = 15, beforeId = null) => {
+    let url = `/conversations/${id}/messages?limit=${limit}`;
+    if (beforeId) url += `&before_id=${beforeId}`;
+    return api.get(url);
+  },
   sendMessage: (id, payload) => 
     api.post(`/conversations/${id}/messages`, payload),
   markAsRead: (id) => api.post(`/conversations/${id}/read`),
@@ -86,24 +89,20 @@ export const conversationsAPI = {
 
 // Files API
 export const filesAPI = {
-  upload: (file) => {
+  upload: (file, onUploadProgress) => {
     const formData = new FormData();
     formData.append('file', file);
     return api.post('/uploads/', formData, {
       headers: {
-        'Content-Type': undefined,
+        'Content-Type': 'multipart/form-data',
       },
+      onUploadProgress
     });
   },
   getFileUrl: (filename) => {
     const token = getStoredToken();
     return `${API_BASE_URL}/uploads/${filename}?token=${token}`;
   },
-};
-
-// Browser API
-export const browserAPI = {
-    proxy: (url) => api.get('/browser/proxy', { params: { url } }),
 };
 
 // WebSocket connection

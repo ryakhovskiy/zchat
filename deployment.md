@@ -294,6 +294,8 @@ server {
     listen [::]:443 ssl;
     server_name zchat.space www.zchat.space;
     
+    client_max_body_size 50M;
+
     # Proxy everything to Frontend Container
     location / {
         proxy_pass http://localhost:3000;

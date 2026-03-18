@@ -9,11 +9,12 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { textToEmoji } from '../../utils/emojiUtils';
 import { filesAPI } from '../../services/api';
 import { ControlPanel } from '../Common/ControlPanel';
+import ImageModal from '../Common/ImageModal';
 import './Chat.css';
 
 export const ChatWindow = () => {
   const { t } = useTranslation();
-  const { selectedConversation, messages, sendMessage, editMessage, deleteMessage, selectConversation, setMessages } = useChat();
+  const { selectedConversation, messages, sendMessage, editMessage, deleteMessage, selectConversation, setMessages, loadOlderMessages, hasMoreMessages } = useChat();
   const { user, wsClient } = useAuth();
   const { startCall } = useCall();
   const { theme } = useTheme();
@@ -21,22 +22,44 @@ export const ChatWindow = () => {
   const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [previewImage, setPreviewImage] = useState(null);
+  const [modalImageInfo, setModalImageInfo] = useState(null); // { url, name }
+  const [isDragging, setIsDragging] = useState(false);
   const [contextMenu, setContextMenu] = useState(null); // { messageId, x, y, isMine }
   const [editingMessage, setEditingMessage] = useState(null); // { id, content }
 
   const messagesEndRef = useRef(null);
+  const messagesContainerRef = useRef(null);
   const emojiPickerRef = useRef(null);
   const fileInputRef = useRef(null);
   const textareaRef = useRef(null);
   const contextMenuRef = useRef(null);
+  const isInitialLoadRef = useRef(true);
+  const [loadingOlder, setLoadingOlder] = useState(false);
 
   const conversationMessages = selectedConversation
     ? messages[selectedConversation.id] || []
     : [];
 
   useEffect(() => {
-    scrollToBottom();
+    if (isInitialLoadRef.current) {
+      scrollToBottom();
+      isInitialLoadRef.current = false;
+    } else {
+      const container = messagesContainerRef.current;
+      if (container) {
+        const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 150;
+        if (isNearBottom) {
+          scrollToBottom();
+        }
+      }
+    }
   }, [conversationMessages]);
+
+  useEffect(() => {
+    isInitialLoadRef.current = true;
+  }, [selectedConversation?.id]);
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -101,6 +124,19 @@ export const ChatWindow = () => {
     if (e.key === 'Enter' && !e.shiftKey && !e.altKey) {
         e.preventDefault();
         handleSubmit(e);
+    }
+  };
+
+  const handlePaste = (e) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (const item of items) {
+      if (item.type.startsWith('image/')) {
+        e.preventDefault();
+        const file = item.getAsFile();
+        if (file) processFile(file);
+        return;
+      }
     }
   };
 
@@ -201,6 +237,65 @@ export const ChatWindow = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
+  const handleMessagesScroll = async () => {
+    const container = messagesContainerRef.current;
+    if (!container || loadingOlder) return;
+    if (!selectedConversation) return;
+    if (!hasMoreMessages[selectedConversation.id]) return;
+
+    if (container.scrollTop < 100) {
+      setLoadingOlder(true);
+      const prevScrollHeight = container.scrollHeight;
+
+      const olderMessages = await loadOlderMessages(selectedConversation.id);
+
+      if (olderMessages.length > 0) {
+        requestAnimationFrame(() => {
+          const newScrollHeight = container.scrollHeight;
+          container.scrollTop = newScrollHeight - prevScrollHeight;
+        });
+      }
+
+      setLoadingOlder(false);
+    }
+  };
+
+  const processFile = (file) => {
+    const MAX_SIZE = 50 * 1024 * 1024; // 50MB
+    
+    const FORBIDDEN_EXTENSIONS = [
+      '.exe', '.dll', '.bat', '.cmd', '.sh', '.cgi', '.jar', '.js', '.vbs', 
+      '.ps1', '.py', '.php', '.msi', '.com', '.scr', '.pif', '.reg', '.app',
+      '.bin', '.wsf', '.vb', '.iso', '.dmg', '.pkg'
+    ];
+
+    if (file.size > MAX_SIZE) {
+      alert(t('chat.file_too_large'));
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+    
+    const ext = '.' + file.name.split('.').pop().toLowerCase();
+    if (FORBIDDEN_EXTENSIONS.includes(ext)) {
+      alert(t('chat.file_type_not_allowed'));
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
+    setSelectedFile(file);
+    if (file.type.startsWith('image/')) {
+      setPreviewImage(URL.createObjectURL(file));
+    } else {
+      setPreviewImage(null);
+    }
+  };
+
+  const handleFileSelect = (e) => {
+    if (e.target.files && e.target.files[0]) {
+      processFile(e.target.files[0]);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -215,30 +310,35 @@ export const ChatWindow = () => {
       let fileData = null;
       if (selectedFile) {
         setUploading(true);
-        const response = await filesAPI.upload(selectedFile);
+        setUploadProgress(0);
+        const response = await filesAPI.upload(selectedFile, (progressEvent) => {
+          if (progressEvent.total) {
+            const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+            setUploadProgress(percentCompleted);
+          }
+        });
         fileData = response.data;
         setUploading(false);
+        setUploadProgress(0);
       }
 
       await sendMessage(selectedConversation.id, inputValue, fileData);
       setInputValue('');
-      setSelectedFile(null);
-      if (fileInputRef.current) fileInputRef.current.value = '';
+      clearFile();
       setIsEmojiPickerOpen(false);
     } catch (error) {
       console.error('Failed to send message:', error);
       setUploading(false);
+      setUploadProgress(0);
       let errorMessage = t('chat.failed_to_send');
       
       if (error.response) {
-        // Backend returned an error response
         if (error.response.data && error.response.data.detail) {
            errorMessage = error.response.data.detail;
         } else if (error.response.status === 413) {
            errorMessage = t('chat.file_too_large');
         }
       } else if (error.request) {
-        // Request was made but no response received
         errorMessage = "Network error. Please check your connection.";
       }
 
@@ -246,36 +346,12 @@ export const ChatWindow = () => {
     }
   };
 
-  const handleFileSelect = (e) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      const MAX_SIZE = 50 * 1024 * 1024; // 50MB
-      
-      const FORBIDDEN_EXTENSIONS = [
-        '.exe', '.dll', '.bat', '.cmd', '.sh', '.cgi', '.jar', '.js', '.vbs', 
-        '.ps1', '.py', '.php', '.msi', '.com', '.scr', '.pif', '.reg', '.app',
-        '.bin', '.wsf', '.vb', '.iso', '.dmg', '.pkg'
-      ];
-
-      if (file.size > MAX_SIZE) {
-        alert(t('chat.file_too_large'));
-        if (fileInputRef.current) fileInputRef.current.value = '';
-        return;
-      }
-      
-      const ext = '.' + file.name.split('.').pop().toLowerCase();
-      if (FORBIDDEN_EXTENSIONS.includes(ext)) {
-        alert(t('chat.file_type_not_allowed'));
-        if (fileInputRef.current) fileInputRef.current.value = '';
-        return;
-      }
-
-      setSelectedFile(file);
-    }
-  };
-
   const clearFile = () => {
     setSelectedFile(null);
+    if (previewImage) {
+      URL.revokeObjectURL(previewImage);
+      setPreviewImage(null);
+    }
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -288,6 +364,12 @@ export const ChatWindow = () => {
   const formatTime = (dateString) => {
     const date = new Date(dateString);
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
+  const formatTimestamp = (dateString) => {
+    const d = new Date(dateString);
+    const pad = (n) => String(n).padStart(2, '0');
+    return `[${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()} - ${pad(d.getHours())}:${pad(d.getMinutes())}.${pad(d.getSeconds())}]`;
   };
 
   const getConversationTitle = () => {
@@ -312,9 +394,52 @@ export const ChatWindow = () => {
     return otherUser?.is_online;
   };
 
+  const getAttachments = (msg) => {
+    if (msg.attachments && msg.attachments.length > 0) return msg.attachments;
+    if (msg.file_path) {
+      const fileName = msg.file_path.split('\\').pop().split('/').pop();
+      const ext = fileName.split('.').pop().toLowerCase();
+      const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext);
+      return [{ 
+        file_path: msg.file_path, 
+        file_type: msg.file_type || (isImage ? 'image' : 'file'), 
+        original_name: fileName,
+        file_size: null
+      }];
+    }
+    return [];
+  };
+
+  const formatBytes = (bytes, decimals = 2) => {
+    if (!bytes || +bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const dm = decimals < 0 ? 0 : decimals;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      processFile(e.dataTransfer.files[0]);
+    }
+  };
+
   if (!selectedConversation) {
     return (
-      <div className="chat-window">
+      <div className="chat-window" onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
         <div className="empty-state">
           <h2>{t('chat.welcome_title')}</h2>
           <p>{t('chat.welcome_subtitle')}</p>
@@ -326,7 +451,14 @@ export const ChatWindow = () => {
   const isOnline = getOnlineStatus();
 
   return (
-    <div className="chat-window">
+    <div className={`chat-window ${isDragging ? 'dragging' : ''}`} onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
+      {modalImageInfo && (
+        <ImageModal 
+          url={modalImageInfo.url} 
+          originalName={modalImageInfo.name} 
+          onClose={() => setModalImageInfo(null)} 
+        />
+      )}
       <div className="chat-header">
         <div className="chat-header-info">
           <button 
@@ -365,7 +497,12 @@ export const ChatWindow = () => {
 
       </div>
 
-      <div className="messages-container">
+      <div className="messages-container" ref={messagesContainerRef} onScroll={handleMessagesScroll}>
+        {loadingOlder && (
+          <div style={{ textAlign: 'center', padding: '0.5rem', color: 'var(--text-muted)', fontFamily: 'var(--font-terminal)', fontSize: '0.85rem' }}>
+            Loading...
+          </div>
+        )}
         {conversationMessages.length === 0 ? (
           <div className="no-messages">
             <p>{t('chat.no_messages')}</p>
@@ -380,47 +517,114 @@ export const ChatWindow = () => {
               onContextMenu={(e) => handleMessageRightClick(e, message)}
             >
               <div className="message-content">
-                {(theme === 'hacker' || message.sender_id !== user.id) && (
-                  <div className="message-sender">{message.sender_username || user.username}</div>
-                )}
-                {message.file_path && !message.is_deleted && (
-                  <div className="message-attachment">
-                    {message.file_type === 'image' ? (
-                      <img 
-                        src={filesAPI.getFileUrl(message.file_path.split('\\').pop().split('/').pop())} 
-                        alt={t('chat.attachment')} 
-                        className="attachment-image" 
-                      />
-                    ) : (
-                      <div className="attachment-file">
-                        <a 
-                          href={filesAPI.getFileUrl(message.file_path.split('\\').pop().split('/').pop())}
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                        >
-                          📄 {message.file_path.split('\\').pop().split('/').pop()}
-                        </a>
+                {theme === 'hacker' ? (
+                  <>
+                    <span className="message-header">
+                      {formatTimestamp(message.created_at)} {'<'}@{message.sender_username || user.username}{'>'}:
+                    </span>{' '}
+                    {getAttachments(message).length > 0 && !message.is_deleted && (
+                      <div className="message-attachments">
+                        {getAttachments(message).map((att, i) => {
+                          const fileName = att.original_name || att.file_path.split('\\').pop().split('/').pop();
+                          const fileUrl = filesAPI.getFileUrl(att.file_path.split('\\').pop().split('/').pop());
+                          return (
+                            <div key={att.id || i} className="message-attachment">
+                              {att.file_type === 'image' ? (
+                                <img 
+                                  src={fileUrl} 
+                                  alt={t('chat.attachment')} 
+                                  className="attachment-image"
+                                  onClick={() => setModalImageInfo({url: fileUrl, name: fileName})}
+                                  style={{ cursor: 'pointer' }}
+                                />
+                              ) : (
+                                <div className="attachment-file">
+                                  <a 
+                                    href={fileUrl}
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                  >
+                                    📄 {fileName}
+                                    {att.file_size && <span className="attachment-size" style={{fontSize: '0.8em', color: '#888', marginLeft: '5px'}}>({formatBytes(att.file_size)})</span>}
+                                  </a>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
-                  </div>
-                )}
-                <div className="message-text">
-                  {message.is_deleted
-                    ? <em className="message-deleted-text">{t('chat.message_deleted', 'Message deleted')}</em>
-                    : formatMessageContent(message.content)
-                  }
-                </div>
-                <div className="message-time">
-                  {formatTime(message.created_at)}
-                  {message.is_edited && !message.is_deleted && (
-                    <span className="message-edited-label"> · {t('chat.edited', 'edited')}</span>
-                  )}
-                  {message.sender_id === user.id && (
-                    <span className="read-receipt" style={{ marginLeft: '4px', fontSize: '0.8em' }}>
-                      {!message.id ? '' : (message.is_read ? '✓✓' : '✓')}
+                    <span className="message-text">
+                      {message.is_deleted
+                        ? <em className="message-deleted-text">{t('chat.message_deleted', 'Message deleted')}</em>
+                        : formatMessageContent(message.content)
+                      }
                     </span>
-                  )}
-                </div>
+                    {message.is_edited && !message.is_deleted && (
+                      <span className="message-edited-label"> · {t('chat.edited', 'edited')}</span>
+                    )}
+                    {message.sender_id === user.id && (
+                      <span className="read-receipt" style={{ marginLeft: '4px', fontSize: '0.8em', opacity: 0.5 }}>
+                        {!message.id ? '' : (message.is_read ? '✓✓' : '✓')}
+                      </span>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    {message.sender_id !== user.id && (
+                      <div className="message-sender">{message.sender_username || user.username}</div>
+                    )}
+                    {getAttachments(message).length > 0 && !message.is_deleted && (
+                      <div className="message-attachments">
+                        {getAttachments(message).map((att, i) => {
+                          const fileName = att.original_name || att.file_path.split('\\').pop().split('/').pop();
+                          const fileUrl = filesAPI.getFileUrl(att.file_path.split('\\').pop().split('/').pop());
+                          return (
+                            <div key={att.id || i} className="message-attachment">
+                              {att.file_type === 'image' ? (
+                                <img 
+                                  src={fileUrl} 
+                                  alt={t('chat.attachment')} 
+                                  className="attachment-image"
+                                  onClick={() => setModalImageInfo({url: fileUrl, name: fileName})}
+                                  style={{ cursor: 'pointer' }}
+                                />
+                              ) : (
+                                <div className="attachment-file">
+                                  <a 
+                                    href={fileUrl}
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                  >
+                                    📄 {fileName}
+                                    {att.file_size && <span className="attachment-size" style={{fontSize: '0.8em', color: '#888', marginLeft: '5px'}}>({formatBytes(att.file_size)})</span>}
+                                  </a>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                    <div className="message-text">
+                      {message.is_deleted
+                        ? <em className="message-deleted-text">{t('chat.message_deleted', 'Message deleted')}</em>
+                        : formatMessageContent(message.content)
+                      }
+                    </div>
+                    <div className="message-time">
+                      {formatTime(message.created_at)}
+                      {message.is_edited && !message.is_deleted && (
+                        <span className="message-edited-label"> · {t('chat.edited', 'edited')}</span>
+                      )}
+                      {message.sender_id === user.id && (
+                        <span className="read-receipt" style={{ marginLeft: '4px', fontSize: '0.8em' }}>
+                          {!message.id ? '' : (message.is_read ? '✓✓' : '✓')}
+                        </span>
+                      )}
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           ))
@@ -438,9 +642,23 @@ export const ChatWindow = () => {
         <div className="message-input-row">
         <div className="input-field-wrapper">
           {selectedFile && (
-            <div className="selected-file-preview">
-              <span>{selectedFile.name}</span>
-              <button type="button" onClick={clearFile} className="clear-file-btn">×</button>
+            <div className="selected-file-preview" style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '8px', padding: '8px', background: 'var(--bg-tertiary)', borderRadius: '8px', marginBottom: '8px' }}>
+              {previewImage ? (
+                <div style={{ position: 'relative', display: 'flex' }}>
+                  <img src={previewImage} alt="Preview" style={{ height: '40px', width: '40px', borderRadius: '4px', objectFit: 'cover' }} />
+                </div>
+              ) : (
+                <span className="file-icon" style={{ fontSize: '24px' }}>📄</span>
+              )}
+              <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+                <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontSize: '0.9em' }}>{selectedFile.name}</span>
+                {uploading && (
+                  <div style={{ height: '4px', background: 'rgba(0,0,0,0.1)', borderRadius: '2px', marginTop: '4px', width: '100%', overflow: 'hidden' }}>
+                    <div style={{ height: '100%', background: 'var(--primary-color, #007bff)', width: `${uploadProgress}%`, transition: 'width 0.2s' }} />
+                  </div>
+                )}
+              </div>
+              <button type="button" onClick={clearFile} className="clear-file-btn" disabled={uploading} style={{ alignSelf: 'flex-start' }}>×</button>
             </div>
           )}
           <div className="emoji-picker-wrapper" ref={emojiPickerRef}>
@@ -468,6 +686,7 @@ export const ChatWindow = () => {
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
             placeholder={uploading ? t('chat.uploading') : t('chat.type_message')}
             maxLength={5000}
             className="message-input"

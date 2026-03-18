@@ -799,7 +799,7 @@
 }
 /* Hacker Theme Exceptions - Terminal Style */
 [data-theme="hacker"] .message {
-  margin-bottom: 0.25rem;
+  margin-bottom: 0.4rem;
 }
 
 [data-theme="hacker"] .message-sent {
@@ -808,19 +808,18 @@
 
 [data-theme="hacker"] .message-content {
   max-width: 100%;
-  padding: 0;
+  padding: 0 0 0 2rem;
+  text-indent: -2rem;
   border-radius: 0;
   background: transparent;
   color: var(--accent-color);
   box-shadow: none;
-  display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
+  display: block;
 }
 
 [data-theme="hacker"] .message-sent .message-content {
   background: transparent;
-  color: var(--accent-color);
+  color: rgba(0, 255, 0, 0.75);
   border-radius: 0;
 }
 
@@ -832,35 +831,47 @@
 }
 
 [data-theme="hacker"] .message-sender {
-  display: inline-block;
+  display: none;
+}
+
+[data-theme="hacker"] .message-header {
+  display: inline;
   font-family: var(--font-terminal);
-  font-weight: normal;
-  margin-bottom: 0;
+  font-weight: bold;
+  color: rgba(0, 255, 0, 0.65);
   margin-right: 0.5rem;
-  color: var(--accent-color);
+  white-space: nowrap;
 }
 
-[data-theme="hacker"] .message-sender::before {
-  content: "> ";
-}
-
-[data-theme="hacker"] .message-sender::after {
-  content: ":";
+[data-theme="hacker"] .message-sent .message-header {
+  color: rgba(0, 255, 0, 0.55);
 }
 
 [data-theme="hacker"] .message-text {
   font-family: var(--font-terminal);
-  display: inline-block;
+  display: inline;
 }
 
 [data-theme="hacker"] .message-time {
-  margin-top: 0;
-  margin-left: 0.5rem;
-  opacity: 0.5;
-  font-family: var(--font-terminal);
-  display: inline-block;
+  display: none;
 }
 
+
+/* Hacker Theme - Input Field Terminal Style */
+[data-theme="hacker"] .input-field-wrapper {
+  border-radius: 2px;
+  border: 1px dashed var(--accent-color);
+  background-color: rgba(0, 26, 0, 0.5);
+}
+
+[data-theme="hacker"] .input-field-wrapper:focus-within {
+  border-style: solid;
+  box-shadow: 0 0 8px rgba(0, 255, 0, 0.3);
+}
+
+[data-theme="hacker"] .message-input {
+  font-family: var(--font-terminal);
+}
 
 /* Hacker Theme Exceptions - Left Sidebar Terminal Style */
 [data-theme="hacker"] .sidebar {
@@ -918,7 +929,7 @@
 [data-theme="hacker"] .unread-badge {
   border-radius: 0;
   background: transparent;
-  border: 1px solid var(--accent-color);
+  border: 1px solid #8b0000;
   color: var(--accent-color);
   font-family: var(--font-terminal);
 }

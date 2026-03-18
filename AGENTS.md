@@ -3,13 +3,13 @@
 ## Project Overview
 zchat is a multi-platform chat application workspace consisting of:
 - **frontend**: A React 18 web application built with Vite (`frontend/`).
-- **backend_go**: A Go 1.24 REST API and WebSocket server with PostgreSQL (`backend_go/`).
+- **backend**: A Go 1.24 REST API and WebSocket server with PostgreSQL (`backend/`).
 - **android**: A native Android application built with Jetpack Compose (`android/`).
 
 ## Monorepo Architecture
 This project utilizes nested `AGENTS.md` files for subproject-specific instructions. Coding agents should respect the nearest `AGENTS.md` file in the directory tree when generating code or executing commands.
 - See `frontend/AGENTS.md` for Web UI tasks.
-- See `backend_go/AGENTS.md` for API and WebSocket tasks.
+- See `backend/AGENTS.md` for API and WebSocket tasks.
 - See `android/AGENTS.md` for Android mobile tasks.
 
 ## Architecture Overview
@@ -50,17 +50,17 @@ Dev proxy: frontend Vite config proxies `/api` → `http://localhost:8000` and `
    - `DEBUG` — backend debug mode (default: true)
 
 ## General Setup & Execution
-- **Docker (backend + DB):** `docker-compose -f docker-compose.go.yml up -d` (frontend service is currently commented out; run frontend separately).
+- **Docker (backend + DB):** `docker-compose -f docker-compose.yml up -d` (frontend service is currently commented out; run frontend separately).
 - **Frontend local dev:** `cd frontend && npm install && npm run dev` (or `./start.ps1` / `./start.sh`).
-- **Backend local dev:** `cd backend_go && go run cmd/server/main.go` (or `./start.ps1` / `./start.sh`).
+- **Backend local dev:** `cd backend && go run cmd/server/main.go` (or `./start.ps1` / `./start.sh`).
 - **Android:** Open `android/` in Android Studio, or `cd android && gradlew.bat assembleDebug`.
-- **Shell Scripts**: `start.ps1` (Windows) and `start.sh` (Bash) are available in both `frontend/` and `backend_go/`.
+- **Shell Scripts**: `start.ps1` (Windows) and `start.sh` (Bash) are available in both `frontend/` and `backend/`.
 
 ## Deployment
 See `deployment.md` for the full production Ubuntu/Nginx deployment guide (domain: `zchat.space`, SSL via Let's Encrypt/Certbot).
 
 ## Testing
-- **Backend:** `cd backend_go && go test ./...` — uses testify mocks; currently only `auth_service_test.go` exists.
+- **Backend:** `cd backend && go test ./...` — uses testify mocks; currently only `auth_service_test.go` exists.
 - **Frontend:** No test framework configured yet.
 - **Android:** `cd android && gradlew.bat testDebugUnitTest` and `gradlew.bat connectedAndroidTest`.
 
@@ -71,5 +71,5 @@ See `deployment.md` for the full production Ubuntu/Nginx deployment guide (domai
 - WebSocket events use a flat `{ "type": "...", ...fields }` JSON structure — keep this consistent across backend, frontend, and Android.
 
 ## Known Discrepancies
-- **Frontend Docker**: The frontend service in `docker-compose.go.yml` is commented out — enable when deploying frontend via Docker.
+- **Frontend Docker**: The frontend service in `docker-compose.yml` is commented out — enable when deploying frontend via Docker.
 - **Android feature parity**: File upload/download UI, message edit/delete actions, i18n, theme persistence, browser proxy, and typing indicators are not yet implemented on Android (see `android/AGENTS.md` for the full gap list).

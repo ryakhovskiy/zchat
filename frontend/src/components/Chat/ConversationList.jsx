@@ -30,12 +30,15 @@ export const ConversationList = ({ onNewChat }) => {
   const formatTime = (dateString) => {
     const date = new Date(dateString);
     const now = new Date();
-    const diffInHours = (now - date) / (1000 * 60 * 60);
+    const isToday = date.getFullYear() === now.getFullYear() &&
+                    date.getMonth() === now.getMonth() &&
+                    date.getDate() === now.getDate();
 
-    if (diffInHours < 24) {
+    if (isToday) {
       return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     }
-    return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${pad(date.getDate())}.${pad(date.getMonth() + 1)}.${date.getFullYear()}`;
   };
 
   if (loading) {
@@ -70,8 +73,12 @@ export const ConversationList = ({ onNewChat }) => {
             </button>
           </div>
         ) : (
-          conversations
-            .sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at))
+          [...conversations]
+            .sort((a, b) => {
+              const aTime = a.last_message?.created_at || a.updated_at;
+              const bTime = b.last_message?.created_at || b.updated_at;
+              return new Date(bTime) - new Date(aTime);
+            })
             .map((conversation) => {
               const unreadCount = unreadCounts[conversation.id] || 0;
               const isUnread = unreadCount > 0 && selectedConversation?.id !== conversation.id;
@@ -96,7 +103,7 @@ export const ConversationList = ({ onNewChat }) => {
                         )}
                         {conversation.last_message && (
                           <span className="conversation-time">
-                            {formatTime(conversation.updated_at)}
+                            {formatTime(conversation.last_message.created_at || conversation.updated_at)}
                           </span>
                         )}
                       </div>
