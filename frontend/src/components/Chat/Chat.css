@@ -804,7 +804,7 @@
   justify-content: space-between;
   align-items: center;
   padding: 8px 12px;
-  background: var(--bg-tertiary, #e9ecef);
+  background: var(--bg-tertiary, darkgreen);
   border-left: 4px solid var(--accent-color, #007bff);
   border-radius: 4px;
   margin-bottom: 8px;
