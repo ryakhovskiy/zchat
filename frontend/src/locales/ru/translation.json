@@ -45,7 +45,10 @@
     "editing_message": "Редактирование сообщения",
     "message_deleted": "Сообщение удалено",
     "edited": "изменено",
-    "reply_message": "Ответить"
+    "reply_message": "Ответить",
+    "react_to_message": "Реакция",
+    "add_reaction": "Добавить реакцию",
+    "remove_reaction": "Убрать реакцию"
   },
   "user_list": {
     "new_conversation": "Новая беседа",

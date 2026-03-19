@@ -405,6 +405,28 @@ func MakeHandler(
 					})
 				}
 
+			// ── react to message ─────────────────────────────────────────────
+			case "react_message":
+				msgIDf, _ := payload["message_id"].(float64)
+				emoji, _ := payload["emoji"].(string)
+				if msgIDf == 0 || emoji == "" {
+					sendError(conn, "react_message requires message_id and emoji")
+					continue
+				}
+				reactions, convID, err := msgSvc.ToggleReaction(ctx, user.ID, int64(msgIDf), emoji)
+				if err != nil {
+					log.Printf("ws: react_message: %v", err)
+					sendError(conn, "failed to react to message")
+					continue
+				}
+				participantIDs, _ := msgSvc.GetParticipantIDs(ctx, convID)
+				hub.BroadcastToUsers(participantIDs, map[string]any{
+					"type":            "reaction_updated",
+					"message_id":      int64(msgIDf),
+					"conversation_id": convID,
+					"reactions":       reactions,
+				})
+
 			// ── WebRTC signaling ─────────────────────────────────────────────
 			case "call_offer", "call_answer", "ice_candidate", "call_end", "call_rejected":
 				targetIDf, _ := payload["target_user_id"].(float64)

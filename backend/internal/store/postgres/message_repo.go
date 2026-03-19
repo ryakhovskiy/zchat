@@ -106,6 +106,9 @@ func (r *MessageRepo) GetByID(ctx context.Context, id int64) (*domain.Message, e
 	if err := r.populateAttachments(ctx, []*domain.Message{m}); err != nil {
 		return nil, fmt.Errorf("populate attachments: %w", err)
 	}
+	if err := r.populateReactions(ctx, []*domain.Message{m}); err != nil {
+		return nil, fmt.Errorf("populate reactions: %w", err)
+	}
 
 	return m, nil
 }
@@ -141,6 +144,9 @@ func (r *MessageRepo) ListForConversation(ctx context.Context, conversationID in
 	if err := r.populateAttachments(ctx, messages); err != nil {
 		return nil, fmt.Errorf("populate attachments: %w", err)
 	}
+	if err := r.populateReactions(ctx, messages); err != nil {
+		return nil, fmt.Errorf("populate reactions: %w", err)
+	}
 	return messages, nil
 }
 
@@ -167,6 +173,9 @@ func (r *MessageRepo) ListForConversationForUser(ctx context.Context, conversati
 	}
 	if err := r.populateAttachments(ctx, messages); err != nil {
 		return nil, fmt.Errorf("populate attachments: %w", err)
+	}
+	if err := r.populateReactions(ctx, messages); err != nil {
+		return nil, fmt.Errorf("populate reactions: %w", err)
 	}
 	return messages, nil
 }
@@ -195,6 +204,9 @@ func (r *MessageRepo) ListForConversationForUserBefore(ctx context.Context, conv
 	}
 	if err := r.populateAttachments(ctx, messages); err != nil {
 		return nil, fmt.Errorf("populate attachments: %w", err)
+	}
+	if err := r.populateReactions(ctx, messages); err != nil {
+		return nil, fmt.Errorf("populate reactions: %w", err)
 	}
 	return messages, nil
 }
@@ -314,4 +326,83 @@ func (r *MessageRepo) populateAttachments(ctx context.Context, messages []*domai
 	}
 
 	return rows.Err()
+}
+
+func (r *MessageRepo) populateReactions(ctx context.Context, messages []*domain.Message) error {
+	if len(messages) == 0 {
+		return nil
+	}
+
+	msgIDs := make([]int64, len(messages))
+	msgMap := make(map[int64]*domain.Message)
+	for i, m := range messages {
+		msgIDs[i] = m.ID
+		msgMap[m.ID] = m
+		m.Reactions = []domain.ReactionSummary{}
+	}
+
+	args := make([]interface{}, len(msgIDs))
+	placeholders := make([]string, len(msgIDs))
+	for i, id := range msgIDs {
+		args[i] = id
+		placeholders[i] = "$" + strconv.Itoa(i+1)
+	}
+
+	query := fmt.Sprintf(`
+		SELECT message_id, emoji, user_id
+		FROM message_reactions
+		WHERE message_id IN (%s)
+		ORDER BY message_id, created_at ASC
+	`, strings.Join(placeholders, ","))
+
+	rrows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return fmt.Errorf("query reactions: %w", err)
+	}
+	defer rrows.Close()
+
+	type emojiKey struct {
+		msgID int64
+		emoji string
+	}
+	emojiUsers := make(map[emojiKey][]int64)
+	msgEmojiOrder := make(map[int64][]string)
+
+	for rrows.Next() {
+		var msgID, userID int64
+		var emoji string
+		if err := rrows.Scan(&msgID, &emoji, &userID); err != nil {
+			return fmt.Errorf("scan reaction row: %w", err)
+		}
+		k := emojiKey{msgID: msgID, emoji: emoji}
+		if _, ok := emojiUsers[k]; !ok {
+			msgEmojiOrder[msgID] = append(msgEmojiOrder[msgID], emoji)
+		}
+		emojiUsers[k] = append(emojiUsers[k], userID)
+	}
+	if err := rrows.Err(); err != nil {
+		return err
+	}
+
+	for msgID, emojis := range msgEmojiOrder {
+		m, ok := msgMap[msgID]
+		if !ok {
+			continue
+		}
+		seen := make(map[string]bool)
+		for _, e := range emojis {
+			if seen[e] {
+				continue
+			}
+			seen[e] = true
+			k := emojiKey{msgID: msgID, emoji: e}
+			uids := emojiUsers[k]
+			m.Reactions = append(m.Reactions, domain.ReactionSummary{
+				Emoji:   e,
+				Count:   len(uids),
+				UserIDs: uids,
+			})
+		}
+	}
+	return nil
 }

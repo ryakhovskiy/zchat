@@ -14,7 +14,7 @@ import './Chat.css';
 
 export const ChatWindow = () => {
   const { t } = useTranslation();
-  const { selectedConversation, messages, sendMessage, editMessage, deleteMessage, selectConversation, setMessages, loadOlderMessages, hasMoreMessages } = useChat();
+  const { selectedConversation, messages, sendMessage, editMessage, deleteMessage, reactToMessage, selectConversation, setMessages, loadOlderMessages, hasMoreMessages } = useChat();
   const { user, wsClient } = useAuth();
   const { startCall } = useCall();
   const { theme } = useTheme();
@@ -30,6 +30,8 @@ export const ChatWindow = () => {
   const [editingMessage, setEditingMessage] = useState(null); // { id, content }
   const [replyingToMessage, setReplyingToMessage] = useState(null); // { id, content, sender_username }
   
+  const [reactionPickerMsgId, setReactionPickerMsgId] = useState(null);
+  const reactionPickerRef = useRef(null);
   const [touchStartX, setTouchStartX] = useState(null);
   const [touchCurrentX, setTouchCurrentX] = useState(null);
   const [touchStartId, setTouchStartId] = useState(null);
@@ -195,6 +197,28 @@ export const ChatWindow = () => {
     setTouchStartX(null);
     setTouchStartId(null);
   };
+
+  const handleReactStart = () => {
+    setReactionPickerMsgId(contextMenu.messageId);
+    closeContextMenu();
+  };
+
+  const handleReactionSelect = (emoji, messageId) => {
+    reactToMessage(messageId, emoji.native);
+    setReactionPickerMsgId(null);
+  };
+
+  // Close reaction picker on outside click
+  useEffect(() => {
+    if (!reactionPickerMsgId) return;
+    const handleClick = (e) => {
+      if (reactionPickerRef.current && !reactionPickerRef.current.contains(e.target)) {
+        setReactionPickerMsgId(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [reactionPickerMsgId]);
 
   const closeContextMenu = () => setContextMenu(null);
 
@@ -457,15 +481,18 @@ export const ChatWindow = () => {
     return otherUser?.is_online;
   };
 
+  const VIDEO_EXTENSIONS = ['mp4', 'webm', 'ogg', 'mov', 'avi', 'mkv', 'flv', 'wmv', 'm4v'];
+
   const getAttachments = (msg) => {
     if (msg.attachments && msg.attachments.length > 0) return msg.attachments;
     if (msg.file_path) {
       const fileName = msg.file_path.split('\\').pop().split('/').pop();
       const ext = fileName.split('.').pop().toLowerCase();
       const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext);
+      const isVideo = VIDEO_EXTENSIONS.includes(ext);
       return [{ 
         file_path: msg.file_path, 
-        file_type: msg.file_type || (isImage ? 'image' : 'file'), 
+        file_type: msg.file_type || (isImage ? 'image' : isVideo ? 'video' : 'file'), 
         original_name: fileName,
         file_size: null
       }];
@@ -627,6 +654,14 @@ export const ChatWindow = () => {
                                   onClick={() => setModalImageInfo({url: fileUrl, name: fileName})}
                                   style={{ cursor: 'pointer' }}
                                 />
+                              ) : att.file_type === 'video' ? (
+                                <video
+                                  src={fileUrl}
+                                  className="attachment-video"
+                                  controls
+                                  preload="metadata"
+                                  onClick={(e) => e.stopPropagation()}
+                                />
                               ) : (
                                 <div className="attachment-file">
                                   <a 
@@ -658,6 +693,20 @@ export const ChatWindow = () => {
                         {!message.id ? '' : (message.is_read ? '✓✓' : '✓')}
                       </span>
                     )}
+                    {!message.is_deleted && message.reactions && message.reactions.length > 0 && (
+                      <div className="message-reactions">
+                        {message.reactions.map((r) => (
+                          <button
+                            key={r.emoji}
+                            className={`reaction-chip ${r.user_ids?.includes(user.id) ? 'reaction-chip--mine' : ''}`}
+                            onClick={(e) => { e.stopPropagation(); reactToMessage(message.id, r.emoji); }}
+                            title={r.user_ids?.includes(user.id) ? t('chat.remove_reaction', 'Remove reaction') : t('chat.add_reaction', 'Add reaction')}
+                          >
+                            {r.emoji} <span className="reaction-count">{r.count}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </>
                 ) : (
                   <>
@@ -678,6 +727,14 @@ export const ChatWindow = () => {
                                   className="attachment-image"
                                   onClick={() => setModalImageInfo({url: fileUrl, name: fileName})}
                                   style={{ cursor: 'pointer' }}
+                                />
+                              ) : att.file_type === 'video' ? (
+                                <video
+                                  src={fileUrl}
+                                  className="attachment-video"
+                                  controls
+                                  preload="metadata"
+                                  onClick={(e) => e.stopPropagation()}
                                 />
                               ) : (
                                 <div className="attachment-file">
@@ -713,6 +770,20 @@ export const ChatWindow = () => {
                         </span>
                       )}
                     </div>
+                    {!message.is_deleted && message.reactions && message.reactions.length > 0 && (
+                      <div className="message-reactions">
+                        {message.reactions.map((r) => (
+                          <button
+                            key={r.emoji}
+                            className={`reaction-chip ${r.user_ids?.includes(user.id) ? 'reaction-chip--mine' : ''}`}
+                            onClick={(e) => { e.stopPropagation(); reactToMessage(message.id, r.emoji); }}
+                            title={r.user_ids?.includes(user.id) ? t('chat.remove_reaction', 'Remove reaction') : t('chat.add_reaction', 'Add reaction')}
+                          >
+                            {r.emoji} <span className="reaction-count">{r.count}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </>
                 )}
               </div>
@@ -826,6 +897,18 @@ export const ChatWindow = () => {
         </div>
       </form>
 
+      {reactionPickerMsgId && (
+        <div className="reaction-picker-overlay" ref={reactionPickerRef}>
+          <Picker
+            data={data}
+            onEmojiSelect={(emoji) => handleReactionSelect(emoji, reactionPickerMsgId)}
+            theme="light"
+            previewPosition="none"
+            skinTonePosition="none"
+          />
+        </div>
+      )}
+
       {contextMenu && (
         <div
           className="message-context-menu"
@@ -833,6 +916,9 @@ export const ChatWindow = () => {
           ref={contextMenuRef}
           onClick={(e) => e.stopPropagation()}
         >
+          <button className="context-menu-item" onClick={handleReactStart}>
+            😊 {t('chat.react_to_message', 'React')}
+          </button>
           <button className="context-menu-item" onClick={handleReplyStart}>
             ↩️ {t('chat.reply_message', 'Reply')}
           </button>

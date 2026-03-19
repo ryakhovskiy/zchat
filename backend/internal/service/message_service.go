@@ -24,6 +24,7 @@ type MessageService struct {
 	messages      domain.MessageRepository
 	deletedMsgs   domain.UserDeletedMessageRepository
 	users         domain.UserRepository
+	reactions     domain.MessageReactionRepository
 	encryptor     *security.Encryptor
 
 	MaxMessagesPerConversation int
@@ -36,6 +37,7 @@ func NewMessageService(
 	messages domain.MessageRepository,
 	deletedMsgs domain.UserDeletedMessageRepository,
 	users domain.UserRepository,
+	reactions domain.MessageReactionRepository,
 	encryptor *security.Encryptor,
 	maxMessages int,
 	uploadDir string,
@@ -46,6 +48,7 @@ func NewMessageService(
 		messages:                   messages,
 		deletedMsgs:                deletedMsgs,
 		users:                      users,
+		reactions:                  reactions,
 		encryptor:                  encryptor,
 		MaxMessagesPerConversation: maxMessages,
 		UploadDir:                  uploadDir,
@@ -298,18 +301,20 @@ func (s *MessageService) GetParticipantIDs(ctx context.Context, conversationID i
 
 // MessageResponse mirrors the API response expected by the frontend.
 type MessageResponse struct {
-	ID             int64     `json:"id"`
-	Content        string    `json:"content"`
-	ConversationID int64     `json:"conversation_id"`
-	SenderID       int64     `json:"sender_id"`
-	SenderUsername string    `json:"sender_username"`
-	CreatedAt      time.Time `json:"created_at"`
-	FilePath       *string   `json:"file_path,omitempty"`
-	FileType       *string   `json:"file_type,omitempty"`
-	IsDeleted      bool      `json:"is_deleted"`
-	IsEdited       bool      `json:"is_edited"`
-	IsRead         bool      `json:"is_read"`
-	ReplyToID      *int64    `json:"reply_to_id,omitempty"`
+	ID             int64                    `json:"id"`
+	Content        string                   `json:"content"`
+	ConversationID int64                    `json:"conversation_id"`
+	SenderID       int64                    `json:"sender_id"`
+	SenderUsername string                   `json:"sender_username"`
+	CreatedAt      time.Time                `json:"created_at"`
+	FilePath       *string                  `json:"file_path,omitempty"`
+	FileType       *string                  `json:"file_type,omitempty"`
+	IsDeleted      bool                     `json:"is_deleted"`
+	IsEdited       bool                     `json:"is_edited"`
+	IsRead         bool                     `json:"is_read"`
+	ReplyToID      *int64                   `json:"reply_to_id,omitempty"`
+	Attachments    []domain.Attachment      `json:"attachments,omitempty"`
+	Reactions      []domain.ReactionSummary `json:"reactions,omitempty"`
 }
 
 // ToResponse converts a domain message into a decrypted response DTO.
@@ -339,6 +344,8 @@ func (s *MessageService) ToResponse(ctx context.Context, m *domain.Message) (*Me
 		IsEdited:       m.IsEdited,
 		IsRead:         m.IsRead,
 		ReplyToID:      m.ReplyToID,
+		Attachments:    m.Attachments,
+		Reactions:      m.Reactions,
 	}, nil
 }
 
@@ -353,4 +360,46 @@ func (s *MessageService) ToResponses(ctx context.Context, msgs []*domain.Message
 		res = append(res, dto)
 	}
 	return res, nil
+}
+
+// ToggleReaction adds or removes an emoji reaction on a message and returns the
+// updated reaction list along with the conversation ID for broadcasting.
+func (s *MessageService) ToggleReaction(ctx context.Context, userID, messageID int64, emoji string) ([]domain.ReactionSummary, int64, error) {
+	if len([]rune(emoji)) == 0 || len([]rune(emoji)) > 8 {
+		return nil, 0, errors.New("invalid emoji")
+	}
+
+	msg, err := s.messages.GetByID(ctx, messageID)
+	if err != nil {
+		return nil, 0, fmt.Errorf("get message: %w", err)
+	}
+	if msg == nil {
+		return nil, 0, errors.New("message not found")
+	}
+	if msg.IsDeleted {
+		return nil, 0, errors.New("cannot react to a deleted message")
+	}
+
+	isParticipant, err := s.participants.IsParticipant(ctx, msg.ConversationID, userID)
+	if err != nil {
+		return nil, 0, fmt.Errorf("check participant: %w", err)
+	}
+	if !isParticipant {
+		return nil, 0, ErrForbidden
+	}
+
+	if err := s.reactions.Toggle(ctx, userID, messageID, emoji); err != nil {
+		return nil, 0, fmt.Errorf("toggle reaction: %w", err)
+	}
+
+	summaryMap, err := s.reactions.GetSummaryByMessages(ctx, []int64{messageID})
+	if err != nil {
+		return nil, 0, fmt.Errorf("get reactions: %w", err)
+	}
+
+	reactions := summaryMap[messageID]
+	if reactions == nil {
+		reactions = []domain.ReactionSummary{}
+	}
+	return reactions, msg.ConversationID, nil
 }

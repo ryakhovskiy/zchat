@@ -133,6 +133,8 @@ export const ChatProvider = ({ children }) => {
         is_deleted: data.is_deleted,
         is_read: data.is_read,
         reply_to_id: data.reply_to_id ?? null,
+        attachments: data.attachments ?? [],
+        reactions: data.reactions ?? [],
       });
 
       // Increment unread count only if message is not in currently selected conversation OR if window is not focused
@@ -257,12 +259,29 @@ export const ChatProvider = ({ children }) => {
     wsClient.on('message_edited', handleMessageEdited);
     wsClient.on('message_deleted', handleMessageDeleted);
 
+    const handleReactionUpdated = (data) => {
+      setMessages((prev) => {
+        const convMessages = prev[data.conversation_id] || [];
+        return {
+          ...prev,
+          [data.conversation_id]: convMessages.map((msg) =>
+            msg.id === data.message_id
+              ? { ...msg, reactions: data.reactions ?? [] }
+              : msg
+          ),
+        };
+      });
+    };
+
+    wsClient.on('reaction_updated', handleReactionUpdated);
+
     return () => {
       wsClient.off('message', handleMessage);
       wsClient.off('user_online', handleUserOnline);
       wsClient.off('user_offline', handleUserOffline);
       wsClient.off('message_edited', handleMessageEdited);
       wsClient.off('message_deleted', handleMessageDeleted);
+      wsClient.off('reaction_updated', handleReactionUpdated);
     };
   }, [wsClient]);
 
@@ -423,6 +442,11 @@ export const ChatProvider = ({ children }) => {
     wsClient.send({ type: 'delete_message', message_id: messageId, delete_type: deleteType });
   };
 
+  const reactToMessage = (messageId, emoji) => {
+    if (!wsClient) return;
+    wsClient.send({ type: 'react_message', message_id: messageId, emoji });
+  };
+
   const selectConversation = async (conversation) => {
     const normalizedConversation = normalizeConversation(conversation);
     setSelectedConversation(normalizedConversation);
@@ -458,6 +482,7 @@ export const ChatProvider = ({ children }) => {
     sendMessage,
     editMessage,
     deleteMessage,
+    reactToMessage,
     selectConversation,
     loadOlderMessages,
     setMessages, 

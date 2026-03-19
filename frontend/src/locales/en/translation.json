@@ -45,7 +45,10 @@
     "editing_message": "Editing message",
     "reply_message": "Reply",
     "message_deleted": "Message deleted",
-    "edited": "edited"
+    "edited": "edited",
+    "react_to_message": "React",
+    "add_reaction": "Add reaction",
+    "remove_reaction": "Remove reaction"
   },
   "user_list": {
     "new_conversation": "New Conversation",

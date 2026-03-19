@@ -55,6 +55,12 @@ type ParticipantRepository interface {
 	IsParticipant(ctx context.Context, conversationID, userID int64) (bool, error)
 }
 
+// MessageReactionRepository defines persistence operations for message reactions.
+type MessageReactionRepository interface {
+	Toggle(ctx context.Context, userID, messageID int64, emoji string) error
+	GetSummaryByMessages(ctx context.Context, messageIDs []int64) (map[int64][]ReactionSummary, error)
+}
+
 // PushSubscriptionRepository defines persistence operations for Web Push subscriptions.
 type PushSubscriptionRepository interface {
 	UpsertByUserAndEndpoint(ctx context.Context, sub *PushSubscription) error

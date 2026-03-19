@@ -125,6 +125,17 @@ func Migrate(db *sql.DB) error {
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user ON push_subscriptions(user_id)`,
 
+		// Message reactions
+		`CREATE TABLE IF NOT EXISTS message_reactions (
+			id         BIGSERIAL    PRIMARY KEY,
+			message_id BIGINT       NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+			user_id    BIGINT       NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			emoji      VARCHAR(32)  NOT NULL,
+			created_at TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+			UNIQUE(message_id, user_id, emoji)
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_message_reactions_message ON message_reactions(message_id)`,
+
 		// Add new columns to existing tables if they were created by an older schema
 		`ALTER TABLE messages ADD COLUMN IF NOT EXISTS is_edited BOOLEAN NOT NULL DEFAULT FALSE`,
 		`ALTER TABLE messages ADD COLUMN IF NOT EXISTS is_read   BOOLEAN NOT NULL DEFAULT FALSE`,
