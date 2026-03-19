@@ -23,7 +23,17 @@ export const ConversationList = ({ onNewChat }) => {
     if (!conversation.last_message) return t('chat.no_messages');
     
     const prefix = conversation.last_message.sender_id === user.id ? `${t('chat.you')}: ` : '';
-    const content = textToEmoji(conversation.last_message.content);
+    
+    const urlPattern = /(https?:\/\/[^\s]+)/;
+    const rawContent = conversation.last_message.content || '';
+    
+    const content = rawContent.split(urlPattern).map((part) => {
+      if (part.match(urlPattern)) {
+        return part;
+      }
+      return textToEmoji(part);
+    }).join("");
+
     return prefix + (content.length > 40 ? content.substring(0, 40) + '...' : content);
   };
 

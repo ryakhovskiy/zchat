@@ -420,8 +420,8 @@ export const ChatWindow = () => {
   };
 
   const getParticipantColor = (username) => {
-    if (!username) return 'gray';
-    const colors = ['gray', 'green', 'blue', '#4b0082', 'darkblue'];
+    if (!username) return 'blue';
+    const colors = ['seagreen', 'steelblue', 'cornflowerblue', 'darkcyan', 'lightseagreen'];
     let hash = 0;
     for (let i = 0; i < username.length; i++) {
       hash = username.charCodeAt(i) + ((hash << 5) - hash);
