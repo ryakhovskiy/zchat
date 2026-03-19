@@ -419,6 +419,16 @@ export const ChatWindow = () => {
     return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
   };
 
+  const getParticipantColor = (username) => {
+    if (!username) return 'gray';
+    const colors = ['gray', 'green', 'blue', '#4b0082', 'darkblue'];
+    let hash = 0;
+    for (let i = 0; i < username.length; i++) {
+      hash = username.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    return colors[Math.abs(hash) % colors.length];
+  };
+
   const handleDragOver = (e) => {
     e.preventDefault();
     setIsDragging(true);
@@ -520,7 +530,10 @@ export const ChatWindow = () => {
                 {theme === 'hacker' ? (
                   <>
                     <span className="message-header">
-                      {formatTimestamp(message.created_at)} {'<'}@{message.sender_username || user.username}{'>'}:
+                      <span style={{ color: 'darkgray' }}>{formatTimestamp(message.created_at)}</span>{' '}
+                      <span style={{ color: getParticipantColor(message.sender_username || user.username) }}>
+                        {'<'}@{message.sender_username || user.username}{'>'}
+                      </span>:
                     </span>{' '}
                     {getAttachments(message).length > 0 && !message.is_deleted && (
                       <div className="message-attachments">
