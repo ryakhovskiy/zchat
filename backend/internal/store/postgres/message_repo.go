@@ -29,11 +29,11 @@ func (r *MessageRepo) Create(ctx context.Context, m *domain.Message) error {
 
 	err = tx.QueryRowContext(ctx, `
 		INSERT INTO messages
-			(content, conversation_id, sender_id, created_at, file_path, file_type, fully_read_at, is_deleted, is_edited, is_read)
-		VALUES ($1, $2, $3, NOW(), $4, $5, $6, FALSE, FALSE, FALSE)
+			(content, conversation_id, sender_id, created_at, file_path, file_type, fully_read_at, is_deleted, is_edited, is_read, reply_to_id)
+		VALUES ($1, $2, $3, NOW(), $4, $5, $6, FALSE, FALSE, FALSE, $7)
 		RETURNING id, created_at
 	`, m.Content, m.ConversationID, m.SenderID,
-		m.FilePath, m.FileType, m.FullyReadAt,
+		m.FilePath, m.FileType, m.FullyReadAt, m.ReplyToID,
 	).Scan(&m.ID, &m.CreatedAt)
 
 	if err != nil {
@@ -90,11 +90,11 @@ func (r *MessageRepo) GetByID(ctx context.Context, id int64) (*domain.Message, e
 	m := &domain.Message{}
 	err := r.db.QueryRowContext(ctx, `
 		SELECT id, content, conversation_id, sender_id, created_at, file_path, file_type,
-		       fully_read_at, is_deleted, is_edited, is_read
+		       fully_read_at, is_deleted, is_edited, is_read, reply_to_id
 		FROM messages WHERE id = $1
 	`, id).Scan(
 		&m.ID, &m.Content, &m.ConversationID, &m.SenderID, &m.CreatedAt,
-		&m.FilePath, &m.FileType, &m.FullyReadAt, &m.IsDeleted, &m.IsEdited, &m.IsRead,
+		&m.FilePath, &m.FileType, &m.FullyReadAt, &m.IsDeleted, &m.IsEdited, &m.IsRead, &m.ReplyToID,
 	)
 	if err == sql.ErrNoRows {
 		return nil, domain.ErrNotFound
@@ -105,6 +105,9 @@ func (r *MessageRepo) GetByID(ctx context.Context, id int64) (*domain.Message, e
 
 	if err := r.populateAttachments(ctx, []*domain.Message{m}); err != nil {
 		return nil, fmt.Errorf("populate attachments: %w", err)
+	}
+	if err := r.populateReactions(ctx, []*domain.Message{m}); err != nil {
+		return nil, fmt.Errorf("populate reactions: %w", err)
 	}
 
 	return m, nil
@@ -125,7 +128,7 @@ func (r *MessageRepo) SoftDeleteForEveryone(ctx context.Context, id int64) error
 func (r *MessageRepo) ListForConversation(ctx context.Context, conversationID int64, limit int) ([]*domain.Message, error) {
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT id, content, conversation_id, sender_id, created_at, file_path, file_type,
-		       fully_read_at, is_deleted, is_edited, is_read
+		       fully_read_at, is_deleted, is_edited, is_read, reply_to_id
 		FROM messages
 		WHERE conversation_id = $1
 		ORDER BY created_at DESC
@@ -141,6 +144,9 @@ func (r *MessageRepo) ListForConversation(ctx context.Context, conversationID in
 	if err := r.populateAttachments(ctx, messages); err != nil {
 		return nil, fmt.Errorf("populate attachments: %w", err)
 	}
+	if err := r.populateReactions(ctx, messages); err != nil {
+		return nil, fmt.Errorf("populate reactions: %w", err)
+	}
 	return messages, nil
 }
 
@@ -149,7 +155,7 @@ func (r *MessageRepo) ListForConversation(ctx context.Context, conversationID in
 func (r *MessageRepo) ListForConversationForUser(ctx context.Context, conversationID, userID int64, limit int) ([]*domain.Message, error) {
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT m.id, m.content, m.conversation_id, m.sender_id, m.created_at,
-		       m.file_path, m.file_type, m.fully_read_at, m.is_deleted, m.is_edited, m.is_read
+		       m.file_path, m.file_type, m.fully_read_at, m.is_deleted, m.is_edited, m.is_read, m.reply_to_id
 		FROM messages m
 		LEFT JOIN user_deleted_messages udm
 		       ON udm.message_id = m.id AND udm.user_id = $2
@@ -168,6 +174,9 @@ func (r *MessageRepo) ListForConversationForUser(ctx context.Context, conversati
 	if err := r.populateAttachments(ctx, messages); err != nil {
 		return nil, fmt.Errorf("populate attachments: %w", err)
 	}
+	if err := r.populateReactions(ctx, messages); err != nil {
+		return nil, fmt.Errorf("populate reactions: %w", err)
+	}
 	return messages, nil
 }
 
@@ -176,7 +185,7 @@ func (r *MessageRepo) ListForConversationForUser(ctx context.Context, conversati
 func (r *MessageRepo) ListForConversationForUserBefore(ctx context.Context, conversationID, userID, beforeID int64, limit int) ([]*domain.Message, error) {
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT m.id, m.content, m.conversation_id, m.sender_id, m.created_at,
-		       m.file_path, m.file_type, m.fully_read_at, m.is_deleted, m.is_edited, m.is_read
+		       m.file_path, m.file_type, m.fully_read_at, m.is_deleted, m.is_edited, m.is_read, m.reply_to_id
 		FROM messages m
 		LEFT JOIN user_deleted_messages udm
 		       ON udm.message_id = m.id AND udm.user_id = $2
@@ -195,6 +204,9 @@ func (r *MessageRepo) ListForConversationForUserBefore(ctx context.Context, conv
 	}
 	if err := r.populateAttachments(ctx, messages); err != nil {
 		return nil, fmt.Errorf("populate attachments: %w", err)
+	}
+	if err := r.populateReactions(ctx, messages); err != nil {
+		return nil, fmt.Errorf("populate reactions: %w", err)
 	}
 	return messages, nil
 }
@@ -258,7 +270,7 @@ func (r *MessageRepo) scanMessages(rows *sql.Rows) ([]*domain.Message, error) {
 		m := &domain.Message{}
 		if err := rows.Scan(
 			&m.ID, &m.Content, &m.ConversationID, &m.SenderID, &m.CreatedAt,
-			&m.FilePath, &m.FileType, &m.FullyReadAt, &m.IsDeleted, &m.IsEdited, &m.IsRead,
+			&m.FilePath, &m.FileType, &m.FullyReadAt, &m.IsDeleted, &m.IsEdited, &m.IsRead, &m.ReplyToID,
 		); err != nil {
 			return nil, fmt.Errorf("scan message: %w", err)
 		}
@@ -314,4 +326,83 @@ func (r *MessageRepo) populateAttachments(ctx context.Context, messages []*domai
 	}
 
 	return rows.Err()
+}
+
+func (r *MessageRepo) populateReactions(ctx context.Context, messages []*domain.Message) error {
+	if len(messages) == 0 {
+		return nil
+	}
+
+	msgIDs := make([]int64, len(messages))
+	msgMap := make(map[int64]*domain.Message)
+	for i, m := range messages {
+		msgIDs[i] = m.ID
+		msgMap[m.ID] = m
+		m.Reactions = []domain.ReactionSummary{}
+	}
+
+	args := make([]interface{}, len(msgIDs))
+	placeholders := make([]string, len(msgIDs))
+	for i, id := range msgIDs {
+		args[i] = id
+		placeholders[i] = "$" + strconv.Itoa(i+1)
+	}
+
+	query := fmt.Sprintf(`
+		SELECT message_id, emoji, user_id
+		FROM message_reactions
+		WHERE message_id IN (%s)
+		ORDER BY message_id, created_at ASC
+	`, strings.Join(placeholders, ","))
+
+	rrows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return fmt.Errorf("query reactions: %w", err)
+	}
+	defer rrows.Close()
+
+	type emojiKey struct {
+		msgID int64
+		emoji string
+	}
+	emojiUsers := make(map[emojiKey][]int64)
+	msgEmojiOrder := make(map[int64][]string)
+
+	for rrows.Next() {
+		var msgID, userID int64
+		var emoji string
+		if err := rrows.Scan(&msgID, &emoji, &userID); err != nil {
+			return fmt.Errorf("scan reaction row: %w", err)
+		}
+		k := emojiKey{msgID: msgID, emoji: emoji}
+		if _, ok := emojiUsers[k]; !ok {
+			msgEmojiOrder[msgID] = append(msgEmojiOrder[msgID], emoji)
+		}
+		emojiUsers[k] = append(emojiUsers[k], userID)
+	}
+	if err := rrows.Err(); err != nil {
+		return err
+	}
+
+	for msgID, emojis := range msgEmojiOrder {
+		m, ok := msgMap[msgID]
+		if !ok {
+			continue
+		}
+		seen := make(map[string]bool)
+		for _, e := range emojis {
+			if seen[e] {
+				continue
+			}
+			seen[e] = true
+			k := emojiKey{msgID: msgID, emoji: e}
+			uids := emojiUsers[k]
+			m.Reactions = append(m.Reactions, domain.ReactionSummary{
+				Emoji:   e,
+				Count:   len(uids),
+				UserIDs: uids,
+			})
+		}
+	}
+	return nil
 }

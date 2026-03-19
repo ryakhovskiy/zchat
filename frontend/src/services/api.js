@@ -159,10 +159,6 @@ export class WebSocketClient {
             return;
           }
 
-          if (!opened && !this.hasEverConnected) {
-            return;
-          }
-
           this.attemptReconnect();
         };
       } catch (error) {

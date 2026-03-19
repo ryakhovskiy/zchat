@@ -43,8 +43,12 @@
     "delete_for_me": "Nur für mich löschen",
     "delete_for_everyone": "Für alle löschen",
     "editing_message": "Nachricht bearbeiten",
+    "reply_message": "Antworten",
     "message_deleted": "Nachricht gelöscht",
-    "edited": "bearbeitet"
+    "edited": "bearbeitet",
+    "react_to_message": "Reagieren",
+    "add_reaction": "Reaktion hinzufügen",
+    "remove_reaction": "Reaktion entfernen"
   },
   "user_list": {
     "new_conversation": "Neue Konversation",

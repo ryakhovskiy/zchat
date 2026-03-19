@@ -132,6 +132,9 @@ export const ChatProvider = ({ children }) => {
         file_type: data.file_type,
         is_deleted: data.is_deleted,
         is_read: data.is_read,
+        reply_to_id: data.reply_to_id ?? null,
+        attachments: data.attachments ?? [],
+        reactions: data.reactions ?? [],
       });
 
       // Increment unread count only if message is not in currently selected conversation OR if window is not focused
@@ -256,12 +259,29 @@ export const ChatProvider = ({ children }) => {
     wsClient.on('message_edited', handleMessageEdited);
     wsClient.on('message_deleted', handleMessageDeleted);
 
+    const handleReactionUpdated = (data) => {
+      setMessages((prev) => {
+        const convMessages = prev[data.conversation_id] || [];
+        return {
+          ...prev,
+          [data.conversation_id]: convMessages.map((msg) =>
+            msg.id === data.message_id
+              ? { ...msg, reactions: data.reactions ?? [] }
+              : msg
+          ),
+        };
+      });
+    };
+
+    wsClient.on('reaction_updated', handleReactionUpdated);
+
     return () => {
       wsClient.off('message', handleMessage);
       wsClient.off('user_online', handleUserOnline);
       wsClient.off('user_offline', handleUserOffline);
       wsClient.off('message_edited', handleMessageEdited);
       wsClient.off('message_deleted', handleMessageDeleted);
+      wsClient.off('reaction_updated', handleReactionUpdated);
     };
   }, [wsClient]);
 
@@ -375,7 +395,7 @@ export const ChatProvider = ({ children }) => {
     }
   };
 
-  const sendMessage = async (conversationId, content, fileData = null) => {
+  const sendMessage = async (conversationId, content, fileData = null, replyToId = null) => {
     if (!content && !fileData) return;
 
     if (!conversationId || !Number.isFinite(Number(conversationId))) {
@@ -393,6 +413,10 @@ export const ChatProvider = ({ children }) => {
       message.file_type = fileData.file_type;
     }
 
+    if (replyToId) {
+      message.reply_to_id = replyToId;
+    }
+
     if (wsClient?.ws?.readyState === WebSocket.OPEN) {
       wsClient.send(message);
       return;
@@ -402,6 +426,7 @@ export const ChatProvider = ({ children }) => {
       content: message.content,
       file_path: message.file_path,
       file_type: message.file_type,
+      reply_to_id: replyToId,
     });
 
     appendMessageToState(response.data);
@@ -415,6 +440,11 @@ export const ChatProvider = ({ children }) => {
   const deleteMessage = (messageId, deleteType) => {
     if (!wsClient) return;
     wsClient.send({ type: 'delete_message', message_id: messageId, delete_type: deleteType });
+  };
+
+  const reactToMessage = (messageId, emoji) => {
+    if (!wsClient) return;
+    wsClient.send({ type: 'react_message', message_id: messageId, emoji });
   };
 
   const selectConversation = async (conversation) => {
@@ -452,6 +482,7 @@ export const ChatProvider = ({ children }) => {
     sendMessage,
     editMessage,
     deleteMessage,
+    reactToMessage,
     selectConversation,
     loadOlderMessages,
     setMessages, 

@@ -537,6 +537,7 @@
   padding: 0.5rem 1rem;
   display: flex;
   align-items: center;
+  gap: 8px;
   justify-content: space-between;
   border-radius: 8px 8px 0 0;
   font-size: 0.9rem;
@@ -586,6 +587,14 @@
   border-radius: 8px;
   object-fit: contain;
   cursor: pointer;
+}
+
+.attachment-video {
+  max-width: 320px;
+  max-height: 240px;
+  border-radius: 8px;
+  display: block;
+  background: #000;
 }
 
 .attachment-file {
@@ -797,6 +806,105 @@
   font-style: italic;
   font-size: 0.9rem;
 }
+
+/* ── Reply mode banner ──────────────────────────────────── */
+.reply-mode-banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: var(--bg-tertiary, darkgreen);
+  border-left: 4px solid var(--accent-color, #007bff);
+  border-radius: 4px;
+  margin-bottom: 8px;
+  font-size: 0.9em;
+  width: 100%;
+  box-sizing: border-box;
+}
+.reply-content-preview {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  width: 90%;
+}
+.reply-sender {
+  font-weight: bold;
+  font-size: 0.85em;
+  color: var(--accent-color, #007bff);
+}
+.reply-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text-muted, #6c757d);
+}
+.cancel-reply-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted, #6c757d);
+  font-size: 1.2em;
+  padding: 0 4px;
+}
+.cancel-reply-btn:hover {
+  color: var(--text-primary, #212529);
+}
+
+/* ── Replied message styling ───────────────────────────── */
+.message-replied-to {
+  margin-bottom: 4px;
+  padding: 4px 8px;
+  background: var(--bg-secondary, rgba(0, 0, 0, 0.18));
+  border-left: 3px solid var(--accent-color, #007bff);
+  border-radius: 4px;
+  font-size: 0.85em;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  /* Prevent text-indent from parent containers from leaking in */
+  text-indent: 0;
+}
+.replied-sender {
+  font-weight: bold;
+  color: var(--accent-color, #007bff);
+  margin-bottom: 2px;
+  text-indent: 0;
+}
+.replied-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0.8;
+  text-indent: 0;
+}
+
+/* Hacker theme overrides for replied message */
+[data-theme="hacker"] .message-replied-to {
+  text-indent: 0;
+  /* Reset the hanging-indent trick of .message-content so the box renders flush */
+  display: block;
+  border-left: 2px solid var(--accent-color);
+  background: rgba(0, 20, 0, 0.75);
+  border-radius: 0;
+  padding: 3px 6px;
+  margin-bottom: 4px;
+  font-family: var(--font-terminal);
+}
+[data-theme="hacker"] .replied-sender {
+  text-indent: 0;
+  display: inline;
+  font-weight: bold;
+  color: var(--accent-color);
+}
+[data-theme="hacker"] .replied-text {
+  text-indent: 0;
+  display: inline;
+  opacity: 0.7;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* Hacker Theme Exceptions - Terminal Style */
 [data-theme="hacker"] .message {
   margin-bottom: 0.4rem;
@@ -983,3 +1091,69 @@
   font-size: 0.85rem;
 }
 
+
+/* -- Message Reactions ------------------------------------ */
+
+.message-reactions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.reaction-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 7px;
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  cursor: pointer;
+  font-size: 0.9rem;
+  line-height: 1.4;
+  transition: background 0.15s, transform 0.1s;
+  color: var(--text-primary);
+}
+
+.reaction-chip:hover {
+  background: var(--hover-bg);
+  transform: scale(1.1);
+}
+
+.reaction-chip--mine {
+  background: var(--primary-color, #4dabf7);
+  border-color: var(--primary-color, #4dabf7);
+  color: #fff;
+}
+
+.reaction-chip--mine:hover {
+  opacity: 0.85;
+}
+
+.reaction-count {
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+/* -- Reaction Picker Overlay ------------------------------ */
+
+.reaction-picker-overlay {
+  position: fixed;
+  bottom: 120px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+@media (max-width: 600px) {
+  .reaction-picker-overlay {
+    bottom: 80px;
+    left: 4px;
+    right: 4px;
+    transform: none;
+  }
+}

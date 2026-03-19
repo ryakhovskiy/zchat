@@ -14,7 +14,7 @@ import './Chat.css';
 
 export const ChatWindow = () => {
   const { t } = useTranslation();
-  const { selectedConversation, messages, sendMessage, editMessage, deleteMessage, selectConversation, setMessages, loadOlderMessages, hasMoreMessages } = useChat();
+  const { selectedConversation, messages, sendMessage, editMessage, deleteMessage, reactToMessage, selectConversation, setMessages, loadOlderMessages, hasMoreMessages } = useChat();
   const { user, wsClient } = useAuth();
   const { startCall } = useCall();
   const { theme } = useTheme();
@@ -28,6 +28,13 @@ export const ChatWindow = () => {
   const [isDragging, setIsDragging] = useState(false);
   const [contextMenu, setContextMenu] = useState(null); // { messageId, x, y, isMine }
   const [editingMessage, setEditingMessage] = useState(null); // { id, content }
+  const [replyingToMessage, setReplyingToMessage] = useState(null); // { id, content, sender_username }
+  
+  const [reactionPickerMsgId, setReactionPickerMsgId] = useState(null);
+  const reactionPickerRef = useRef(null);
+  const [touchStartX, setTouchStartX] = useState(null);
+  const [touchCurrentX, setTouchCurrentX] = useState(null);
+  const [touchStartId, setTouchStartId] = useState(null);
 
   const messagesEndRef = useRef(null);
   const messagesContainerRef = useRef(null);
@@ -149,13 +156,92 @@ export const ChatWindow = () => {
       y: e.clientY,
       isMine: message.sender_id === user.id,
       content: message.content,
+      sender_username: message.sender_username || user.username
     });
   };
 
+  const handleMessageClick = (e, message) => {
+    if (window.innerWidth <= 768 && !message.is_deleted) {
+      handleMessageRightClick(e, message);
+    }
+  };
+
+  const handleTouchStart = (e, message) => {
+    if (message.is_deleted) return;
+    setTouchStartX(e.touches[0].clientX);
+    setTouchCurrentX(e.touches[0].clientX);
+    setTouchStartId(message.id);
+  };
+
+  const handleTouchMove = (e) => {
+    if (touchStartX !== null) {
+      setTouchCurrentX(e.touches[0].clientX);
+    }
+  };
+
+  const handleTouchEnd = (e, message) => {
+    if (touchStartX !== null && touchStartId === message.id) {
+      const distance = touchCurrentX - touchStartX;
+      if (distance > 60) {
+        // Swipe right to reply
+        setReplyingToMessage({
+          id: message.id,
+          content: message.content,
+          sender_username: message.sender_username || user.username
+        });
+        setTimeout(() => {
+          if (textareaRef.current) textareaRef.current.focus();
+        }, 0);
+      }
+    }
+    setTouchStartX(null);
+    setTouchStartId(null);
+  };
+
+  const handleReactStart = () => {
+    setReactionPickerMsgId(contextMenu.messageId);
+    closeContextMenu();
+  };
+
+  const handleReactionSelect = (emoji, messageId) => {
+    reactToMessage(messageId, emoji.native);
+    setReactionPickerMsgId(null);
+  };
+
+  // Close reaction picker on outside click
+  useEffect(() => {
+    if (!reactionPickerMsgId) return;
+    const handleClick = (e) => {
+      if (reactionPickerRef.current && !reactionPickerRef.current.contains(e.target)) {
+        setReactionPickerMsgId(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [reactionPickerMsgId]);
+
   const closeContextMenu = () => setContextMenu(null);
+
+  const handleReplyStart = () => {
+    setReplyingToMessage({ 
+      id: contextMenu.messageId, 
+      content: contextMenu.content,
+      sender_username: contextMenu.sender_username 
+    });
+    setEditingMessage(null);
+    closeContextMenu();
+    setTimeout(() => {
+      if (textareaRef.current) textareaRef.current.focus();
+    }, 0);
+  };
+
+  const handleReplyCancel = () => {
+    setReplyingToMessage(null);
+  };
 
   const handleEditStart = () => {
     setEditingMessage({ id: contextMenu.messageId, content: contextMenu.content });
+    setReplyingToMessage(null);
     setInputValue(contextMenu.content);
     closeContextMenu();
   };
@@ -322,8 +408,9 @@ export const ChatWindow = () => {
         setUploadProgress(0);
       }
 
-      await sendMessage(selectedConversation.id, inputValue, fileData);
+      await sendMessage(selectedConversation.id, inputValue, fileData, replyingToMessage?.id);
       setInputValue('');
+      setReplyingToMessage(null);
       clearFile();
       setIsEmojiPickerOpen(false);
     } catch (error) {
@@ -394,15 +481,18 @@ export const ChatWindow = () => {
     return otherUser?.is_online;
   };
 
+  const VIDEO_EXTENSIONS = ['mp4', 'webm', 'ogg', 'mov', 'avi', 'mkv', 'flv', 'wmv', 'm4v'];
+
   const getAttachments = (msg) => {
     if (msg.attachments && msg.attachments.length > 0) return msg.attachments;
     if (msg.file_path) {
       const fileName = msg.file_path.split('\\').pop().split('/').pop();
       const ext = fileName.split('.').pop().toLowerCase();
       const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext);
+      const isVideo = VIDEO_EXTENSIONS.includes(ext);
       return [{ 
         file_path: msg.file_path, 
-        file_type: msg.file_type || (isImage ? 'image' : 'file'), 
+        file_type: msg.file_type || (isImage ? 'image' : isVideo ? 'video' : 'file'), 
         original_name: fileName,
         file_size: null
       }];
@@ -417,6 +507,16 @@ export const ChatWindow = () => {
     const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
+  };
+
+  const getParticipantColor = (username) => {
+    if (!username) return 'blue';
+    const colors = ['seagreen', 'steelblue', 'darkcyan', 'lightseagreen'];
+    let hash = 0;
+    for (let i = 0; i < username.length; i++) {
+      hash = username.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    return colors[Math.abs(hash) % colors.length];
   };
 
   const handleDragOver = (e) => {
@@ -508,19 +608,36 @@ export const ChatWindow = () => {
             <p>{t('chat.no_messages')}</p>
           </div>
         ) : (
-          conversationMessages.map((message) => (
+          conversationMessages.map((message) => {
+            const repliedMessage = message.reply_to_id 
+              ? conversationMessages.find(m => m.id === message.reply_to_id) 
+              : null;
+            return (
             <div
               key={message.id}
               className={`message ${
                 message.sender_id === user.id ? 'message-sent' : 'message-received'
               }`}
               onContextMenu={(e) => handleMessageRightClick(e, message)}
+              onClick={(e) => handleMessageClick(e, message)}
+              onTouchStart={(e) => handleTouchStart(e, message)}
+              onTouchMove={handleTouchMove}
+              onTouchEnd={(e) => handleTouchEnd(e, message)}
             >
               <div className="message-content">
+                {repliedMessage && (
+                  <div className="message-replied-to">
+                    <span className="replied-sender">{repliedMessage.sender_username || t('chat.unknown_user', 'Unknown')}: </span>
+                    <span className="replied-text">{repliedMessage.content || t('chat.attachment', 'Attachment')}</span>
+                  </div>
+                )}
                 {theme === 'hacker' ? (
                   <>
                     <span className="message-header">
-                      {formatTimestamp(message.created_at)} {'<'}@{message.sender_username || user.username}{'>'}:
+                      <span style={{ color: 'darkgray' }}>{formatTimestamp(message.created_at)}</span>{' '}
+                      <span style={{ color: getParticipantColor(message.sender_username || user.username) }}>
+                        {'<'}@{message.sender_username || user.username}{'>'}
+                      </span>:
                     </span>{' '}
                     {getAttachments(message).length > 0 && !message.is_deleted && (
                       <div className="message-attachments">
@@ -536,6 +653,14 @@ export const ChatWindow = () => {
                                   className="attachment-image"
                                   onClick={() => setModalImageInfo({url: fileUrl, name: fileName})}
                                   style={{ cursor: 'pointer' }}
+                                />
+                              ) : att.file_type === 'video' ? (
+                                <video
+                                  src={fileUrl}
+                                  className="attachment-video"
+                                  controls
+                                  preload="metadata"
+                                  onClick={(e) => e.stopPropagation()}
                                 />
                               ) : (
                                 <div className="attachment-file">
@@ -568,6 +693,20 @@ export const ChatWindow = () => {
                         {!message.id ? '' : (message.is_read ? '✓✓' : '✓')}
                       </span>
                     )}
+                    {!message.is_deleted && message.reactions && message.reactions.length > 0 && (
+                      <div className="message-reactions">
+                        {message.reactions.map((r) => (
+                          <button
+                            key={r.emoji}
+                            className={`reaction-chip ${r.user_ids?.includes(user.id) ? 'reaction-chip--mine' : ''}`}
+                            onClick={(e) => { e.stopPropagation(); reactToMessage(message.id, r.emoji); }}
+                            title={r.user_ids?.includes(user.id) ? t('chat.remove_reaction', 'Remove reaction') : t('chat.add_reaction', 'Add reaction')}
+                          >
+                            {r.emoji} <span className="reaction-count">{r.count}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </>
                 ) : (
                   <>
@@ -588,6 +727,14 @@ export const ChatWindow = () => {
                                   className="attachment-image"
                                   onClick={() => setModalImageInfo({url: fileUrl, name: fileName})}
                                   style={{ cursor: 'pointer' }}
+                                />
+                              ) : att.file_type === 'video' ? (
+                                <video
+                                  src={fileUrl}
+                                  className="attachment-video"
+                                  controls
+                                  preload="metadata"
+                                  onClick={(e) => e.stopPropagation()}
                                 />
                               ) : (
                                 <div className="attachment-file">
@@ -623,11 +770,26 @@ export const ChatWindow = () => {
                         </span>
                       )}
                     </div>
+                    {!message.is_deleted && message.reactions && message.reactions.length > 0 && (
+                      <div className="message-reactions">
+                        {message.reactions.map((r) => (
+                          <button
+                            key={r.emoji}
+                            className={`reaction-chip ${r.user_ids?.includes(user.id) ? 'reaction-chip--mine' : ''}`}
+                            onClick={(e) => { e.stopPropagation(); reactToMessage(message.id, r.emoji); }}
+                            title={r.user_ids?.includes(user.id) ? t('chat.remove_reaction', 'Remove reaction') : t('chat.add_reaction', 'Add reaction')}
+                          >
+                            {r.emoji} <span className="reaction-count">{r.count}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </>
                 )}
               </div>
             </div>
-          ))
+          );
+          })
         )}
         <div ref={messagesEndRef} />
       </div>
@@ -639,10 +801,19 @@ export const ChatWindow = () => {
             <button type="button" className="cancel-edit-btn" onClick={handleEditCancel}>✕</button>
           </div>
         )}
+        {replyingToMessage && !editingMessage && (
+          <div className="reply-mode-banner">
+            <div className="reply-content-preview">
+              <span className="reply-sender">{replyingToMessage.sender_username}: </span>
+              <span className="reply-text">{replyingToMessage.content}</span>
+            </div>
+            <button type="button" className="cancel-reply-btn" onClick={handleReplyCancel}>✕</button>
+          </div>
+        )}
         <div className="message-input-row">
         <div className="input-field-wrapper">
           {selectedFile && (
-            <div className="selected-file-preview" style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '8px', padding: '8px', background: 'var(--bg-tertiary)', borderRadius: '8px', marginBottom: '8px' }}>
+            <div className="selected-file-preview">
               {previewImage ? (
                 <div style={{ position: 'relative', display: 'flex' }}>
                   <img src={previewImage} alt="Preview" style={{ height: '40px', width: '40px', borderRadius: '4px', objectFit: 'cover' }} />
@@ -650,7 +821,7 @@ export const ChatWindow = () => {
               ) : (
                 <span className="file-icon" style={{ fontSize: '24px' }}>📄</span>
               )}
-              <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', minWidth: 0 }}>
                 <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontSize: '0.9em' }}>{selectedFile.name}</span>
                 {uploading && (
                   <div style={{ height: '4px', background: 'rgba(0,0,0,0.1)', borderRadius: '2px', marginTop: '4px', width: '100%', overflow: 'hidden' }}>
@@ -726,6 +897,18 @@ export const ChatWindow = () => {
         </div>
       </form>
 
+      {reactionPickerMsgId && (
+        <div className="reaction-picker-overlay" ref={reactionPickerRef}>
+          <Picker
+            data={data}
+            onEmojiSelect={(emoji) => handleReactionSelect(emoji, reactionPickerMsgId)}
+            theme="light"
+            previewPosition="none"
+            skinTonePosition="none"
+          />
+        </div>
+      )}
+
       {contextMenu && (
         <div
           className="message-context-menu"
@@ -733,6 +916,12 @@ export const ChatWindow = () => {
           ref={contextMenuRef}
           onClick={(e) => e.stopPropagation()}
         >
+          <button className="context-menu-item" onClick={handleReactStart}>
+            😊 {t('chat.react_to_message', 'React')}
+          </button>
+          <button className="context-menu-item" onClick={handleReplyStart}>
+            ↩️ {t('chat.reply_message', 'Reply')}
+          </button>
           {contextMenu.isMine && (
             <button className="context-menu-item" onClick={handleEditStart}>
               ✏️ {t('chat.edit_message', 'Edit')}

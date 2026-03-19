@@ -33,18 +33,36 @@ type ConversationParticipant struct {
 
 // Message represents a single chat message.
 type Message struct {
-	ID             int64        `db:"id"`
-	Content        string       `db:"content"` // encrypted at rest
-	ConversationID int64        `db:"conversation_id"`
-	SenderID       int64        `db:"sender_id"`
-	CreatedAt      time.Time    `db:"created_at"`
-	FilePath       *string      `db:"file_path"`
-	FileType       *string      `db:"file_type"`
-	FullyReadAt    *time.Time   `db:"fully_read_at"`
-	IsDeleted      bool         `db:"is_deleted"`
-	IsEdited       bool         `db:"is_edited"`
-	IsRead         bool         `db:"is_read"`
-	Attachments    []Attachment `json:"attachments,omitempty"`
+	ID             int64             `db:"id"`
+	Content        string            `db:"content"` // encrypted at rest
+	ConversationID int64             `db:"conversation_id"`
+	SenderID       int64             `db:"sender_id"`
+	CreatedAt      time.Time         `db:"created_at"`
+	FilePath       *string           `db:"file_path"`
+	FileType       *string           `db:"file_type"`
+	FullyReadAt    *time.Time        `db:"fully_read_at"`
+	IsDeleted      bool              `db:"is_deleted"`
+	IsEdited       bool              `db:"is_edited"`
+	IsRead         bool              `db:"is_read"`
+	ReplyToID      *int64            `db:"reply_to_id"`
+	Attachments    []Attachment      `json:"attachments,omitempty"`
+	Reactions      []ReactionSummary `json:"reactions,omitempty"`
+}
+
+// MessageReaction represents a single emoji reaction by a user on a message.
+type MessageReaction struct {
+	ID        int64     `db:"id" json:"id"`
+	MessageID int64     `db:"message_id" json:"message_id"`
+	UserID    int64     `db:"user_id" json:"user_id"`
+	Emoji     string    `db:"emoji" json:"emoji"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+}
+
+// ReactionSummary represents aggregated reactions for a single emoji on a message.
+type ReactionSummary struct {
+	Emoji   string  `json:"emoji"`
+	Count   int     `json:"count"`
+	UserIDs []int64 `json:"user_ids"`
 }
 
 // Attachment represents a file attached to a message.

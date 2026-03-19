@@ -48,6 +48,7 @@ func NewRouter(cfg *config.Config, db *sql.DB, hub *ws.Hub, tokenSvc *security.T
 	partRepo := postgres.NewParticipantRepo(db)
 	deletedMsgRepo := postgres.NewUserDeletedMessageRepo(db)
 	pushSubRepo := postgres.NewPushSubscriptionRepo(db)
+	reactionRepo := postgres.NewReactionRepo(db)
 
 	// Services
 	defaultTTL := time.Duration(cfg.AccessTokenMinutes) * time.Minute
@@ -56,7 +57,7 @@ func NewRouter(cfg *config.Config, db *sql.DB, hub *ws.Hub, tokenSvc *security.T
 	authSvc := service.NewAuthService(userRepo, tokenSvc, passwordHasher, defaultTTL, rememberMeTTL)
 	userSvc := service.NewUserService(userRepo)
 	convSvc := service.NewConversationService(convRepo, partRepo, msgRepo)
-	msgSvc := service.NewMessageService(convRepo, partRepo, msgRepo, deletedMsgRepo, userRepo, encryptor, cfg.MaxMessagesPerConversation, cfg.UploadDir)
+	msgSvc := service.NewMessageService(convRepo, partRepo, msgRepo, deletedMsgRepo, userRepo, reactionRepo, encryptor, cfg.MaxMessagesPerConversation, cfg.UploadDir)
 	// wire circular reference
 	convSvc.SetMessageService(msgSvc)
 

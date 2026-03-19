@@ -66,8 +66,17 @@ func Migrate(db *sql.DB) error {
 			fully_read_at   TIMESTAMPTZ,
 			is_deleted      BOOLEAN      NOT NULL DEFAULT FALSE,
 			is_edited       BOOLEAN      NOT NULL DEFAULT FALSE,
-			is_read         BOOLEAN      NOT NULL DEFAULT FALSE
+			is_read         BOOLEAN      NOT NULL DEFAULT FALSE,
+			reply_to_id     BIGINT       REFERENCES messages(id)
 		)`,
+
+		// Add column if not exists (for existing DBs)
+		`DO $$ 
+		BEGIN 
+			IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='messages' AND column_name='reply_to_id') THEN 
+				ALTER TABLE messages ADD COLUMN reply_to_id BIGINT REFERENCES messages(id); 
+			END IF; 
+		END $$;`,
 
 		// Per-user soft deletes ("delete for me")
 		`CREATE TABLE IF NOT EXISTS user_deleted_messages (
@@ -115,6 +124,17 @@ func Migrate(db *sql.DB) error {
 			UNIQUE (user_id, endpoint)
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user ON push_subscriptions(user_id)`,
+
+		// Message reactions
+		`CREATE TABLE IF NOT EXISTS message_reactions (
+			id         BIGSERIAL    PRIMARY KEY,
+			message_id BIGINT       NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+			user_id    BIGINT       NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			emoji      VARCHAR(32)  NOT NULL,
+			created_at TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+			UNIQUE(message_id, user_id, emoji)
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_message_reactions_message ON message_reactions(message_id)`,
 
 		// Add new columns to existing tables if they were created by an older schema
 		`ALTER TABLE messages ADD COLUMN IF NOT EXISTS is_edited BOOLEAN NOT NULL DEFAULT FALSE`,

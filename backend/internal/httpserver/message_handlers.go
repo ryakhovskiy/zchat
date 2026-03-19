@@ -16,6 +16,7 @@ type messageCreateRequest struct {
 	Content     string              `json:"content"`
 	FilePath    *string             `json:"file_path"`
 	FileType    *string             `json:"file_type"`
+	ReplyToID   *int64              `json:"reply_to_id"`
 	Attachments []domain.Attachment `json:"attachments,omitempty"`
 }
 
@@ -47,6 +48,7 @@ func handleCreateMessage(msgSvc *service.MessageService) http.HandlerFunc {
 			Content:        req.Content,
 			FilePath:       req.FilePath,
 			FileType:       req.FileType,
+			ReplyToID:      req.ReplyToID,
 			Attachments:    req.Attachments,
 		}, currentUser.ID)
 		if err != nil {
