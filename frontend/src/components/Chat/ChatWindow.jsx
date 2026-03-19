@@ -813,7 +813,7 @@ export const ChatWindow = () => {
         <div className="message-input-row">
         <div className="input-field-wrapper">
           {selectedFile && (
-            <div className="selected-file-preview" style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '8px', padding: '8px', background: 'var(--bg-tertiary)', borderRadius: '8px', marginBottom: '8px' }}>
+            <div className="selected-file-preview">
               {previewImage ? (
                 <div style={{ position: 'relative', display: 'flex' }}>
                   <img src={previewImage} alt="Preview" style={{ height: '40px', width: '40px', borderRadius: '4px', objectFit: 'cover' }} />
@@ -821,7 +821,7 @@ export const ChatWindow = () => {
               ) : (
                 <span className="file-icon" style={{ fontSize: '24px' }}>📄</span>
               )}
-              <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', minWidth: 0 }}>
                 <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontSize: '0.9em' }}>{selectedFile.name}</span>
                 {uploading && (
                   <div style={{ height: '4px', background: 'rgba(0,0,0,0.1)', borderRadius: '2px', marginTop: '4px', width: '100%', overflow: 'hidden' }}>
