@@ -223,6 +223,11 @@ func MakeHandler(
 				content, _ := payload["content"].(string)
 				filePath, _ := payload["file_path"].(string)
 				fileType, _ := payload["file_type"].(string)
+				var replyToID *int64
+				if rID, ok := payload["reply_to_id"].(float64); ok && rID > 0 {
+					val := int64(rID)
+					replyToID = &val
+				}
 				if convIDf == 0 || (content == "" && filePath == "") {
 					sendError(conn, "message requires conversation_id and non-empty content or file")
 					continue
@@ -239,6 +244,7 @@ func MakeHandler(
 					Content:        content,
 					FilePath:       fpPtr,
 					FileType:       ftPtr,
+					ReplyToID:      replyToID,
 				}, user.ID)
 				if err != nil {
 					log.Printf("ws: create message: %v", err)
@@ -267,6 +273,7 @@ func MakeHandler(
 					"file_type":       resp.FileType,
 					"is_deleted":      resp.IsDeleted,
 					"is_read":         false,
+					"reply_to_id":     resp.ReplyToID,
 				})
 
 				// Push notifications to offline participants

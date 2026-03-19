@@ -44,7 +44,8 @@
     "delete_for_everyone": "Удалить для всех",
     "editing_message": "Редактирование сообщения",
     "message_deleted": "Сообщение удалено",
-    "edited": "изменено"
+    "edited": "изменено",
+    "reply_message": "Ответить"
   },
   "user_list": {
     "new_conversation": "Новая беседа",

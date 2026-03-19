@@ -375,7 +375,7 @@ export const ChatProvider = ({ children }) => {
     }
   };
 
-  const sendMessage = async (conversationId, content, fileData = null) => {
+  const sendMessage = async (conversationId, content, fileData = null, replyToId = null) => {
     if (!content && !fileData) return;
 
     if (!conversationId || !Number.isFinite(Number(conversationId))) {
@@ -393,6 +393,10 @@ export const ChatProvider = ({ children }) => {
       message.file_type = fileData.file_type;
     }
 
+    if (replyToId) {
+      message.reply_to_id = replyToId;
+    }
+
     if (wsClient?.ws?.readyState === WebSocket.OPEN) {
       wsClient.send(message);
       return;
@@ -402,6 +406,7 @@ export const ChatProvider = ({ children }) => {
       content: message.content,
       file_path: message.file_path,
       file_type: message.file_type,
+      reply_to_id: replyToId,
     });
 
     appendMessageToState(response.data);

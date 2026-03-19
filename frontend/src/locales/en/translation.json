@@ -43,6 +43,7 @@
     "delete_for_me": "Delete for me",
     "delete_for_everyone": "Delete for everyone",
     "editing_message": "Editing message",
+    "reply_message": "Reply",
     "message_deleted": "Message deleted",
     "edited": "edited"
   },

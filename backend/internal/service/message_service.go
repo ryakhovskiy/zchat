@@ -57,6 +57,7 @@ type MessageCreateInput struct {
 	Content        string
 	FilePath       *string
 	FileType       *string
+	ReplyToID      *int64
 	Attachments    []domain.Attachment
 }
 
@@ -100,6 +101,7 @@ func (s *MessageService) CreateMessage(
 		FilePath:       in.FilePath,
 		FileType:       in.FileType,
 		IsDeleted:      false,
+		ReplyToID:      in.ReplyToID,
 		Attachments:    in.Attachments,
 	}
 
@@ -307,6 +309,7 @@ type MessageResponse struct {
 	IsDeleted      bool      `json:"is_deleted"`
 	IsEdited       bool      `json:"is_edited"`
 	IsRead         bool      `json:"is_read"`
+	ReplyToID      *int64    `json:"reply_to_id,omitempty"`
 }
 
 // ToResponse converts a domain message into a decrypted response DTO.
@@ -335,6 +338,7 @@ func (s *MessageService) ToResponse(ctx context.Context, m *domain.Message) (*Me
 		IsDeleted:      m.IsDeleted,
 		IsEdited:       m.IsEdited,
 		IsRead:         m.IsRead,
+		ReplyToID:      m.ReplyToID,
 	}, nil
 }
 

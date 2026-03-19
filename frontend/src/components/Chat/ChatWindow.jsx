@@ -28,6 +28,11 @@ export const ChatWindow = () => {
   const [isDragging, setIsDragging] = useState(false);
   const [contextMenu, setContextMenu] = useState(null); // { messageId, x, y, isMine }
   const [editingMessage, setEditingMessage] = useState(null); // { id, content }
+  const [replyingToMessage, setReplyingToMessage] = useState(null); // { id, content, sender_username }
+  
+  const [touchStartX, setTouchStartX] = useState(null);
+  const [touchCurrentX, setTouchCurrentX] = useState(null);
+  const [touchStartId, setTouchStartId] = useState(null);
 
   const messagesEndRef = useRef(null);
   const messagesContainerRef = useRef(null);
@@ -149,13 +154,70 @@ export const ChatWindow = () => {
       y: e.clientY,
       isMine: message.sender_id === user.id,
       content: message.content,
+      sender_username: message.sender_username || user.username
     });
+  };
+
+  const handleMessageClick = (e, message) => {
+    if (window.innerWidth <= 768 && !message.is_deleted) {
+      handleMessageRightClick(e, message);
+    }
+  };
+
+  const handleTouchStart = (e, message) => {
+    if (message.is_deleted) return;
+    setTouchStartX(e.touches[0].clientX);
+    setTouchCurrentX(e.touches[0].clientX);
+    setTouchStartId(message.id);
+  };
+
+  const handleTouchMove = (e) => {
+    if (touchStartX !== null) {
+      setTouchCurrentX(e.touches[0].clientX);
+    }
+  };
+
+  const handleTouchEnd = (e, message) => {
+    if (touchStartX !== null && touchStartId === message.id) {
+      const distance = touchCurrentX - touchStartX;
+      if (distance > 60) {
+        // Swipe right to reply
+        setReplyingToMessage({
+          id: message.id,
+          content: message.content,
+          sender_username: message.sender_username || user.username
+        });
+        setTimeout(() => {
+          if (textareaRef.current) textareaRef.current.focus();
+        }, 0);
+      }
+    }
+    setTouchStartX(null);
+    setTouchStartId(null);
   };
 
   const closeContextMenu = () => setContextMenu(null);
 
+  const handleReplyStart = () => {
+    setReplyingToMessage({ 
+      id: contextMenu.messageId, 
+      content: contextMenu.content,
+      sender_username: contextMenu.sender_username 
+    });
+    setEditingMessage(null);
+    closeContextMenu();
+    setTimeout(() => {
+      if (textareaRef.current) textareaRef.current.focus();
+    }, 0);
+  };
+
+  const handleReplyCancel = () => {
+    setReplyingToMessage(null);
+  };
+
   const handleEditStart = () => {
     setEditingMessage({ id: contextMenu.messageId, content: contextMenu.content });
+    setReplyingToMessage(null);
     setInputValue(contextMenu.content);
     closeContextMenu();
   };
@@ -322,8 +384,9 @@ export const ChatWindow = () => {
         setUploadProgress(0);
       }
 
-      await sendMessage(selectedConversation.id, inputValue, fileData);
+      await sendMessage(selectedConversation.id, inputValue, fileData, replyingToMessage?.id);
       setInputValue('');
+      setReplyingToMessage(null);
       clearFile();
       setIsEmojiPickerOpen(false);
     } catch (error) {
@@ -518,15 +581,29 @@ export const ChatWindow = () => {
             <p>{t('chat.no_messages')}</p>
           </div>
         ) : (
-          conversationMessages.map((message) => (
+          conversationMessages.map((message) => {
+            const repliedMessage = message.reply_to_id 
+              ? conversationMessages.find(m => m.id === message.reply_to_id) 
+              : null;
+            return (
             <div
               key={message.id}
               className={`message ${
                 message.sender_id === user.id ? 'message-sent' : 'message-received'
               }`}
               onContextMenu={(e) => handleMessageRightClick(e, message)}
+              onClick={(e) => handleMessageClick(e, message)}
+              onTouchStart={(e) => handleTouchStart(e, message)}
+              onTouchMove={handleTouchMove}
+              onTouchEnd={(e) => handleTouchEnd(e, message)}
             >
               <div className="message-content">
+                {repliedMessage && (
+                  <div className="message-replied-to">
+                    <span className="replied-sender">{repliedMessage.sender_username || t('chat.unknown_user', 'Unknown')}: </span>
+                    <span className="replied-text">{repliedMessage.content || t('chat.attachment', 'Attachment')}</span>
+                  </div>
+                )}
                 {theme === 'hacker' ? (
                   <>
                     <span className="message-header">
@@ -640,7 +717,8 @@ export const ChatWindow = () => {
                 )}
               </div>
             </div>
-          ))
+          );
+          })
         )}
         <div ref={messagesEndRef} />
       </div>
@@ -650,6 +728,15 @@ export const ChatWindow = () => {
           <div className="edit-mode-banner">
             <span>{t('chat.editing_message', 'Editing message')}</span>
             <button type="button" className="cancel-edit-btn" onClick={handleEditCancel}>✕</button>
+          </div>
+        )}
+        {replyingToMessage && !editingMessage && (
+          <div className="reply-mode-banner">
+            <div className="reply-content-preview">
+              <span className="reply-sender">{replyingToMessage.sender_username}: </span>
+              <span className="reply-text">{replyingToMessage.content}</span>
+            </div>
+            <button type="button" className="cancel-reply-btn" onClick={handleReplyCancel}>✕</button>
           </div>
         )}
         <div className="message-input-row">
@@ -746,6 +833,9 @@ export const ChatWindow = () => {
           ref={contextMenuRef}
           onClick={(e) => e.stopPropagation()}
         >
+          <button className="context-menu-item" onClick={handleReplyStart}>
+            ↩️ {t('chat.reply_message', 'Reply')}
+          </button>
           {contextMenu.isMine && (
             <button className="context-menu-item" onClick={handleEditStart}>
               ✏️ {t('chat.edit_message', 'Edit')}

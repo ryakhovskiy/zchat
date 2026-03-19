@@ -44,6 +44,7 @@ type Message struct {
 	IsDeleted      bool         `db:"is_deleted"`
 	IsEdited       bool         `db:"is_edited"`
 	IsRead         bool         `db:"is_read"`
+	ReplyToID      *int64       `db:"reply_to_id"`
 	Attachments    []Attachment `json:"attachments,omitempty"`
 }
 

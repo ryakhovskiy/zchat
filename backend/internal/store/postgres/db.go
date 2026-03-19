@@ -66,8 +66,17 @@ func Migrate(db *sql.DB) error {
 			fully_read_at   TIMESTAMPTZ,
 			is_deleted      BOOLEAN      NOT NULL DEFAULT FALSE,
 			is_edited       BOOLEAN      NOT NULL DEFAULT FALSE,
-			is_read         BOOLEAN      NOT NULL DEFAULT FALSE
+			is_read         BOOLEAN      NOT NULL DEFAULT FALSE,
+			reply_to_id     BIGINT       REFERENCES messages(id)
 		)`,
+
+		// Add column if not exists (for existing DBs)
+		`DO $$ 
+		BEGIN 
+			IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='messages' AND column_name='reply_to_id') THEN 
+				ALTER TABLE messages ADD COLUMN reply_to_id BIGINT REFERENCES messages(id); 
+			END IF; 
+		END $$;`,
 
 		// Per-user soft deletes ("delete for me")
 		`CREATE TABLE IF NOT EXISTS user_deleted_messages (
