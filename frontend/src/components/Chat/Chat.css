@@ -799,17 +799,102 @@
 }
 
 /* ── Reply mode banner ──────────────────────────────────── */
-.reply-mode-banner { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: var(--bg-tertiary, #e9ecef); border-left: 4px solid var(--accent-color, #007bff); border-radius: 4px; margin-bottom: 8px; font-size: 0.9em; width: 100%; box-sizing: border-box;}
-.reply-content-preview { display: flex; flex-direction: column; overflow: hidden; width: 90%; }
-.reply-sender { font-weight: bold; font-size: 0.85em; color: var(--accent-color, #007bff); }
-.reply-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-muted, #6c757d); }
-.cancel-reply-btn { background: none; border: none; cursor: pointer; color: var(--text-muted, #6c757d); font-size: 1.2em; padding: 0 4px; }
-.cancel-reply-btn:hover { color: var(--text-primary, #212529); }
+.reply-mode-banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: var(--bg-tertiary, #e9ecef);
+  border-left: 4px solid var(--accent-color, #007bff);
+  border-radius: 4px;
+  margin-bottom: 8px;
+  font-size: 0.9em;
+  width: 100%;
+  box-sizing: border-box;
+}
+.reply-content-preview {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  width: 90%;
+}
+.reply-sender {
+  font-weight: bold;
+  font-size: 0.85em;
+  color: var(--accent-color, #007bff);
+}
+.reply-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text-muted, #6c757d);
+}
+.cancel-reply-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted, #6c757d);
+  font-size: 1.2em;
+  padding: 0 4px;
+}
+.cancel-reply-btn:hover {
+  color: var(--text-primary, #212529);
+}
 
 /* ── Replied message styling ───────────────────────────── */
-.message-replied-to { margin-bottom: 4px; padding: 4px 8px; background: var(--hover-bg, rgba(0, 0, 0, 0.05)); border-left: 3px solid var(--accent-color, #007bff); border-radius: 4px; font-size: 0.85em; cursor: pointer; display: flex; flex-direction: column; }
-.replied-sender { font-weight: bold; color: var(--accent-color, #007bff); margin-bottom: 2px; }
-.replied-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: 0.8; }
+.message-replied-to {
+  margin-bottom: 4px;
+  padding: 4px 8px;
+  background: var(--hover-bg, rgba(0, 0, 0, 0.05));
+  border-left: 3px solid var(--accent-color, #007bff);
+  border-radius: 4px;
+  font-size: 0.85em;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  /* Prevent text-indent from parent containers from leaking in */
+  text-indent: 0;
+}
+.replied-sender {
+  font-weight: bold;
+  color: var(--accent-color, #007bff);
+  margin-bottom: 2px;
+  text-indent: 0;
+}
+.replied-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0.8;
+  text-indent: 0;
+}
+
+/* Hacker theme overrides for replied message */
+[data-theme="hacker"] .message-replied-to {
+  text-indent: 0;
+  /* Reset the hanging-indent trick of .message-content so the box renders flush */
+  display: block;
+  border-left: 2px solid var(--accent-color);
+  background: rgba(0, 255, 0, 0.05);
+  border-radius: 0;
+  padding: 3px 6px;
+  margin-bottom: 4px;
+  font-family: var(--font-terminal);
+}
+[data-theme="hacker"] .replied-sender {
+  text-indent: 0;
+  display: inline;
+  font-weight: bold;
+  color: var(--accent-color);
+}
+[data-theme="hacker"] .replied-text {
+  text-indent: 0;
+  display: inline;
+  opacity: 0.7;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
 /* Hacker Theme Exceptions - Terminal Style */
 [data-theme="hacker"] .message {
