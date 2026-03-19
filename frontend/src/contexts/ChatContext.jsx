@@ -132,6 +132,7 @@ export const ChatProvider = ({ children }) => {
         file_type: data.file_type,
         is_deleted: data.is_deleted,
         is_read: data.is_read,
+        reply_to_id: data.reply_to_id ?? null,
       });
 
       // Increment unread count only if message is not in currently selected conversation OR if window is not focused

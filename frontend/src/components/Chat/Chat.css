@@ -845,7 +845,7 @@
 .message-replied-to {
   margin-bottom: 4px;
   padding: 4px 8px;
-  background: var(--hover-bg, rgba(0, 0, 0, 0.05));
+  background: var(--bg-secondary, rgba(0, 0, 0, 0.18));
   border-left: 3px solid var(--accent-color, #007bff);
   border-radius: 4px;
   font-size: 0.85em;
@@ -875,7 +875,7 @@
   /* Reset the hanging-indent trick of .message-content so the box renders flush */
   display: block;
   border-left: 2px solid var(--accent-color);
-  background: rgba(0, 255, 0, 0.05);
+  background: rgba(0, 20, 0, 0.75);
   border-radius: 0;
   padding: 3px 6px;
   margin-bottom: 4px;
