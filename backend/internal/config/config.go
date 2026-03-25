@@ -23,6 +23,8 @@ type Config struct {
 
 	VAPIDPublicKey  string
 	VAPIDPrivateKey string
+	OneSignalAppID  string
+	OneSignalAPIKey string
 
 	UploadDir                  string
 	CORSOrigins                []string
@@ -63,6 +65,8 @@ func Load() (*Config, error) {
 
 		VAPIDPublicKey:  os.Getenv("VAPID_PUBLIC_KEY"),
 		VAPIDPrivateKey: os.Getenv("VAPID_PRIVATE_KEY"),
+		OneSignalAppID:  os.Getenv("ONESIGNAL_APP_ID"),
+		OneSignalAPIKey: os.Getenv("ONESIGNAL_API_KEY"),
 
 		UploadDir:                  getEnv("UPLOAD_DIR", "uploads"),
 		Debug:                      getEnvAsBool("DEBUG", true),

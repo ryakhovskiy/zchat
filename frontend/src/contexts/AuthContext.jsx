@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { authAPI, WebSocketClient, clearAuthStorage, getStoredToken, UNAUTHORIZED_EVENT } from '../services/api';
+import { loginOneSignal, logoutOneSignal, promptOneSignalPermission } from '../services/oneSignal';
 
 const AuthContext = createContext(null);
 
@@ -19,6 +20,10 @@ export const AuthProvider = ({ children }) => {
   const wsClientRef = useRef(null);
 
   const resetAuthState = () => {
+    void logoutOneSignal().catch((error) => {
+      console.error('Failed to logout OneSignal:', error);
+    });
+
     clearAuthStorage();
     setToken(null);
     setUser(null);
@@ -62,6 +67,11 @@ export const AuthProvider = ({ children }) => {
         setToken(storedToken);
         setUser(userData);
         initializeWebSocket(storedToken, isMounted);
+        void loginOneSignal(userData.id)
+          .then(() => promptOneSignalPermission())
+          .catch((error) => {
+            console.error('OneSignal bootstrap failed:', error);
+          });
       } catch (error) {
         if (isMounted) {
           resetAuthState();
@@ -120,6 +130,11 @@ export const AuthProvider = ({ children }) => {
 
       setToken(access_token);
       setUser(userData);
+      void loginOneSignal(userData.id)
+        .then(() => promptOneSignalPermission())
+        .catch((error) => {
+          console.error('OneSignal login failed:', error);
+        });
 
       if (rememberMe) {
         sessionStorage.removeItem('token');
@@ -152,6 +167,11 @@ export const AuthProvider = ({ children }) => {
 
       setToken(access_token);
       setUser(userData);
+      void loginOneSignal(userData.id)
+        .then(() => promptOneSignalPermission())
+        .catch((error) => {
+          console.error('OneSignal login failed:', error);
+        });
 
       initializeWebSocket(access_token);
 

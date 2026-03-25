@@ -11,8 +11,6 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	webpush "github.com/SherClockHolmes/webpush-go"
-
 	"backend/internal/domain"
 	"backend/internal/security"
 	"backend/internal/service"
@@ -276,15 +274,15 @@ func MakeHandler(
 					"reply_to_id":     resp.ReplyToID,
 				})
 
-				// Push notifications to offline participants
+				// Push notifications to all recipients except sender.
 				if pushSvc != nil {
-					var offlineIDs []int64
+					var recipientIDs []int64
 					for _, pid := range participantIDs {
-						if pid != user.ID && !hub.IsOnline(pid) {
-							offlineIDs = append(offlineIDs, pid)
+						if pid != user.ID {
+							recipientIDs = append(recipientIDs, pid)
 						}
 					}
-					if len(offlineIDs) > 0 {
+					if len(recipientIDs) > 0 {
 						body := resp.Content
 						if resp.FilePath != nil {
 							body = "Sent a file"
@@ -292,12 +290,12 @@ func MakeHandler(
 						if len(body) > 80 {
 							body = body[:80] + "…"
 						}
-						pushSvc.NotifyUsersAsync(offlineIDs, service.NotificationPayload{
+						pushSvc.NotifyUsersAsync(recipientIDs, service.NotificationPayload{
 							Title: resp.SenderUsername,
 							Body:  body,
 							URL:   fmt.Sprintf("/chat/%d", resp.ConversationID),
 							Tag:   "msg",
-						}, webpush.UrgencyNormal, 3600)
+						}, service.NotificationPriorityNormal, 3600)
 					}
 				}
 
@@ -464,7 +462,7 @@ func MakeHandler(
 						Body:  "Tap to answer",
 						URL:   fmt.Sprintf("/call/%d", convID),
 						Tag:   "call",
-					}, webpush.UrgencyHigh, 30)
+					}, service.NotificationPriorityHigh, 30)
 				}
 
 			default:

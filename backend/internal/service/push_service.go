@@ -1,14 +1,15 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
+	"io"
 	"log"
 	"net/http"
-
-	webpush "github.com/SherClockHolmes/webpush-go"
-
-	"backend/internal/domain"
+	"strconv"
+	"time"
 )
 
 // NotificationPayload is the JSON payload delivered to the browser's service worker.
@@ -19,69 +20,116 @@ type NotificationPayload struct {
 	Tag   string `json:"tag"` // "msg" | "call"
 }
 
-// PushService sends Web Push notifications via the VAPID protocol.
+type NotificationPriority string
+
+const (
+	NotificationPriorityNormal NotificationPriority = "normal"
+	NotificationPriorityHigh   NotificationPriority = "high"
+)
+
+// PushService sends notifications via the OneSignal REST API.
 type PushService struct {
-	vapidPrivateKey string
-	vapidPublicKey  string
-	repo            domain.PushSubscriptionRepository
+	onesignalAppID  string
+	onesignalAPIKey string
+	httpClient      *http.Client
 }
 
-// NewPushService creates a PushService. vapidPriv and vapidPub must be base64url-encoded
-// VAPID keys (generated once, stored in environment).
-func NewPushService(repo domain.PushSubscriptionRepository, vapidPriv, vapidPub string) *PushService {
+// NewPushService creates a PushService backed by OneSignal.
+func NewPushService(appID, apiKey string) *PushService {
 	return &PushService{
-		vapidPrivateKey: vapidPriv,
-		vapidPublicKey:  vapidPub,
-		repo:            repo,
+		onesignalAppID:  appID,
+		onesignalAPIKey: apiKey,
+		httpClient:      &http.Client{Timeout: 8 * time.Second},
 	}
 }
 
-// NotifyUser sends a push notification to all subscriptions belonging to the given user.
-// Stale subscriptions (HTTP 410) are automatically deleted.
-func (p *PushService) NotifyUser(ctx context.Context, userID int64, payload NotificationPayload, urgency webpush.Urgency, ttl int) {
-	subs, err := p.repo.ListByUserID(ctx, userID)
-	if err != nil {
-		log.Printf("push: list subs for user %d: %v", userID, err)
+type oneSignalNotificationRequest struct {
+	AppID          string              `json:"app_id"`
+	TargetChannel  string              `json:"target_channel,omitempty"`
+	IncludeAliases map[string][]string `json:"include_aliases"`
+	Headings       map[string]string   `json:"headings"`
+	Contents       map[string]string   `json:"contents"`
+	Data           map[string]string   `json:"data,omitempty"`
+	URL            string              `json:"url,omitempty"`
+	Priority       int                 `json:"priority,omitempty"`
+	TTL            int                 `json:"ttl,omitempty"`
+}
+
+// NotifyUsers sends a push notification to all provided users via external_id aliases.
+func (p *PushService) NotifyUsers(ctx context.Context, userIDs []int64, payload NotificationPayload, priority NotificationPriority, ttl int) {
+	if len(userIDs) == 0 {
+		return
+	}
+	if p.onesignalAppID == "" || p.onesignalAPIKey == "" {
 		return
 	}
 
-	body, err := json.Marshal(payload)
-	if err != nil {
-		log.Printf("push: marshal payload: %v", err)
-		return
-	}
-
-	for _, sub := range subs {
-		resp, err := webpush.SendNotification(body, &webpush.Subscription{
-			Endpoint: sub.Endpoint,
-			Keys: webpush.Keys{
-				P256dh: sub.P256dh,
-				Auth:   sub.Auth,
-			},
-		}, &webpush.Options{
-			VAPIDPrivateKey: p.vapidPrivateKey,
-			VAPIDPublicKey:  p.vapidPublicKey,
-			Urgency:         urgency,
-			TTL:             ttl,
-		})
-		if err != nil {
-			log.Printf("push: send to user %d endpoint %s: %v", userID, sub.Endpoint, err)
+	aliases := make([]string, 0, len(userIDs))
+	seen := make(map[int64]struct{}, len(userIDs))
+	for _, uid := range userIDs {
+		if uid <= 0 {
 			continue
 		}
-		resp.Body.Close()
-
-		if resp.StatusCode == http.StatusGone {
-			if err := p.repo.DeleteByUserAndEndpoint(ctx, userID, sub.Endpoint); err != nil {
-				log.Printf("push: delete stale sub for user %d: %v", userID, err)
-			}
+		if _, ok := seen[uid]; ok {
+			continue
 		}
+		seen[uid] = struct{}{}
+		aliases = append(aliases, strconv.FormatInt(uid, 10))
+	}
+	if len(aliases) == 0 {
+		return
+	}
+
+	reqBody := oneSignalNotificationRequest{
+		AppID:         p.onesignalAppID,
+		TargetChannel: "push",
+		IncludeAliases: map[string][]string{
+			"external_id": aliases,
+		},
+		Headings: map[string]string{"en": payload.Title},
+		Contents: map[string]string{"en": payload.Body},
+		Data: map[string]string{
+			"url": payload.URL,
+			"tag": payload.Tag,
+		},
+		URL: payload.URL,
+		TTL: ttl,
+	}
+	if priority == NotificationPriorityHigh {
+		reqBody.Priority = 10
+	} else {
+		reqBody.Priority = 5
+	}
+
+	body, err := json.Marshal(reqBody)
+	if err != nil {
+		log.Printf("push: marshal onesignal request: %v", err)
+		return
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://api.onesignal.com/notifications", bytes.NewReader(body))
+	if err != nil {
+		log.Printf("push: build request: %v", err)
+		return
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", fmt.Sprintf("Key %s", p.onesignalAPIKey))
+
+	resp, err := p.httpClient.Do(req)
+	if err != nil {
+		log.Printf("push: onesignal request failed: %v", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		respBody, _ := io.ReadAll(resp.Body)
+		log.Printf("push: onesignal non-success status=%d body=%s", resp.StatusCode, string(respBody))
 	}
 }
 
 // NotifyUsersAsync sends push notifications to multiple users asynchronously.
 // Each user is processed in a separate goroutine; errors are logged, not returned.
-func (p *PushService) NotifyUsersAsync(userIDs []int64, payload NotificationPayload, urgency webpush.Urgency, ttl int) {
-	for _, uid := range userIDs {
-		go p.NotifyUser(context.Background(), uid, payload, urgency, ttl)
-	}
+func (p *PushService) NotifyUsersAsync(userIDs []int64, payload NotificationPayload, priority NotificationPriority, ttl int) {
+	go p.NotifyUsers(context.Background(), userIDs, payload, priority, ttl)
 }

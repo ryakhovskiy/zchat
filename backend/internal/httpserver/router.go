@@ -61,10 +61,10 @@ func NewRouter(cfg *config.Config, db *sql.DB, hub *ws.Hub, tokenSvc *security.T
 	// wire circular reference
 	convSvc.SetMessageService(msgSvc)
 
-	// Push notification service (optional — disabled if VAPID keys are not configured)
+	// Push notification service (optional — disabled if OneSignal config is missing)
 	var pushSvc *service.PushService
-	if cfg.VAPIDPublicKey != "" && cfg.VAPIDPrivateKey != "" {
-		pushSvc = service.NewPushService(pushSubRepo, cfg.VAPIDPrivateKey, cfg.VAPIDPublicKey)
+	if cfg.OneSignalAppID != "" && cfg.OneSignalAPIKey != "" {
+		pushSvc = service.NewPushService(cfg.OneSignalAppID, cfg.OneSignalAPIKey)
 	}
 
 	// Static endpoints
@@ -101,9 +101,6 @@ func NewRouter(cfg *config.Config, db *sql.DB, hub *ws.Hub, tokenSvc *security.T
 			r.Post("/register", handleRegister(authSvc, userSvc))
 			r.Post("/login", handleLogin(authSvc))
 		})
-
-		// Public VAPID key endpoint (no auth required)
-		r.Get("/push/vapid-key", handleVAPIDKey(cfg.VAPIDPublicKey))
 
 		// Authenticated routes
 		r.Group(func(r chi.Router) {
