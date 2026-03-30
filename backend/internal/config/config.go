@@ -21,8 +21,6 @@ type Config struct {
 	EncryptKey         string
 	LegacyEncryptKeys  []string
 
-	VAPIDPublicKey  string
-	VAPIDPrivateKey string
 	OneSignalAppID  string
 	OneSignalAPIKey string
 
@@ -63,8 +61,6 @@ func Load() (*Config, error) {
 		RememberMeDays:     getEnvAsInt("REMEMBER_ME_TOKEN_EXPIRE_DAYS", 30),
 		EncryptKey:         os.Getenv("ENCRYPTION_KEY"),
 
-		VAPIDPublicKey:  os.Getenv("VAPID_PUBLIC_KEY"),
-		VAPIDPrivateKey: os.Getenv("VAPID_PRIVATE_KEY"),
 		OneSignalAppID:  os.Getenv("ONESIGNAL_APP_ID"),
 		OneSignalAPIKey: os.Getenv("ONESIGNAL_API_KEY"),
 

@@ -79,10 +79,3 @@ func handlePushUnsubscribe(repo domain.PushSubscriptionRepository) http.HandlerF
 		w.WriteHeader(http.StatusNoContent)
 	}
 }
-
-// handleVAPIDKey returns the public VAPID key so the frontend can subscribe to push.
-func handleVAPIDKey(publicKey string) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, http.StatusOK, map[string]string{"public_key": publicKey})
-	}
-}
