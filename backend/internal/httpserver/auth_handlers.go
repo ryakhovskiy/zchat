@@ -3,6 +3,7 @@ package httpserver
 import (
 	"encoding/json"
 	"net/http"
+	"time"
 
 	"backend/internal/service"
 )
@@ -120,7 +121,17 @@ func handleLogout(authSvc *service.AuthService) http.HandlerFunc {
 			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
 			return
 		}
-		if err := authSvc.Logout(r.Context(), user.ID); err != nil {
+
+		var jti string
+		var expiry time.Time
+		if claims := CurrentClaims(r); claims != nil {
+			jti, _ = claims["jti"].(string)
+			if exp, ok := claims["exp"].(float64); ok {
+				expiry = time.Unix(int64(exp), 0)
+			}
+		}
+
+		if err := authSvc.Logout(r.Context(), user.ID, jti, expiry); err != nil {
 			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 			return
 		}

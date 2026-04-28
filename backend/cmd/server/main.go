@@ -62,6 +62,7 @@ func main() {
 	// Security components
 	tokenSvc := security.NewTokenService(cfg.JWTSecret, time.Duration(cfg.AccessTokenMinutes)*time.Minute)
 	passwordHasher := security.NewPasswordHasher(0)
+	blacklist := security.NewTokenBlacklist()
 
 	encryptor, err := security.NewEncryptor([]byte(cfg.EncryptKey), cfg.LegacyEncryptKeys)
 	if err != nil {
@@ -75,7 +76,7 @@ func main() {
 	go hub.Run()
 
 	// Build HTTP router
-	router := httpserver.NewRouter(cfg, db, hub, tokenSvc, passwordHasher, encryptor)
+	router := httpserver.NewRouter(cfg, db, hub, tokenSvc, passwordHasher, encryptor, blacklist)
 
 	srv := &http.Server{
 		Addr:         cfg.HTTPAddr(),

@@ -22,7 +22,7 @@ import (
 )
 
 // NewRouter constructs the main HTTP router and wires routes, services, and middleware.
-func NewRouter(cfg *config.Config, db *sql.DB, hub *ws.Hub, tokenSvc *security.TokenService, passwordHasher *security.PasswordHasher, encryptor *security.Encryptor) http.Handler {
+func NewRouter(cfg *config.Config, db *sql.DB, hub *ws.Hub, tokenSvc *security.TokenService, passwordHasher *security.PasswordHasher, encryptor *security.Encryptor, blacklist *security.TokenBlacklist) http.Handler {
 	r := chi.NewRouter()
 
 	// Middlewares
@@ -54,7 +54,7 @@ func NewRouter(cfg *config.Config, db *sql.DB, hub *ws.Hub, tokenSvc *security.T
 	defaultTTL := time.Duration(cfg.AccessTokenMinutes) * time.Minute
 	rememberMeTTL := time.Duration(cfg.RememberMeDays) * 24 * time.Hour
 
-	authSvc := service.NewAuthService(userRepo, tokenSvc, passwordHasher, defaultTTL, rememberMeTTL)
+	authSvc := service.NewAuthService(userRepo, tokenSvc, passwordHasher, blacklist, defaultTTL, rememberMeTTL)
 	userSvc := service.NewUserService(userRepo)
 	convSvc := service.NewConversationService(convRepo, partRepo, msgRepo)
 	msgSvc := service.NewMessageService(convRepo, partRepo, msgRepo, deletedMsgRepo, userRepo, reactionRepo, encryptor, cfg.MaxMessagesPerConversation, cfg.UploadDir)
@@ -96,8 +96,9 @@ func NewRouter(cfg *config.Config, db *sql.DB, hub *ws.Hub, tokenSvc *security.T
 
 	// API routes
 	r.Route("/api", func(r chi.Router) {
-		// Auth routes (no auth required)
+		// Auth routes — rate-limited, no token required
 		r.Route("/auth", func(r chi.Router) {
+			r.Use(RateLimitMiddleware(10, time.Minute))
 			r.Post("/register", handleRegister(authSvc, userSvc))
 			r.Post("/login", handleLogin(authSvc))
 		})
@@ -107,7 +108,7 @@ func NewRouter(cfg *config.Config, db *sql.DB, hub *ws.Hub, tokenSvc *security.T
 
 		// Authenticated routes
 		r.Group(func(r chi.Router) {
-			r.Use(AuthMiddleware(tokenSvc, userRepo))
+			r.Use(AuthMiddleware(tokenSvc, userRepo, blacklist))
 
 			// Authenticated auth endpoints
 			r.Post("/auth/logout", handleLogout(authSvc))
@@ -140,16 +141,15 @@ func NewRouter(cfg *config.Config, db *sql.DB, hub *ws.Hub, tokenSvc *security.T
 			r.Post("/push/subscribe", handlePushSubscribe(pushSubRepo))
 			r.Delete("/push/unsubscribe", handlePushUnsubscribe(pushSubRepo))
 
+			// File uploads and downloads — auth enforced by the enclosing AuthMiddleware group
+			r.Mount("/uploads", UploadRoutes(cfg, db))
 		})
-
-		// Moved outside of AuthMiddleware group to allow download via ?token= query param
-		r.Mount("/uploads", UploadRoutes(cfg, db, tokenSvc))
 	})
 
 	// WebSocket endpoint
 	pingInterval := time.Duration(cfg.WSPingIntervalSec) * time.Second
 	pongTimeout := time.Duration(cfg.WSPongTimeoutSec) * time.Second
-	r.Get("/ws", ws.MakeHandler(hub, tokenSvc, userRepo, convRepo, msgSvc, encryptor, pushSvc, cfg.CORSOrigins, pingInterval, pongTimeout))
+	r.Get("/ws", ws.MakeHandler(hub, tokenSvc, blacklist, userRepo, convRepo, msgSvc, encryptor, pushSvc, cfg.CORSOrigins, pingInterval, pongTimeout))
 
 	return r
 }

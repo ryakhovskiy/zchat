@@ -23,6 +23,7 @@ type AuthService struct {
 	users         domain.UserRepository
 	tokens        *security.TokenService
 	hash          *security.PasswordHasher
+	blacklist     *security.TokenBlacklist
 	defaultTTL    time.Duration
 	rememberMeTTL time.Duration
 }
@@ -31,6 +32,7 @@ func NewAuthService(
 	users domain.UserRepository,
 	tokens *security.TokenService,
 	hash *security.PasswordHasher,
+	blacklist *security.TokenBlacklist,
 	defaultTTL time.Duration,
 	rememberMeTTL time.Duration,
 ) *AuthService {
@@ -38,6 +40,7 @@ func NewAuthService(
 		users:         users,
 		tokens:        tokens,
 		hash:          hash,
+		blacklist:     blacklist,
 		defaultTTL:    defaultTTL,
 		rememberMeTTL: rememberMeTTL,
 	}
@@ -182,6 +185,9 @@ func (s *AuthService) Login(ctx context.Context, in LoginInput) (*TokenResponse,
 	}, nil
 }
 
-func (s *AuthService) Logout(ctx context.Context, userID int64) error {
+func (s *AuthService) Logout(ctx context.Context, userID int64, jti string, expiry time.Time) error {
+	if jti != "" && !expiry.IsZero() {
+		s.blacklist.Revoke(jti, expiry)
+	}
 	return s.users.SetOnlineStatus(ctx, userID, false)
 }

@@ -13,7 +13,6 @@ import (
 	"github.com/google/uuid"
 
 	"backend/internal/config"
-	"backend/internal/security"
 )
 
 // forbiddenExtensions are rejected on upload.
@@ -66,8 +65,9 @@ func categoriseFileType(ext string) string {
 	}
 }
 
-// UploadRoutes returns a sub-router mounted at /api/uploads.
-func UploadRoutes(cfg *config.Config, db *sql.DB, tokenSvc *security.TokenService) chi.Router {
+// UploadRoutes returns a sub-router for /api/uploads.
+// Must be mounted inside an authenticated chi group — auth is enforced by AuthMiddleware.
+func UploadRoutes(cfg *config.Config, db *sql.DB) chi.Router {
 	r := chi.NewRouter()
 
 	r.Post("/", func(w http.ResponseWriter, r *http.Request) {
@@ -92,7 +92,6 @@ func UploadRoutes(cfg *config.Config, db *sql.DB, tokenSvc *security.TokenServic
 			return
 		}
 
-		// Read first 512 bytes to detect content type
 		buf := make([]byte, 512)
 		n, err := file.Read(buf)
 		if err != nil && err != io.EOF {
@@ -100,7 +99,6 @@ func UploadRoutes(cfg *config.Config, db *sql.DB, tokenSvc *security.TokenServic
 			return
 		}
 		mimeType := http.DetectContentType(buf[:n])
-		// Rewind file pointer
 		if _, err := file.Seek(0, io.SeekStart); err != nil {
 			http.Error(w, "error processing file", http.StatusInternalServerError)
 			return
@@ -145,37 +143,19 @@ func UploadRoutes(cfg *config.Config, db *sql.DB, tokenSvc *security.TokenServic
 	})
 
 	r.Get("/{filename}", func(w http.ResponseWriter, r *http.Request) {
-		// Validate Bearer token or ?token= query param
-		token := r.URL.Query().Get("token")
-		if token == "" {
-			// Try Authorization header
-			auth := r.Header.Get("Authorization")
-			if strings.HasPrefix(auth, "Bearer ") {
-				token = strings.TrimPrefix(auth, "Bearer ")
-			}
-		}
-		if token == "" {
-			http.Error(w, "missing token", http.StatusUnauthorized)
-			return
-		}
-		if _, err := tokenSvc.Parse(token); err != nil {
-			http.Error(w, "invalid token", http.StatusUnauthorized)
-			return
-		}
-
 		filename := chi.URLParam(r, "filename")
 		if filename == "" || filepath.Base(filename) != filename {
 			http.Error(w, "invalid filename", http.StatusBadRequest)
 			return
 		}
 
-		// Try to fetch metadata from DB
 		filePathKey := "uploads/" + filename
 		var originalName string
 		err := db.QueryRowContext(r.Context(), "SELECT original_name FROM attachments WHERE file_path = $1", filePathKey).Scan(&originalName)
 		if err == nil && originalName != "" {
-			w.Header().Set("Content-Disposition", "attachment; filename=\""+originalName+"\"")
-			// Increment read_count
+			if disposition := mime.FormatMediaType("attachment", map[string]string{"filename": originalName}); disposition != "" {
+				w.Header().Set("Content-Disposition", disposition)
+			}
 			_, _ = db.ExecContext(r.Context(), "UPDATE attachments SET read_count = read_count + 1 WHERE file_path = $1", filePathKey)
 		}
 

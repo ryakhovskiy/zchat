@@ -7,7 +7,9 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useCall } from '../../contexts/CallContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { textToEmoji } from '../../utils/emojiUtils';
+import { extractFilename } from '../../utils/fileUtils';
 import { filesAPI } from '../../services/api';
+import { SecureImg, SecureVideo, SecureFileLink } from '../Common/SecureMedia';
 import { ControlPanel } from '../Common/ControlPanel';
 import ImageModal from '../Common/ImageModal';
 import './Chat.css';
@@ -486,7 +488,7 @@ export const ChatWindow = () => {
   const getAttachments = (msg) => {
     if (msg.attachments && msg.attachments.length > 0) return msg.attachments;
     if (msg.file_path) {
-      const fileName = msg.file_path.split('\\').pop().split('/').pop();
+      const fileName = extractFilename(msg.file_path);
       const ext = fileName.split('.').pop().toLowerCase();
       const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext);
       const isVideo = VIDEO_EXTENSIONS.includes(ext);
@@ -642,36 +644,27 @@ export const ChatWindow = () => {
                     {getAttachments(message).length > 0 && !message.is_deleted && (
                       <div className="message-attachments">
                         {getAttachments(message).map((att, i) => {
-                          const fileName = att.original_name || att.file_path.split('\\').pop().split('/').pop();
-                          const fileUrl = filesAPI.getFileUrl(att.file_path.split('\\').pop().split('/').pop());
+                          const fileName = att.original_name || extractFilename(att.file_path);
+                          const filePath = filesAPI.getFilePath(extractFilename(att.file_path));
                           return (
                             <div key={att.id || i} className="message-attachment">
                               {att.file_type === 'image' ? (
-                                <img 
-                                  src={fileUrl} 
-                                  alt={t('chat.attachment')} 
+                                <SecureImg
+                                  filePath={filePath}
+                                  alt={t('chat.attachment')}
                                   className="attachment-image"
-                                  onClick={() => setModalImageInfo({url: fileUrl, name: fileName})}
                                   style={{ cursor: 'pointer' }}
+                                  onClickWithUrl={(url) => setModalImageInfo({ url, name: fileName })}
                                 />
                               ) : att.file_type === 'video' ? (
-                                <video
-                                  src={fileUrl}
+                                <SecureVideo
+                                  filePath={filePath}
                                   className="attachment-video"
-                                  controls
-                                  preload="metadata"
                                   onClick={(e) => e.stopPropagation()}
                                 />
                               ) : (
                                 <div className="attachment-file">
-                                  <a 
-                                    href={fileUrl}
-                                    target="_blank" 
-                                    rel="noopener noreferrer"
-                                  >
-                                    📄 {fileName}
-                                    {att.file_size && <span className="attachment-size" style={{fontSize: '0.8em', color: '#888', marginLeft: '5px'}}>({formatBytes(att.file_size)})</span>}
-                                  </a>
+                                  <SecureFileLink filePath={filePath} fileName={fileName} fileSize={att.file_size} formatBytes={formatBytes} />
                                 </div>
                               )}
                             </div>
@@ -716,36 +709,27 @@ export const ChatWindow = () => {
                     {getAttachments(message).length > 0 && !message.is_deleted && (
                       <div className="message-attachments">
                         {getAttachments(message).map((att, i) => {
-                          const fileName = att.original_name || att.file_path.split('\\').pop().split('/').pop();
-                          const fileUrl = filesAPI.getFileUrl(att.file_path.split('\\').pop().split('/').pop());
+                          const fileName = att.original_name || extractFilename(att.file_path);
+                          const filePath = filesAPI.getFilePath(extractFilename(att.file_path));
                           return (
                             <div key={att.id || i} className="message-attachment">
                               {att.file_type === 'image' ? (
-                                <img 
-                                  src={fileUrl} 
-                                  alt={t('chat.attachment')} 
+                                <SecureImg
+                                  filePath={filePath}
+                                  alt={t('chat.attachment')}
                                   className="attachment-image"
-                                  onClick={() => setModalImageInfo({url: fileUrl, name: fileName})}
                                   style={{ cursor: 'pointer' }}
+                                  onClickWithUrl={(url) => setModalImageInfo({ url, name: fileName })}
                                 />
                               ) : att.file_type === 'video' ? (
-                                <video
-                                  src={fileUrl}
+                                <SecureVideo
+                                  filePath={filePath}
                                   className="attachment-video"
-                                  controls
-                                  preload="metadata"
                                   onClick={(e) => e.stopPropagation()}
                                 />
                               ) : (
                                 <div className="attachment-file">
-                                  <a 
-                                    href={fileUrl}
-                                    target="_blank" 
-                                    rel="noopener noreferrer"
-                                  >
-                                    📄 {fileName}
-                                    {att.file_size && <span className="attachment-size" style={{fontSize: '0.8em', color: '#888', marginLeft: '5px'}}>({formatBytes(att.file_size)})</span>}
-                                  </a>
+                                  <SecureFileLink filePath={filePath} fileName={fileName} fileSize={att.file_size} formatBytes={formatBytes} />
                                 </div>
                               )}
                             </div>

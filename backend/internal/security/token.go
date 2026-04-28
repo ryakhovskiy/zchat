@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 )
 
 // TokenService wraps JWT creation and validation.
@@ -29,6 +30,7 @@ func (t *TokenService) CreateWithTTL(username string, ttl time.Duration) (string
 	now := time.Now()
 	claims := jwt.MapClaims{
 		"sub": username,
+		"jti": uuid.New().String(),
 		"iat": now.Unix(),
 		"exp": now.Add(ttl).Unix(),
 	}

@@ -99,10 +99,7 @@ export const filesAPI = {
       onUploadProgress
     });
   },
-  getFileUrl: (filename) => {
-    const token = getStoredToken();
-    return `${API_BASE_URL}/uploads/${filename}?token=${token}`;
-  },
+  getFilePath: (filename) => `/uploads/${filename}`,
 };
 
 // WebSocket connection

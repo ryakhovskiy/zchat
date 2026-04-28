@@ -111,6 +111,7 @@ func userInParticipants(userID int64, participantIDs []int64) bool {
 func MakeHandler(
 	hub *Hub,
 	tokens *security.TokenService,
+	blacklist *security.TokenBlacklist,
 	users domain.UserRepository,
 	convs domain.ConversationRepository,
 	msgSvc *service.MessageService,
@@ -149,6 +150,10 @@ func MakeHandler(
 			http.Error(w, "invalid token", http.StatusUnauthorized)
 			return
 		}
+		if jti, _ := claims["jti"].(string); jti != "" && blacklist.IsRevoked(jti) {
+			http.Error(w, "token has been revoked", http.StatusUnauthorized)
+			return
+		}
 		sub, _ := claims["sub"].(string)
 		if sub == "" {
 			http.Error(w, "invalid token subject", http.StatusUnauthorized)
@@ -167,6 +172,9 @@ func MakeHandler(
 			return
 		}
 		defer conn.Close()
+
+		// Limit incoming frame size to 64 KB to prevent memory exhaustion from oversized payloads.
+		conn.SetReadLimit(65536)
 
 		// Each connection gets a dedicated write goroutine to avoid blocking
 		// the hub's Run loop and to satisfy gorilla's no-concurrent-writes rule.

@@ -77,7 +77,7 @@ func TestRegister(t *testing.T) {
 	tokenSvc := security.NewTokenService("secret", time.Hour)
 	hasher := security.NewPasswordHasher(10) // low cost for tests
 
-	svc := service.NewAuthService(mockRepo, tokenSvc, hasher, time.Hour, 24*time.Hour)
+	svc := service.NewAuthService(mockRepo, tokenSvc, hasher, security.NewTokenBlacklist(), time.Hour, 24*time.Hour)
 
 	t.Run("Success", func(t *testing.T) {
 		input := service.RegisterInput{
