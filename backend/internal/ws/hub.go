@@ -197,16 +197,16 @@ func writePump(conn *websocket.Conn, send <-chan []byte, pingInterval time.Durat
 	ticker := time.NewTicker(pingInterval)
 	defer func() {
 		ticker.Stop()
-		conn.Close()
+		_ = conn.Close()
 	}()
 
 	for {
 		select {
 		case msg, ok := <-send:
-			conn.SetWriteDeadline(time.Now().Add(writeWait))
+			_ = conn.SetWriteDeadline(time.Now().Add(writeWait))
 			if !ok {
 				// Hub closed the channel — send a clean close frame.
-				conn.WriteMessage(websocket.CloseMessage,
+				_ = conn.WriteMessage(websocket.CloseMessage,
 					websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
 				return
 			}
@@ -215,7 +215,7 @@ func writePump(conn *websocket.Conn, send <-chan []byte, pingInterval time.Durat
 			}
 
 		case <-ticker.C:
-			conn.SetWriteDeadline(time.Now().Add(writeWait))
+			_ = conn.SetWriteDeadline(time.Now().Add(writeWait))
 			if err := conn.WriteControl(websocket.PingMessage, nil, time.Now().Add(writeWait)); err != nil {
 				return
 			}

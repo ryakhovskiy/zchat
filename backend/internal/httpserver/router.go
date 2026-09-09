@@ -71,19 +71,19 @@ func NewRouter(cfg *config.Config, db *sql.DB, hub *ws.Hub, tokenSvc *security.T
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"message":"zChat Go Application API","version":"1.0.0","docs":"/docs"}`))
+		_, _ = w.Write([]byte(`{"message":"zChat Go Application API","version":"1.0.0","docs":"/docs"}`))
 	})
 
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"status":"healthy"}`))
+		_, _ = w.Write([]byte(`{"status":"healthy"}`))
 	})
 
 	r.Get("/robots.txt", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("User-agent: *\nDisallow: /"))
+		_, _ = w.Write([]byte("User-agent: *\nDisallow: /"))
 	})
 
 	// Swagger documentation

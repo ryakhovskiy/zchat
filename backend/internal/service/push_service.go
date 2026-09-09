@@ -68,7 +68,7 @@ func (p *PushService) NotifyUser(ctx context.Context, userID int64, payload Noti
 			log.Printf("push: send to user %d endpoint %s: %v", userID, sub.Endpoint, err)
 			continue
 		}
-		resp.Body.Close()
+		_ = resp.Body.Close()
 
 		if resp.StatusCode == http.StatusGone {
 			if err := p.repo.DeleteByUserAndEndpoint(ctx, userID, sub.Endpoint); err != nil {

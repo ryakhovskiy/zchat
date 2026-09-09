@@ -101,7 +101,7 @@ func Load() (*Config, error) {
 		}
 	}
 
-	if err := os.MkdirAll(cfg.UploadDir, 0o755); err != nil {
+	if err := os.MkdirAll(cfg.UploadDir, 0o750); err != nil {
 		return nil, fmt.Errorf("creating upload dir: %w", err)
 	}
 
