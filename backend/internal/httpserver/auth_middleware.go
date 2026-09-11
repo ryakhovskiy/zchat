@@ -54,16 +54,19 @@ func AuthMiddleware(tokens *security.TokenService, users domain.UserRepository) 
 
 			user, err := users.GetByUsername(r.Context(), sub)
 			if err != nil {
+				// #nosec G706 -- sub is a JWT-validated token subject; logged for diagnostics only
 				log.Printf("AuthMiddleware: GetByUsername error for sub '%s': %v", sub, err)
 				http.Error(w, "user not found", http.StatusUnauthorized)
 				return
 			}
 			if user == nil {
+				// #nosec G706 -- sub is a JWT-validated token subject; logged for diagnostics only
 				log.Printf("AuthMiddleware: user nil for sub '%s'", sub)
 				http.Error(w, "user not found", http.StatusUnauthorized)
 				return
 			}
 			if !user.IsActive {
+				// #nosec G706 -- sub is a JWT-validated token subject; logged for diagnostics only
 				log.Printf("AuthMiddleware: user inactive for sub '%s'", sub)
 				http.Error(w, "user not found", http.StatusUnauthorized)
 				return

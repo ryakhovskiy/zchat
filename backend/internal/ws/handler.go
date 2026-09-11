@@ -175,9 +175,9 @@ func MakeHandler(
 
 		// Configure pong keep-alive: refresh read deadline whenever a pong arrives.
 		// The ping is sent by writePump on its own ticker.
-		conn.SetReadDeadline(time.Now().Add(pongTimeout))
+		_ = conn.SetReadDeadline(time.Now().Add(pongTimeout))
 		conn.SetPongHandler(func(string) error {
-			conn.SetReadDeadline(time.Now().Add(pongTimeout))
+			_ = conn.SetReadDeadline(time.Now().Add(pongTimeout))
 			return nil
 		})
 
@@ -190,6 +190,7 @@ func MakeHandler(
 			// Only mark user offline in DB and broadcast if they have no remaining connections.
 			if !hub.IsOnline(user.ID) {
 				if err := users.SetOnlineStatus(context.Background(), user.ID, false); err != nil {
+					// #nosec G706 -- user.ID is an integer, not attacker-controlled text
 					log.Printf("ws: set offline for %d: %v", user.ID, err)
 				}
 				hub.BroadcastAll(map[string]any{

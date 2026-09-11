@@ -4,8 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"strconv"
-	"strings"
 
 	"backend/internal/domain"
 )
@@ -55,21 +53,16 @@ func (r *ReactionRepo) GetSummaryByMessages(ctx context.Context, messageIDs []in
 		return map[int64][]domain.ReactionSummary{}, nil
 	}
 
-	args := make([]interface{}, len(messageIDs))
-	placeholders := make([]string, len(messageIDs))
-	for i, id := range messageIDs {
-		args[i] = id
-		placeholders[i] = "$" + strconv.Itoa(i+1)
-	}
-
-	query := fmt.Sprintf(`
+	// Pass IDs as a PostgreSQL array so we avoid building N placeholders.
+	// pgx/stdlib supports []int64 as $1::bigint[].
+	query := `
 		SELECT message_id, emoji, user_id
 		FROM message_reactions
-		WHERE message_id IN (%s)
+		WHERE message_id = ANY($1::bigint[])
 		ORDER BY message_id, created_at ASC
-	`, strings.Join(placeholders, ","))
+	`
 
-	rows, err := r.db.QueryContext(ctx, query, args...)
+	rows, err := r.db.QueryContext(ctx, query, messageIDs)
 	if err != nil {
 		return nil, fmt.Errorf("query reactions: %w", err)
 	}

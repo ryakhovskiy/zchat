@@ -4,8 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"strconv"
-	"strings"
 
 	"backend/internal/domain"
 )
@@ -292,21 +290,16 @@ func (r *MessageRepo) populateAttachments(ctx context.Context, messages []*domai
 		m.Attachments = []domain.Attachment{}
 	}
 
-	args := make([]interface{}, len(msgIDs))
-	placeholders := make([]string, len(msgIDs))
-	for i, id := range msgIDs {
-		args[i] = id
-		placeholders[i] = "$" + strconv.Itoa(i+1)
-	}
-
-	query := fmt.Sprintf(`
+	// Pass IDs as a PostgreSQL array so we avoid building N placeholders.
+	// pgx/stdlib supports []int64 as $1::bigint[].
+	query := `
 		SELECT id, message_id, file_path, original_name, file_size, file_type, mime_type, read_count, created_at
 		FROM attachments
-		WHERE message_id IN (%s)
+		WHERE message_id = ANY($1::bigint[])
 		ORDER BY created_at ASC
-	`, strings.Join(placeholders, ","))
+	`
 
-	rows, err := r.db.QueryContext(ctx, query, args...)
+	rows, err := r.db.QueryContext(ctx, query, msgIDs)
 	if err != nil {
 		return fmt.Errorf("query attachments: %w", err)
 	}
@@ -341,21 +334,16 @@ func (r *MessageRepo) populateReactions(ctx context.Context, messages []*domain.
 		m.Reactions = []domain.ReactionSummary{}
 	}
 
-	args := make([]interface{}, len(msgIDs))
-	placeholders := make([]string, len(msgIDs))
-	for i, id := range msgIDs {
-		args[i] = id
-		placeholders[i] = "$" + strconv.Itoa(i+1)
-	}
-
-	query := fmt.Sprintf(`
+	// Pass IDs as a PostgreSQL array so we avoid building N placeholders.
+	// pgx/stdlib supports []int64 as $1::bigint[].
+	query := `
 		SELECT message_id, emoji, user_id
 		FROM message_reactions
-		WHERE message_id IN (%s)
+		WHERE message_id = ANY($1::bigint[])
 		ORDER BY message_id, created_at ASC
-	`, strings.Join(placeholders, ","))
+	`
 
-	rrows, err := r.db.QueryContext(ctx, query, args...)
+	rrows, err := r.db.QueryContext(ctx, query, msgIDs)
 	if err != nil {
 		return fmt.Errorf("query reactions: %w", err)
 	}

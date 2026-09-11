@@ -71,6 +71,8 @@ func UploadRoutes(cfg *config.Config, db *sql.DB, tokenSvc *security.TokenServic
 	r := chi.NewRouter()
 
 	r.Post("/", func(w http.ResponseWriter, r *http.Request) {
+		r.Body = http.MaxBytesReader(w, r.Body, 51<<20) // 50MB + overhead
+		// #nosec G120 -- body is bounded by MaxBytesReader above and the 50MB ParseMultipartForm limit
 		if err := r.ParseMultipartForm(50 << 20); err != nil {
 			http.Error(w, "failed to parse multipart form", http.StatusBadRequest)
 			return
@@ -83,6 +85,10 @@ func UploadRoutes(cfg *config.Config, db *sql.DB, tokenSvc *security.TokenServic
 		defer file.Close()
 
 		ext := strings.ToLower(filepath.Ext(header.Filename))
+		if strings.ContainsAny(ext, `/\`) {
+			http.Error(w, "invalid file extension", http.StatusBadRequest)
+			return
+		}
 		if ext == "" {
 			http.Error(w, "file must have an extension", http.StatusBadRequest)
 			return
@@ -107,14 +113,19 @@ func UploadRoutes(cfg *config.Config, db *sql.DB, tokenSvc *security.TokenServic
 		}
 
 		filename := uuid.New().String() + ext
-		destPath := filepath.Join(cfg.UploadDir, filename)
-
-		if err := os.MkdirAll(cfg.UploadDir, 0755); err != nil {
+		if err := os.MkdirAll(cfg.UploadDir, 0o750); err != nil {
 			http.Error(w, "could not create upload directory", http.StatusInternalServerError)
 			return
 		}
 
-		out, err := os.Create(destPath)
+		root, err := os.OpenRoot(cfg.UploadDir)
+		if err != nil {
+			http.Error(w, "could not open upload directory", http.StatusInternalServerError)
+			return
+		}
+		defer root.Close()
+
+		out, err := root.Create(filename)
 		if err != nil {
 			http.Error(w, "could not create file", http.StatusInternalServerError)
 			return
@@ -122,7 +133,7 @@ func UploadRoutes(cfg *config.Config, db *sql.DB, tokenSvc *security.TokenServic
 		defer out.Close()
 
 		if _, err := io.Copy(out, file); err != nil {
-			os.Remove(destPath)
+			_ = root.Remove(filename)
 			http.Error(w, "could not save file", http.StatusInternalServerError)
 			return
 		}
@@ -178,8 +189,26 @@ func UploadRoutes(cfg *config.Config, db *sql.DB, tokenSvc *security.TokenServic
 			// Increment read_count
 			_, _ = db.ExecContext(r.Context(), "UPDATE attachments SET read_count = read_count + 1 WHERE file_path = $1", filePathKey)
 		}
+		root, err := os.OpenRoot(cfg.UploadDir)
+		if err != nil {
+			http.Error(w, "file not found", http.StatusNotFound)
+			return
+		}
+		defer root.Close()
 
-		http.ServeFile(w, r, filepath.Join(cfg.UploadDir, filename))
+		f, err := root.Open(filename)
+		if err != nil {
+			http.Error(w, "file not found", http.StatusNotFound)
+			return
+		}
+		defer f.Close()
+
+		fi, err := f.Stat()
+		if err != nil {
+			http.Error(w, "file not found", http.StatusNotFound)
+			return
+		}
+		http.ServeContent(w, r, filename, fi.ModTime(), f)
 	})
 
 	return r
