@@ -82,6 +82,14 @@ func (r *UserRepo) Update(ctx context.Context, u *domain.User) error {
 	return err
 }
 
+func (r *UserRepo) UpdatePassword(ctx context.Context, userID int64, hashedPassword string) error {
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE users SET hashed_password=$1 WHERE id=$2`,
+		hashedPassword, userID,
+	)
+	return err
+}
+
 func (r *UserRepo) SoftDelete(ctx context.Context, id int64) error {
 	_, err := r.db.ExecContext(ctx, `UPDATE users SET is_active=FALSE WHERE id=$1`, id)
 	return err

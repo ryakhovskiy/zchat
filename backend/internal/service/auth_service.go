@@ -162,6 +162,11 @@ func (s *AuthService) Login(ctx context.Context, in LoginInput) (*TokenResponse,
 	if err := s.hash.Verify(in.Password, user.HashedPassword); err != nil {
 		return nil, domain.ErrUnauthorized
 	}
+	if s.hash.NeedsUpgrade(user.HashedPassword) {
+		if newHash, err := s.hash.Hash(in.Password); err == nil {
+			_ = s.users.UpdatePassword(ctx, user.ID, newHash)
+		}
+	}
 	if err := s.users.SetOnlineStatus(ctx, user.ID, true); err != nil {
 		return nil, fmt.Errorf("set online: %w", err)
 	}
