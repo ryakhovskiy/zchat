@@ -13,6 +13,7 @@ type UserRepository interface {
 	ListActive(ctx context.Context, offset, limit int) ([]*User, error)
 	ListOnline(ctx context.Context) ([]*User, error)
 	Update(ctx context.Context, u *User) error
+	UpdatePassword(ctx context.Context, userID int64, hashedPassword string) error
 	SoftDelete(ctx context.Context, id int64) error
 	SetOnlineStatus(ctx context.Context, id int64, isOnline bool) error
 	ResetAllOnlineStatus(ctx context.Context) error
