@@ -17,10 +17,17 @@ import (
 )
 
 // forbiddenExtensions are rejected on upload.
+//
+// Two groups: executables/scripts, and browser-renderable markup. The latter
+// (.html, .svg, etc.) would otherwise be served with a renderable Content-Type
+// from the app's own origin, giving an attacker stored XSS against any user who
+// opens the "attachment" — see SECURITY_HARDENING.md item 3.
 var forbiddenExtensions = map[string]struct{}{
 	".exe": {}, ".dll": {}, ".bat": {}, ".cmd": {}, ".sh": {},
 	".py": {}, ".php": {}, ".rb": {}, ".pl": {}, ".ps1": {},
 	".vbs": {}, ".js": {}, ".msi": {}, ".com": {},
+	".html": {}, ".htm": {}, ".xhtml": {}, ".shtml": {}, ".mhtml": {},
+	".svg": {}, ".svgz": {}, ".xml": {}, ".xsl": {}, ".xslt": {},
 }
 
 // categoriseFileType maps a MIME type to a short category string.
@@ -180,15 +187,28 @@ func UploadRoutes(cfg *config.Config, db *sql.DB, tokenSvc *security.TokenServic
 			return
 		}
 
-		// Try to fetch metadata from DB
+		// Try to fetch metadata from DB. The download filename defaults to the
+		// stored (UUID) name and is upgraded to the user-facing original_name
+		// only when a row exists — but Content-Disposition: attachment is set
+		// unconditionally below, so a missing/failed lookup can never cause the
+		// file to be served inline (SECURITY_HARDENING.md item 3).
 		filePathKey := "uploads/" + filename
+		downloadName := filename
 		var originalName string
 		err := db.QueryRowContext(r.Context(), "SELECT original_name FROM attachments WHERE file_path = $1", filePathKey).Scan(&originalName)
 		if err == nil && originalName != "" {
-			w.Header().Set("Content-Disposition", "attachment; filename=\""+originalName+"\"")
+			downloadName = originalName
 			// Increment read_count
 			_, _ = db.ExecContext(r.Context(), "UPDATE attachments SET read_count = read_count + 1 WHERE file_path = $1", filePathKey)
 		}
+		// mime.FormatMediaType safely quotes/encodes the filename (RFC 2183),
+		// so a name containing quotes, backslashes, or CR/LF cannot break out of
+		// the header value. Fall back to a fixed name if it somehow can't.
+		disposition := mime.FormatMediaType("attachment", map[string]string{"filename": downloadName})
+		if disposition == "" {
+			disposition = "attachment"
+		}
+		w.Header().Set("Content-Disposition", disposition)
 		root, err := os.OpenRoot(cfg.UploadDir)
 		if err != nil {
 			http.Error(w, "file not found", http.StatusNotFound)

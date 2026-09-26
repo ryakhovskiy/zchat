@@ -37,6 +37,7 @@ type tokenResponse struct {
 // @Router       /auth/register [post]
 func handleRegister(authSvc *service.AuthService, userSvc *service.UserService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		r.Body = http.MaxBytesReader(w, r.Body, 4<<10) // 4KB is ample for credentials
 		var req registerRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON body"})
@@ -83,6 +84,7 @@ func handleRegister(authSvc *service.AuthService, userSvc *service.UserService) 
 // @Router       /auth/login [post]
 func handleLogin(authSvc *service.AuthService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		r.Body = http.MaxBytesReader(w, r.Body, 4<<10) // 4KB is ample for credentials
 		var req loginRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON body"})

@@ -5,6 +5,7 @@ import (
 	"crypto/subtle"
 	"encoding/base64"
 	"fmt"
+	"runtime"
 	"strings"
 
 	"golang.org/x/crypto/argon2"
@@ -18,6 +19,26 @@ const (
 	argon2KeyLen  = 32
 	argon2SaltLen = 16
 )
+
+// argon2Sem bounds how many argon2id derivations may run at once.
+//
+// Each derivation allocates argon2Memory (64 MiB). /api/auth/login and
+// /api/auth/register are unauthenticated, so without a ceiling an attacker can
+// multiply that by the request rate and OOM the process. Capping concurrency
+// converts an unbounded memory spike into a bounded queue: peak usage is
+// cap(argon2Sem) * 64 MiB regardless of how much traffic arrives.
+//
+// Sized from GOMAXPROCS because argon2 is CPU-bound — running more derivations
+// than we have cores buys no throughput, only memory.
+var argon2Sem = make(chan struct{}, max(2, runtime.GOMAXPROCS(0)))
+
+// withArgon2Slot runs fn while holding a slot in argon2Sem. It blocks until a
+// slot frees up; queued goroutines cost ~KB each, versus 64 MiB if they ran.
+func withArgon2Slot[T any](fn func() T) T {
+	argon2Sem <- struct{}{}
+	defer func() { <-argon2Sem }()
+	return fn()
+}
 
 type PasswordHasher struct {
 	bcryptCost int
@@ -35,7 +56,9 @@ func (h *PasswordHasher) Hash(plain string) (string, error) {
 	if _, err := rand.Read(salt); err != nil {
 		return "", fmt.Errorf("generate salt: %w", err)
 	}
-	key := argon2.IDKey([]byte(plain), salt, argon2Time, argon2Memory, argon2Threads, argon2KeyLen)
+	key := withArgon2Slot(func() []byte {
+		return argon2.IDKey([]byte(plain), salt, argon2Time, argon2Memory, argon2Threads, argon2KeyLen)
+	})
 	return fmt.Sprintf("$argon2id$v=%d$m=%d,t=%d,p=%d$%s$%s",
 		argon2.Version,
 		argon2Memory, argon2Time, argon2Threads,
@@ -88,7 +111,9 @@ func (h *PasswordHasher) verifyArgon2id(plain, hashed string) error {
 		return fmt.Errorf("unexpected argon2id key length: %d", len(key))
 	}
 
-	candidate := argon2.IDKey([]byte(plain), salt, time, memory, threads, argon2KeyLen)
+	candidate := withArgon2Slot(func() []byte {
+		return argon2.IDKey([]byte(plain), salt, time, memory, threads, argon2KeyLen)
+	})
 	if subtle.ConstantTimeCompare(candidate, key) != 1 {
 		return fmt.Errorf("password mismatch")
 	}

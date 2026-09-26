@@ -20,7 +20,10 @@ services:
       context: ./backend
     restart: unless-stopped
     ports:
-      - "8000:8000"
+      # Bind to loopback only — nginx reverse-proxies to 127.0.0.1:8000, so the
+      # backend never needs to be reachable on the host's public interfaces.
+      # See SECURITY_HARDENING.md item 1.
+      - "127.0.0.1:8000:8000"
     environment:
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432

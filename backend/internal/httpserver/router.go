@@ -3,12 +3,15 @@ package httpserver
 import (
 	"database/sql"
 	"encoding/json"
+	"net"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
+	"github.com/go-chi/httprate"
 
 	"backend/internal/config"
 	"backend/internal/security"
@@ -86,18 +89,46 @@ func NewRouter(cfg *config.Config, db *sql.DB, hub *ws.Hub, tokenSvc *security.T
 		_, _ = w.Write([]byte("User-agent: *\nDisallow: /"))
 	})
 
-	// Swagger documentation
-	r.Get("/docs/*", httpSwagger.Handler(
-		httpSwagger.URL("/docs/doc.json"),
-	))
+	// Swagger documentation — exposes the full API surface, so keep it out of
+	// production. It is only reachable in prod via a direct backend-port hit
+	// anyway (nginx doesn't proxy /docs); gating on Debug closes it for good.
+	if cfg.Debug {
+		r.Get("/docs/*", httpSwagger.Handler(
+			httpSwagger.URL("/docs/doc.json"),
+		))
+	}
 
-	// Static app downloads (APK, etc.)
-	r.Handle("/app/*", http.StripPrefix("/app/", http.FileServer(http.Dir("app"))))
+	// Static app downloads (APK, etc.). Wrapped to refuse directory-listing
+	// requests (any path ending in "/") so the contents of app/ aren't
+	// enumerable -- http.FileServer lists directories by default when no
+	// index.html is present (SECURITY_HARDENING.md item 11).
+	appFS := http.StripPrefix("/app/", http.FileServer(http.Dir("app")))
+	r.Handle("/app/*", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/") {
+			http.NotFound(w, r)
+			return
+		}
+		appFS.ServeHTTP(w, r)
+	}))
 
 	// API routes
 	r.Route("/api", func(r chi.Router) {
 		// Auth routes (no auth required)
 		r.Route("/auth", func(r chi.Router) {
+			// Rate-limit unauthenticated auth endpoints. Each login/register
+			// triggers an argon2id derivation that allocates 64 MiB; without a
+			// per-IP cap this is both a credential-brute-force and a
+			// memory-exhaustion DoS vector.
+			//
+			// Keyed off r.RemoteAddr, which middleware.RealIP (installed above)
+			// resolves from nginx's X-Forwarded-For/X-Real-IP. That is only
+			// trustworthy because nginx is the sole ingress and the backend port
+			// is bound to loopback (SECURITY_HARDENING.md item 1) -- otherwise
+			// the header, and thus the key, is client-forgeable. An explicit key
+			// func (rather than the deprecated LimitByIP) states that trust model.
+			r.Use(httprate.LimitBy(10, time.Minute, keyByResolvedIP))
+			// Responses carry a JWT -- must not be cached anywhere.
+			r.Use(noCacheHeaders)
 			r.Post("/register", handleRegister(authSvc, userSvc))
 			r.Post("/login", handleLogin(authSvc))
 		})
@@ -109,9 +140,13 @@ func NewRouter(cfg *config.Config, db *sql.DB, hub *ws.Hub, tokenSvc *security.T
 		r.Group(func(r chi.Router) {
 			r.Use(AuthMiddleware(tokenSvc, userRepo))
 
-			// Authenticated auth endpoints
-			r.Post("/auth/logout", handleLogout(authSvc))
-			r.Get("/auth/me", handleMe())
+			// Authenticated auth endpoints — return/invalidate session state, so
+			// keep them out of caches too.
+			r.Group(func(r chi.Router) {
+				r.Use(noCacheHeaders)
+				r.Post("/auth/logout", handleLogout(authSvc))
+				r.Get("/auth/me", handleMe())
+			})
 
 			// Users
 			r.Route("/users", func(r chi.Router) {
@@ -152,6 +187,28 @@ func NewRouter(cfg *config.Config, db *sql.DB, hub *ws.Hub, tokenSvc *security.T
 	r.Get("/ws", ws.MakeHandler(hub, tokenSvc, userRepo, convRepo, msgSvc, encryptor, pushSvc, cfg.CORSOrigins, pingInterval, pongTimeout))
 
 	return r
+}
+
+// keyByResolvedIP is the httprate key function for the auth rate limiter. It
+// keys off r.RemoteAddr -- already resolved to the client IP by middleware.RealIP
+// -- and canonicalizes it (IPv6 bucketed by /64). This is the non-deprecated
+// equivalent of httprate.LimitByIP, made explicit per the deprecation guidance.
+func keyByResolvedIP(r *http.Request) (string, error) {
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		host = r.RemoteAddr
+	}
+	return httprate.CanonicalizeIP(host), nil
+}
+
+// noCacheHeaders marks responses as non-cacheable. Applied to auth endpoints,
+// whose bodies contain JWTs and user data that must not be retained by browsers,
+// the bfcache, or intermediary proxies.
+func noCacheHeaders(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-store")
+		next.ServeHTTP(w, r)
+	})
 }
 
 // writeJSON is a small helper to send JSON responses.
