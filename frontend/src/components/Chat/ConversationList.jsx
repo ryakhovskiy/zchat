@@ -24,15 +24,8 @@ export const ConversationList = ({ onNewChat }) => {
     
     const prefix = conversation.last_message.sender_id === user.id ? `${t('chat.you')}: ` : '';
     
-    const urlPattern = /(https?:\/\/[^\s]+)/;
-    const rawContent = conversation.last_message.content || '';
-    
-    const content = rawContent.split(urlPattern).map((part) => {
-      if (part.match(urlPattern)) {
-        return part;
-      }
-      return textToEmoji(part);
-    }).join("");
+    // textToEmoji leaves URLs (http://, tg://, ...) untouched
+    const content = textToEmoji(conversation.last_message.content || '');
 
     return prefix + (content.length > 40 ? content.substring(0, 40) + '...' : content);
   };

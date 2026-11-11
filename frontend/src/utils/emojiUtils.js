@@ -148,5 +148,19 @@ export const textToEmoji = (text) => {
 
   const regex = new RegExp(pattern, 'g');
 
-  return text.replace(regex, (match) => emojiMap[match]);
+  // Never convert inside URLs of any scheme (http://, tg://, ftp://, ...),
+  // otherwise e.g. the ':/' in 'tg://' becomes an emoji.
+  return text
+    .split(URL_SPLIT_PATTERN)
+    .map((part) => (URL_TEST_PATTERN.test(part) ? part : part.replace(regex, (match) => emojiMap[match])))
+    .join('');
 };
+
+// Any "scheme://..." token up to the next whitespace.
+const URL_SPLIT_PATTERN = /([a-z][a-z0-9+.-]*:\/\/\S+)/i;
+const URL_TEST_PATTERN = /^[a-z][a-z0-9+.-]*:\/\/\S+$/i;
+
+// Schemes that are safe to render as clickable links.
+// Deliberately an allowlist: e.g. 'javascript://%0aalert(1)' must never become an href.
+export const LINK_PATTERN = /((?:https?|tg):\/\/\S+)/i;
+export const isLink = (part) => /^(?:https?|tg):\/\/\S+$/i.test(part);
