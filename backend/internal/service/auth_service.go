@@ -167,12 +167,18 @@ func (s *AuthService) Login(ctx context.Context, in LoginInput) (*TokenResponse,
 			_ = s.users.UpdatePassword(ctx, user.ID, newHash)
 		}
 	}
+	return s.IssueToken(ctx, user, in.RememberMe)
+}
+
+// IssueToken marks an already-authenticated user online and creates an access
+// token. Used after registration, so the password is not hashed a second time.
+func (s *AuthService) IssueToken(ctx context.Context, user *domain.User, rememberMe bool) (*TokenResponse, error) {
 	if err := s.users.SetOnlineStatus(ctx, user.ID, true); err != nil {
 		return nil, fmt.Errorf("set online: %w", err)
 	}
 
 	ttl := s.defaultTTL
-	if in.RememberMe {
+	if rememberMe {
 		ttl = s.rememberMeTTL
 	}
 	token, err := s.tokens.CreateWithTTL(user.Username, ttl)

@@ -1,11 +1,15 @@
 package security_test
 
 import (
+	"crypto/rand"
+	"encoding/base64"
+	"fmt"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/argon2"
 	"golang.org/x/crypto/bcrypt"
 
 	"backend/internal/security"
@@ -96,6 +100,36 @@ func TestNeedsUpgrade_Argon2idHash_ReturnsFalse(t *testing.T) {
 	hash, err := h.Hash("Password1!")
 	require.NoError(t, err)
 	assert.False(t, h.NeedsUpgrade(hash))
+}
+
+// argon2idHashWithParams builds a hash the way older versions of the server did,
+// e.g. the previous m=64 MiB, t=1, p=4 parameters.
+func argon2idHashWithParams(t *testing.T, plain string, memory, time uint32, threads uint8) string {
+	t.Helper()
+	salt := make([]byte, 16)
+	_, err := rand.Read(salt)
+	require.NoError(t, err)
+	key := argon2.IDKey([]byte(plain), salt, time, memory, threads, 32)
+	return fmt.Sprintf("$argon2id$v=%d$m=%d,t=%d,p=%d$%s$%s", argon2.Version, memory, time, threads,
+		base64.RawStdEncoding.EncodeToString(salt), base64.RawStdEncoding.EncodeToString(key))
+}
+
+func TestHash_UsesLowMemoryParams(t *testing.T) {
+	hash, err := newHasher().Hash("Password1!")
+	require.NoError(t, err)
+	assert.Contains(t, hash, "$m=19456,t=2,p=1$")
+}
+
+func TestVerify_Argon2id_OldParams(t *testing.T) {
+	h := newHasher()
+	old := argon2idHashWithParams(t, "Password1!", 64*1024, 1, 4)
+	assert.NoError(t, h.Verify("Password1!", old), "hashes with previous params must keep verifying")
+	assert.Error(t, h.Verify("WrongPassword1!", old))
+}
+
+func TestNeedsUpgrade_Argon2idOldParams_ReturnsTrue(t *testing.T) {
+	old := argon2idHashWithParams(t, "Password1!", 64*1024, 1, 4)
+	assert.True(t, newHasher().NeedsUpgrade(old))
 }
 
 func TestNeedsUpgrade_UnknownPrefix_ReturnsTrue(t *testing.T) {
