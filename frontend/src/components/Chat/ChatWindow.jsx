@@ -6,7 +6,7 @@ import { useChat } from '../../contexts/ChatContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { useCall } from '../../contexts/CallContext';
 import { useTheme } from '../../contexts/ThemeContext';
-import { textToEmoji } from '../../utils/emojiUtils';
+import { textToEmoji, LINK_PATTERN, isLink } from '../../utils/emojiUtils';
 import { filesAPI } from '../../services/api';
 import { ControlPanel } from '../Common/ControlPanel';
 import ImageModal from '../Common/ImageModal';
@@ -292,13 +292,9 @@ export const ChatWindow = () => {
   const formatMessageContent = (content) => {
     if (!content) return null;
 
-    // URL regex pattern to capture links
-    const urlPattern = /(https?:\/\/[^\s]+)/;
-    
-    // Split content by URLs, including the separators (URLs themselves)
-    return content.split(urlPattern).map((part, index) => {
-      // Check if part is a URL
-      if (part.match(urlPattern)) {
+    // Split content by links (http, https, tg), including the links themselves
+    return content.split(LINK_PATTERN).map((part, index) => {
+      if (isLink(part)) {
         return (
           <a
             key={index}
