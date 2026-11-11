@@ -1,9 +1,14 @@
 node_modules
 dist
 .env
-.env.local
+.env.*
 .git
 .idea
 .vscode
+*.md
+start.sh
+start.ps1
 Dockerfile
+.dockerignore
+# Host-level nginx config (deployment.md); the container uses docker/nginx.conf
 nginx.conf

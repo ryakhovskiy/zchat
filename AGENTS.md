@@ -22,12 +22,12 @@ Frontend (React) ─┐                      ┌─ PostgreSQL
 - **Shared WebSocket event types**: `message`, `message_edited`, `message_deleted`, `messages_read`, `typing`, `user_online`, `user_offline`, `call_offer`, `call_answer`, `ice_candidate`, `call_end`, `call_rejected`.
 
 ## Network Topology
-| Service     | Dev Port | Production                         |
-|-------------|----------|------------------------------------|
-| Frontend    | 3000     | Nginx container → `zchat.space`    |
-| Backend API | 8000     | Docker container, proxied via `/api` |
-| WebSocket   | 8000     | Proxied via `/ws`                  |
-| PostgreSQL  | 5432     | Docker container (internal)        |
+| Service     | Dev Port | Docker Compose                                              |
+|-------------|----------|-------------------------------------------------------------|
+| Frontend    | 3000     | nginx container, only published port (`127.0.0.1:${FRONTEND_PORT:-3000}` → 8080); cloudflared tunnels to it |
+| Backend API | 8000     | Not published; frontend nginx proxies `/api` and `/app` over the `web` network |
+| WebSocket   | 8000     | Not published; proxied via `/ws`                            |
+| PostgreSQL  | 5432     | Not published; `db` network (internal, backend only)        |
 
 Dev proxy: frontend Vite config proxies `/api` → `http://localhost:8000` and `/ws` → `ws://localhost:8000`.
 
@@ -46,9 +46,11 @@ Dev proxy: frontend Vite config proxies `/api` → `http://localhost:8000` and `
    - `WS_PONG_TIMEOUT_SEC` — WebSocket pong timeout in seconds (default: 60)
    - `VITE_API_URL`, `VITE_WS_URL` — frontend build-time API base paths (default: `/api`, `/ws`)
    - `DEBUG` — backend debug mode (default: true)
+   - `FRONTEND_PORT`, `FRONTEND_BIND` — published frontend port/bind address in Docker Compose (default: `3000`, `127.0.0.1`)
+   - `EXTRA_CA_FILE` — root CA passed as a build secret for Docker builds behind TLS-intercepting proxies (e.g. Zscaler)
 
 ## General Setup & Execution
-- **Docker (backend + DB):** `docker-compose -f docker-compose.yml up -d` (frontend service is currently commented out; run frontend separately).
+- **Docker (full stack):** `docker compose up -d --build`. Images are multi-stage and minimal: backend = static Go binary on distroless (non-root), frontend = built SPA on `nginx-unprivileged:alpine-slim` (container config: `frontend/docker/nginx.conf`; `frontend/nginx.conf` is the host-nginx config for `deployment.md`).
 - **Frontend local dev:** `cd frontend && npm install && npm run dev` (or `./start.ps1` / `./start.sh`).
 - **Backend local dev:** `cd backend && go run cmd/server/main.go` (or `./start.ps1` / `./start.sh`).
 - **Shell Scripts**: `start.ps1` (Windows) and `start.sh` (Bash) are available in both `frontend/` and `backend/`.
@@ -67,4 +69,4 @@ See `deployment.md` for the full production Ubuntu/Nginx deployment guide (domai
 - WebSocket events use a flat `{ "type": "...", ...fields }` JSON structure — keep this consistent across backend, frontend, and Android.
 
 ## Known Discrepancies
-- **Frontend Docker**: The frontend service in `docker-compose.yml` is commented out — enable when deploying frontend via Docker.
+- **Frontend lockfile**: `frontend/package-lock.json` is gitignored, so Docker builds use `npm install` (not reproducible) instead of `npm ci`.

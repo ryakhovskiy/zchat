@@ -9,7 +9,7 @@ Web interface built with modern React 18, Vite, and JavaScript.
 - **Build for production:** `npm run build`
 - **Preview production build:** `npm run preview`
 - **Lint code:** `npm run lint`
-- **Docker build:** Multi-stage (Node 18-alpine → nginx-alpine). Build args: `VITE_API_URL`, `VITE_WS_URL`.
+- **Docker build:** Multi-stage (`node:22-alpine` → `nginxinc/nginx-unprivileged:alpine-slim`, non-root, listens on 8080). Build args: `VITE_API_URL`, `VITE_WS_URL`, `VITE_VAPID_PUBLIC_KEY`. Optional build secret `extra_ca` for TLS-intercepting proxies.
 - **Tests:** No test framework configured yet.
 
 ## Tech Stack & Libraries
@@ -92,7 +92,7 @@ All backend interaction centralized in one file:
 
 ### Environment & Proxy Config
 - **Dev proxy** (`vite.config.js`): `/api` → `http://localhost:8000`, `/ws` → `ws://localhost:8000`
-- **Production proxy** (`nginx.conf`): Same routes proxied to `http://backend:8000`, with WebSocket upgrade headers
+- **Container proxy** (`docker/nginx.conf`): `/api`, `/ws`, `/app` proxied to `http://backend:8000` over the Compose `web` network, with WebSocket upgrade headers; forwards `CF-Connecting-IP` as `X-Real-IP` (Cloudflare Tunnel). `nginx.conf` is the separate host-level config used by `deployment.md`.
 - **Build-time env vars**: `VITE_API_URL` (default: `/api`), `VITE_WS_URL` (default: `/ws`)
 
 ## Code Style
