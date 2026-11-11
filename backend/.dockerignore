@@ -1,0 +1,10 @@
+# Not needed to build the server binary
+*.md
+start.sh
+start.ps1
+Dockerfile
+.dockerignore
+.env
+.env.*
+uploads/
+*_test.go

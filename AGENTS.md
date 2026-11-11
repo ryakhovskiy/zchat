@@ -3,7 +3,7 @@
 ## Project Overview
 zchat is a multi-platform chat application workspace consisting of:
 - **frontend**: A React 18 web application built with Vite (`frontend/`).
-- **backend**: A Go 1.24 REST API and WebSocket server with PostgreSQL (`backend/`).
+- **backend**: A Go 1.26 REST API and WebSocket server with PostgreSQL (`backend/`).
 
 ## Monorepo Architecture
 This project utilizes nested `AGENTS.md` files for subproject-specific instructions. Coding agents should respect the nearest `AGENTS.md` file in the directory tree when generating code or executing commands.
