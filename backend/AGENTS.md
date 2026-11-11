@@ -7,7 +7,7 @@ A Go-based scalable REST API and WebSocket server interacting with a PostgreSQL 
 - **Go Version:** Go 1.26.
 - **Run local server directly:** `go run cmd/server/main.go`
 - **Helper Scripts:** Use `./start.ps1` (Windows) or `./start.sh` (UNIX/Linux) to setup the environment and launch the backend server.
-- **Docker build:** `docker build -t zchat-backend .` from `backend/`, or use `docker-compose -f docker-compose.yml up -d` from root.
+- **Docker build:** `docker build -t zchat-backend .` from `backend/` (multi-stage: static `CGO_ENABLED=0` binary on `distroless/static:nonroot`; behind Zscaler add `--secret id=extra_ca,src=<root-ca.crt>`), or `docker compose up -d --build` from root. In Compose the backend port is not published; it is reached only via the frontend nginx.
 - **Formatting:** Ensure `gofmt` and `golangci-lint` (if installed) are passed on all Go code before committing.
 - **Tests:** `go test ./...` — uses testify with mock implementations of domain interfaces. Currently only `auth_service_test.go` exists (covers `Register`).
 

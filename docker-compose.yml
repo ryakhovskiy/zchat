@@ -14,16 +14,16 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    networks:
+      - db
 
   backend:
     build:
       context: ./backend
+      secrets:
+        - extra_ca
     restart: unless-stopped
-    ports:
-      # Bind to loopback only — nginx reverse-proxies to 127.0.0.1:8000, so the
-      # backend never needs to be reachable on the host's public interfaces.
-      # See SECURITY_HARDENING.md item 1.
-      - "127.0.0.1:8000:8000"
+    # No published ports: only reachable by the frontend over the "web" network
     environment:
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
@@ -34,31 +34,57 @@ services:
       ENCRYPTION_KEY: ${ENCRYPTION_KEY}
       ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-1440}
       REMEMBER_ME_TOKEN_EXPIRE_DAYS: ${REMEMBER_ME_TOKEN_EXPIRE_DAYS:-30}
+      # Must include the public URL users open (your Cloudflare Tunnel hostname),
+      # otherwise WebSocket connections are rejected
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://localhost:5173}
       HTTP_HOST: 0.0.0.0
       HTTP_PORT: 8000
       UPLOAD_DIR: /app/uploads
       DEBUG: ${DEBUG:-false}
       MAX_MESSAGES_PER_CONVERSATION: ${MAX_MESSAGES_PER_CONVERSATION:-1000}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
     depends_on:
       postgres:
         condition: service_healthy
     volumes:
       - go_uploads:/app/uploads
       - ./backend/app:/app/app
+    networks:
+      - db
+      - web
 
-#  frontend:
-#    build:
-#      context: ./frontend
-#      args:
-#        VITE_API_URL: ${VITE_API_URL:-/api}
-#        VITE_WS_URL: ${VITE_WS_URL:-/ws}
-#    ports:
-#      - "3000:3000"
-#    volumes:
-#      - ./frontend/nginx.conf:/etc/nginx/conf.d/default.conf
-#    depends_on:
-#      - backend
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: ${VITE_API_URL:-/api}
+        VITE_WS_URL: ${VITE_WS_URL:-/ws}
+        VITE_VAPID_PUBLIC_KEY: ${VITE_VAPID_PUBLIC_KEY:-}
+      secrets:
+        - extra_ca
+    restart: unless-stopped
+    # The only published port. Bound to localhost by default so it is reachable
+    # by cloudflared on this host but not from the network directly.
+    ports:
+      - "${FRONTEND_BIND:-127.0.0.1}:${FRONTEND_PORT:-3000}:8080"
+    depends_on:
+      - backend
+    networks:
+      - web
+
+networks:
+  # Postgres <-> backend only; no outbound internet access
+  db:
+    internal: true
+  # Frontend <-> backend; backend also needs outbound access for web push
+  web:
+
+secrets:
+  # Optional root CA for building behind TLS-intercepting proxies (e.g. Zscaler).
+  # Set EXTRA_CA_FILE in .env; when unset, an empty file is used and ignored.
+  extra_ca:
+    file: ${EXTRA_CA_FILE:-/dev/null}
 
 volumes:
   postgres_data:
