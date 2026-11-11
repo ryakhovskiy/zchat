@@ -54,11 +54,8 @@ func handleRegister(authSvc *service.AuthService, userSvc *service.UserService) 
 			return
 		}
 
-		// Auto-login after registration
-		resp, err := authSvc.Login(r.Context(), service.LoginInput{
-			Username: req.Username,
-			Password: req.Password,
-		})
+		// Auto-login after registration (no second password hash)
+		resp, err := authSvc.IssueToken(r.Context(), user, false)
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to login after registration"})
 			return
