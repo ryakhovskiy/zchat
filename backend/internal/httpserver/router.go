@@ -116,14 +116,15 @@ func NewRouter(cfg *config.Config, db *sql.DB, hub *ws.Hub, tokenSvc *security.T
 		// Auth routes (no auth required)
 		r.Route("/auth", func(r chi.Router) {
 			// Rate-limit unauthenticated auth endpoints. Each login/register
-			// triggers an argon2id derivation that allocates 64 MiB; without a
+			// triggers an argon2id derivation that allocates 19-64 MiB; without a
 			// per-IP cap this is both a credential-brute-force and a
 			// memory-exhaustion DoS vector.
 			//
 			// Keyed off r.RemoteAddr, which middleware.RealIP (installed above)
-			// resolves from nginx's X-Forwarded-For/X-Real-IP. That is only
-			// trustworthy because nginx is the sole ingress and the backend port
-			// is bound to loopback (SECURITY_HARDENING.md item 1) -- otherwise
+			// resolves from True-Client-IP/X-Real-IP/X-Forwarded-For, all of which
+			// the frontend nginx overwrites (frontend/docker/nginx.conf). That is
+			// only trustworthy because nginx is the sole ingress and the backend
+			// port is not published (docker-compose.yml) -- otherwise
 			// the header, and thus the key, is client-forgeable. An explicit key
 			// func (rather than the deprecated LimitByIP) states that trust model.
 			r.Use(httprate.LimitBy(10, time.Minute, keyByResolvedIP))
