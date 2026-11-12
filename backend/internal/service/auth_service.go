@@ -25,6 +25,7 @@ type AuthService struct {
 	hash          *security.PasswordHasher
 	defaultTTL    time.Duration
 	rememberMeTTL time.Duration
+	maxUsers      int
 }
 
 func NewAuthService(
@@ -33,6 +34,7 @@ func NewAuthService(
 	hash *security.PasswordHasher,
 	defaultTTL time.Duration,
 	rememberMeTTL time.Duration,
+	maxUsers int,
 ) *AuthService {
 	return &AuthService{
 		users:         users,
@@ -40,6 +42,7 @@ func NewAuthService(
 		hash:          hash,
 		defaultTTL:    defaultTTL,
 		rememberMeTTL: rememberMeTTL,
+		maxUsers:      maxUsers,
 	}
 }
 
@@ -141,7 +144,7 @@ func (s *AuthService) Register(ctx context.Context, in RegisterInput) (*domain.U
 		IsActive:       true,
 		IsOnline:       false,
 	}
-	if err := s.users.Create(ctx, user); err != nil {
+	if err := s.users.Create(ctx, user, s.maxUsers); err != nil {
 		return nil, err
 	}
 	return user, nil

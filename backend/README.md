@@ -17,6 +17,7 @@ This is a Go rewrite of the existing Python/FastAPI backend. It provides the sam
     - **DATABASE_URL** (default `postgres://postgres:postgres@localhost:5432/zchat?sslmode=disable`)
     - **CORS_ORIGINS** (comma‑separated list; default `http://localhost:3000,http://localhost:5173`)
     - **MAX_MESSAGES_PER_CONVERSATION** (default `1000`)
+    - **MAX_USERS** (default `10`; positive integer): maximum total users, including inactive accounts. Set `MAX_USERS=10` in the root `.env` for Docker Compose, or export it when running locally. Registration at or above the limit returns HTTP 403 with an error displayed by the frontend. Existing users can still log in. Restart the backend after changing this value.
 
 You can reuse values from the existing `.env` used by the Python backend (e.g. `ENCRYPTION_KEY`).
 

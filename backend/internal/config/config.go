@@ -28,6 +28,7 @@ type Config struct {
 	CORSOrigins                []string
 	Debug                      bool
 	MaxMessagesPerConversation int
+	MaxUsers                   int
 
 	WSPingIntervalSec int
 	WSPongTimeoutSec  int
@@ -71,6 +72,11 @@ func Load() (*Config, error) {
 		WSPingIntervalSec: getEnvAsInt("WS_PING_INTERVAL_SEC", 30),
 		WSPongTimeoutSec:  getEnvAsInt("WS_PONG_TIMEOUT_SEC", 60),
 	}
+	maxUsers, err := strconv.Atoi(getEnv("MAX_USERS", "10"))
+	if err != nil || maxUsers < 1 {
+		return nil, fmt.Errorf("MAX_USERS must be a positive integer")
+	}
+	cfg.MaxUsers = maxUsers
 
 	cors := getEnv("CORS_ORIGINS", "")
 	if cors != "" {

@@ -57,7 +57,7 @@ func NewRouter(cfg *config.Config, db *sql.DB, hub *ws.Hub, tokenSvc *security.T
 	defaultTTL := time.Duration(cfg.AccessTokenMinutes) * time.Minute
 	rememberMeTTL := time.Duration(cfg.RememberMeDays) * 24 * time.Hour
 
-	authSvc := service.NewAuthService(userRepo, tokenSvc, passwordHasher, defaultTTL, rememberMeTTL)
+	authSvc := service.NewAuthService(userRepo, tokenSvc, passwordHasher, defaultTTL, rememberMeTTL, cfg.MaxUsers)
 	userSvc := service.NewUserService(userRepo)
 	convSvc := service.NewConversationService(convRepo, partRepo, msgRepo)
 	msgSvc := service.NewMessageService(convRepo, partRepo, msgRepo, deletedMsgRepo, userRepo, reactionRepo, encryptor, cfg.MaxMessagesPerConversation, cfg.UploadDir)

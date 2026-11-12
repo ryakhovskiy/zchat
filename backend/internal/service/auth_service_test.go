@@ -2,6 +2,7 @@ package service_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -18,8 +19,8 @@ type MockUserRepo struct {
 	mock.Mock
 }
 
-func (m *MockUserRepo) Create(ctx context.Context, u *domain.User) error {
-	args := m.Called(ctx, u)
+func (m *MockUserRepo) Create(ctx context.Context, u *domain.User, maxUsers int) error {
+	args := m.Called(ctx, u, maxUsers)
 	return args.Error(0)
 }
 
@@ -82,7 +83,7 @@ func TestRegister(t *testing.T) {
 	tokenSvc := security.NewTokenService("secret", time.Hour)
 	hasher := security.NewPasswordHasher(10) // low cost for tests
 
-	svc := service.NewAuthService(mockRepo, tokenSvc, hasher, time.Hour, 24*time.Hour)
+	svc := service.NewAuthService(mockRepo, tokenSvc, hasher, time.Hour, 24*time.Hour, 10)
 
 	t.Run("Success", func(t *testing.T) {
 		input := service.RegisterInput{
@@ -93,7 +94,7 @@ func TestRegister(t *testing.T) {
 		mockRepo.On("GetByUsername", mock.Anything, "newuser").Return(nil, domain.ErrNotFound)
 		mockRepo.On("Create", mock.Anything, mock.MatchedBy(func(u *domain.User) bool {
 			return u.Username == "newuser"
-		})).Return(nil)
+		}), 10).Return(nil)
 
 		user, err := svc.Register(context.Background(), input)
 		assert.NoError(t, err)
@@ -115,4 +116,26 @@ func TestRegister(t *testing.T) {
 		assert.Nil(t, user)
 		assert.Equal(t, domain.ErrConflict, err)
 	})
+}
+
+func TestRegisterUserLimitReached(t *testing.T) {
+	for _, limit := range []int{10, 3} {
+		t.Run(fmt.Sprintf("Limit%d", limit), func(t *testing.T) {
+			repo := new(MockUserRepo)
+			svc := service.NewAuthService(repo, security.NewTokenService("secret", time.Hour),
+				security.NewPasswordHasher(10), time.Hour, 24*time.Hour, limit)
+			repo.On("GetByUsername", mock.Anything, "newuser").Return(nil, domain.ErrNotFound).Once()
+			repo.On("Create", mock.Anything, mock.AnythingOfType("*domain.User"), limit).
+				Return(domain.ErrUserLimitReached).Once()
+
+			user, err := svc.Register(context.Background(), service.RegisterInput{
+				Username: "newuser", Password: "Password1!",
+			})
+
+			assert.ErrorIs(t, err, domain.ErrUserLimitReached)
+			assert.Nil(t, user)
+			repo.AssertNotCalled(t, "SetOnlineStatus", mock.Anything, mock.Anything, mock.Anything)
+			repo.AssertExpectations(t)
+		})
+	}
 }

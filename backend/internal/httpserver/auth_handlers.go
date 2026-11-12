@@ -2,8 +2,10 @@ package httpserver
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 
+	"backend/internal/domain"
 	"backend/internal/service"
 )
 
@@ -27,13 +29,14 @@ type tokenResponse struct {
 }
 
 // @Summary      Register a new user
-// @Description  Register a new user and return an access token
+// @Description  Register a new user and return an access token. Registration is forbidden when the total user count reaches MAX_USERS (default 10).
 // @Tags         auth
 // @Accept       json
 // @Produce      json
 // @Param        input body registerRequest true "Register input"
 // @Success      201  {object}  tokenResponse
 // @Failure      400  {object}  map[string]string
+// @Failure      403  {object}  map[string]string "Maximum number of users reached"
 // @Router       /auth/register [post]
 func handleRegister(authSvc *service.AuthService, userSvc *service.UserService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -50,6 +53,10 @@ func handleRegister(authSvc *service.AuthService, userSvc *service.UserService) 
 			Password: req.Password,
 		})
 		if err != nil {
+			if errors.Is(err, domain.ErrUserLimitReached) {
+				writeJSON(w, http.StatusForbidden, map[string]string{"error": domain.ErrUserLimitReached.Error()})
+				return
+			}
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 			return
 		}

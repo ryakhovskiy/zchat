@@ -18,15 +18,40 @@ func NewUserRepo(db *sql.DB) *UserRepo {
 
 var _ domain.UserRepository = (*UserRepo)(nil)
 
-func (r *UserRepo) Create(ctx context.Context, u *domain.User) error {
+func (r *UserRepo) Create(ctx context.Context, u *domain.User, maxUsers int) error {
+	tx, err := r.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelReadCommitted})
+	if err != nil {
+		return fmt.Errorf("begin user creation: %w", err)
+	}
+	defer tx.Rollback()
+
+	// Serialize the count and insert across backend instances. Reads can continue
+	// while this short transaction prevents concurrent user writes.
+	if _, err := tx.ExecContext(ctx, `LOCK TABLE users IN SHARE ROW EXCLUSIVE MODE`); err != nil {
+		return fmt.Errorf("lock users: %w", err)
+	}
+	var count int
+	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM users`).Scan(&count); err != nil {
+		return fmt.Errorf("count users: %w", err)
+	}
+	if count >= maxUsers {
+		return domain.ErrUserLimitReached
+	}
+
 	query := `
 		INSERT INTO users (username, email, hashed_password, is_active, is_online, created_at, last_seen)
 		VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
 		RETURNING id, created_at, last_seen
 	`
-	return r.db.QueryRowContext(ctx, query,
+	if err := tx.QueryRowContext(ctx, query,
 		u.Username, u.Email, u.HashedPassword, true, false,
-	).Scan(&u.ID, &u.CreatedAt, &u.LastSeen)
+	).Scan(&u.ID, &u.CreatedAt, &u.LastSeen); err != nil {
+		return fmt.Errorf("insert user: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit user creation: %w", err)
+	}
+	return nil
 }
 
 func (r *UserRepo) GetByID(ctx context.Context, id int64) (*domain.User, error) {

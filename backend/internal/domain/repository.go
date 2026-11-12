@@ -6,7 +6,8 @@ import (
 
 // UserRepository defines persistence operations for users.
 type UserRepository interface {
-	Create(ctx context.Context, u *User) error
+	// Create atomically checks the total user count and inserts only below maxUsers.
+	Create(ctx context.Context, u *User, maxUsers int) error
 	GetByID(ctx context.Context, id int64) (*User, error)
 	GetByUsername(ctx context.Context, username string) (*User, error)
 	GetByEmail(ctx context.Context, email string) (*User, error)
