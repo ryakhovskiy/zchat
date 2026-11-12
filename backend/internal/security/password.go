@@ -120,7 +120,6 @@ func (h *PasswordHasher) verifyArgon2id(plain, hashed string) error {
 	if len(key) != argon2KeyLen {
 		return fmt.Errorf("unexpected argon2id key length: %d", len(key))
 	}
-
 	candidate := argon2IDKey([]byte(plain), salt, time, memory, threads, argon2KeyLen)
 	if subtle.ConstantTimeCompare(candidate, key) != 1 {
 		return fmt.Errorf("password mismatch")
