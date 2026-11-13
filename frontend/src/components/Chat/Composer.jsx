@@ -331,7 +331,18 @@ export const Composer = forwardRef(({ conversation, replyingTo, editing, onCance
               <Icon name="smile" />
             </button>
             {emojiOpen && !isPhone && (
-              <div className="emoji-picker emoji-popover">
+              <div className="emoji-picker emoji-popover" role="dialog" aria-label={t('chat.toggle_emoji')}>
+                <div className="emoji-popover-header">
+                  <button
+                    type="button"
+                    className="icon-btn"
+                    onClick={() => { setEmojiOpen(false); textareaRef.current?.focus(); }}
+                    aria-label={t('common.close')}
+                    data-testid="emoji-close"
+                  >
+                    <Icon name="close" size={20} />
+                  </button>
+                </div>
                 <EmojiPicker onSelect={insertEmoji} />
               </div>
             )}

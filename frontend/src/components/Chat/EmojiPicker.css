@@ -12,7 +12,7 @@
   --rgb-accent: var(--emoji-rgb-accent);
   --rgb-input: var(--emoji-rgb-input);
   max-width: 100%;
-  height: min(380px, 50dvh);
+  height: min(340px, 45dvh);
   box-shadow: none;
 }
 

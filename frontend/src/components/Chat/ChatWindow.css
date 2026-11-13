@@ -592,6 +592,13 @@
   box-shadow: var(--shadow-overlay);
 }
 
+.emoji-popover-header {
+  display: flex;
+  justify-content: flex-end;
+  background: var(--color-surface-raised);
+  border-bottom: var(--border-width) solid var(--color-border);
+}
+
 .send-button {
   display: inline-flex;
   flex-shrink: 0;
