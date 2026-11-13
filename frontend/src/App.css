@@ -1,83 +1,4 @@
-/* Theme Variables */
-:root,
-[data-theme="hacker"] {
-  /* Hacker theme: 000000, 001a00, 00ff00 */
-  --bg-primary: #000000;
-  --bg-secondary: #001a00;
-  --accent-color: #00ff00;
-  --text-primary: #00ff00;
-  --text-secondary: rgba(0, 255, 0, 0.7);
-  --text-muted: rgba(0, 255, 0, 0.5);
-  --border-color: rgba(0, 255, 0, 0.3);
-  --card-bg: #001a00;
-  --input-bg: #000000;
-  --input-border: rgba(0, 255, 0, 0.4);
-  --message-sent-bg: transparent;
-  --message-received-bg: transparent;
-  --hover-bg: rgba(0, 255, 0, 0.15);
-  --active-bg: rgba(0, 255, 0, 0.25);
-  --shadow-color: rgba(0, 255, 0, 0.1);
-  --error-bg: rgba(255, 102, 102, 0.15);
-  --error-color: #ff6666;
-  --success-color: #00ff00;
-  --scrollbar-track: #000000;
-  --scrollbar-thumb: #008800;
-  --gradient-primary: #00ff00;
-  --font-terminal: 'Courier New', Courier, monospace;
-  --bg-tertiary: darkgreen;
-}
-
-[data-theme="dark"] {
-  /* Dark theme: 061E29, 1D546D, 5F9598, F3F4F4 */
-  --bg-primary: #061E29;
-  --bg-secondary: #1D546D;
-  --accent-color: #5F9598;
-  --text-primary: #F3F4F4;
-  --text-secondary: rgba(243, 244, 244, 0.7);
-  --text-muted: rgba(243, 244, 244, 0.5);
-  --border-color: rgba(95, 149, 152, 0.3);
-  --card-bg: #1D546D;
-  --input-bg: #061E29;
-  --input-border: rgba(95, 149, 152, 0.4);
-  --message-sent-bg: linear-gradient(135deg, #5F9598 0%, #1D546D 100%);
-  --message-received-bg: #1D546D;
-  --hover-bg: rgba(95, 149, 152, 0.15);
-  --active-bg: rgba(95, 149, 152, 0.25);
-  --shadow-color: rgba(0, 0, 0, 0.3);
-  --error-bg: rgba(244, 67, 54, 0.15);
-  --error-color: #ff6b6b;
-  --success-color: #4caf50;
-  --scrollbar-track: #061E29;
-  --scrollbar-thumb: #5F9598;
-  --gradient-primary: linear-gradient(135deg, #5F9598 0%, #1D546D 100%);
-  --bg-tertiary: #darkslategray;
-}
-
-[data-theme="light"] {
-  /* Light theme: FFF2F2, A9B5DF, 7886C7, 2D336B */
-  --bg-primary: #FFF2F2;
-  --bg-secondary: #A9B5DF;
-  --accent-color: #7886C7;
-  --text-primary: #2D336B;
-  --text-secondary: rgba(45, 51, 107, 0.8);
-  --text-muted: rgba(45, 51, 107, 0.5);
-  --border-color: rgba(120, 134, 199, 0.3);
-  --card-bg: #ffffff;
-  --input-bg: #ffffff;
-  --input-border: rgba(120, 134, 199, 0.4);
-  --message-sent-bg: linear-gradient(135deg, #7886C7 0%, #2D336B 100%);
-  --message-received-bg: #ffffff;
-  --hover-bg: rgba(120, 134, 199, 0.1);
-  --active-bg: rgba(120, 134, 199, 0.2);
-  --shadow-color: rgba(45, 51, 107, 0.1);
-  --error-bg: rgba(244, 67, 54, 0.1);
-  --error-color: #c33;
-  --success-color: #4caf50;
-  --scrollbar-track: #FFF2F2;
-  --scrollbar-thumb: #7886C7;
-  --gradient-primary: linear-gradient(135deg, #7886C7 0%, #2D336B 100%);
-  --bg-tertiary: #e9ecef;
-}
+@import "./styles/themes.css";
 
 * {
   margin: 0;
@@ -86,13 +7,12 @@
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+  font-family: var(--font-body);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-color: var(--bg-primary);
-  color: var(--text-primary);
-  transition: background-color 0.3s ease, color 0.3s ease;
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  transition: var(--theme-transition);
 }
 
 .loading-screen {

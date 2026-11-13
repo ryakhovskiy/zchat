@@ -1,0 +1,387 @@
+/*
+ * zchat design tokens.
+ *
+ * Themes are PURE TOKEN SETS: one [data-theme="<id>"] block per theme, nothing else.
+ * Components must only consume tokens (var(--color-*) etc.) and never hard-code a
+ * color or branch on the theme. A theme expresses its personality through tokens:
+ * fonts, radii, shadows/glow, bubble styling, letter-spacing.
+ *
+ * Theme ids: light | dark | tech-green | tech-red   (default: follows OS, light/dark)
+ * To add a theme: see "Theme System" in frontend/AGENTS.md.
+ *
+ * All text/background pairs below are WCAG AA (>= 4.5:1; icons/large text >= 3:1).
+ * Measured ratios are listed in frontend/AGENTS.md. Run `node scripts/check-contrast.mjs`
+ * (frontend/scripts) to re-measure after changing a palette.
+ */
+
+/* ------------------------------------------------------------------ */
+/* Theme-independent scales                                            */
+/* ------------------------------------------------------------------ */
+:root {
+  /* Spacing (4px base) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+
+  /* Type scale (~13/15/16/18/22) */
+  --text-xs: 0.8125rem;  /* 13px: timestamps, labels */
+  --text-sm: 0.9375rem;  /* 15px: secondary UI text */
+  --text-md: 1rem;       /* 16px: body, inputs (>=16px stops iOS zoom) */
+  --text-lg: 1.125rem;   /* 18px: headers */
+  --text-xl: 1.375rem;   /* 22px: titles */
+  --leading-tight: 1.25;
+  --leading-body: 1.45;
+
+  /* Touch target and icon sizing */
+  --tap-size: 44px;
+  --icon-size: 24px;
+  --icon-stroke: 2;
+
+  /* Layout */
+  --sidebar-width: 300px;
+  --sidebar-width-wide: 340px;
+  --bp-tablet: 768px;   /* documentation only: custom properties cannot be used in @media */
+  --bp-desktop: 1024px;
+
+  /* Safe areas (fall back to 0 where unsupported) */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+
+  /* Z-index scale */
+  --z-base: 1;
+  --z-sticky: 10;
+  --z-banner: 50;
+  --z-dropdown: 100;
+  --z-sheet: 200;
+  --z-modal: 300;
+  --z-call: 400;
+  --z-toast: 500;
+
+  /* Motion */
+  --motion-fast: 120ms;
+  --motion-base: 200ms;
+  --motion-slow: 320ms;
+  --ease-out: cubic-bezier(0.2, 0, 0, 1);
+  --ease-spring: cubic-bezier(0.3, 1.2, 0.4, 1);
+  --theme-transition: background-color var(--motion-base) ease, color var(--motion-base) ease,
+    border-color var(--motion-base) ease;
+
+  /* Typography stacks (system fonts only, no downloads) */
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans",
+    "Apple Color Emoji", "Segoe UI Emoji", sans-serif;
+  --font-mono-stack: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, "Liberation Mono",
+    monospace;
+}
+
+/* ------------------------------------------------------------------ */
+/* Light                                                               */
+/* ------------------------------------------------------------------ */
+[data-theme="light"] {
+  color-scheme: light;
+
+  /* Surfaces */
+  --color-bg: #f6f7f9;
+  --color-surface: #ffffff;
+  --color-surface-raised: #ffffff;
+  --color-surface-sunken: #eceef2;
+  --color-scrim: rgba(15, 17, 21, 0.45);
+  --color-header-bg: #ffffff;       /* app/chat header; also drives <meta name="theme-color"> */
+  --color-header-text: #14171f;
+
+  /* Text */
+  --color-text: #14171f;
+  --color-text-secondary: #4a5160;
+  --color-text-muted: #5f6677;
+  --color-on-accent: #ffffff;
+
+  /* Accent */
+  --color-accent: #4f46e5;
+  --color-accent-hover: #4338ca;
+  --color-accent-text: #4f46e5;     /* accent used as text/icon/link colour on surfaces */
+  --color-accent-soft: #eceafd;
+
+  /* Lines */
+  --color-border: #dfe2e8;
+  --color-border-strong: #c3c8d2;
+  --color-focus-ring: #4f46e5;
+
+  /* Status */
+  --color-success: #15803d;
+  --color-danger: #c62828;
+  --color-danger-soft: #fdecec;
+  --color-warning: #b45309;
+  --color-online: #16a34a;
+
+  /* Bubbles */
+  --bubble-out-bg: #4f46e5;
+  --bubble-out-text: #ffffff;
+  --bubble-out-border: transparent;
+  --bubble-in-bg: #ffffff;
+  --bubble-in-text: #14171f;
+  --bubble-in-border: #dfe2e8;
+  --bubble-radius: 18px;
+  --bubble-radius-tail: 6px;        /* the corner nearest the sender */
+
+  /* Type */
+  --font-body: var(--font-sans);
+  --font-mono: var(--font-mono-stack);
+  --font-meta: var(--font-sans);
+  --meta-letter-spacing: 0;
+  --meta-transform: none;
+
+  /* Shape and elevation */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+  --radius-full: 999px;
+  --shadow-sm: 0 1px 2px rgba(20, 23, 31, 0.06);
+  --shadow-md: 0 4px 14px rgba(20, 23, 31, 0.1);
+  --shadow-lg: 0 16px 40px rgba(20, 23, 31, 0.18);
+  --glow: none;
+  --focus-glow: none;
+  --border-width: 1px;
+
+  /* Avatar initials: hue is derived from the username, s/l are themed */
+  --avatar-s: 55%;
+  --avatar-l: 29%;
+  --avatar-text: #ffffff;
+}
+
+/* ------------------------------------------------------------------ */
+/* Dark                                                                */
+/* ------------------------------------------------------------------ */
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --color-bg: #0f1115;
+  --color-surface: #171a21;
+  --color-surface-raised: #1f232c;
+  --color-surface-sunken: #0b0d11;
+  --color-scrim: rgba(0, 0, 0, 0.6);
+  --color-header-bg: #171a21;
+  --color-header-text: #e8eaf0;
+
+  --color-text: #e8eaf0;
+  --color-text-secondary: #a9b0bf;
+  --color-text-muted: #8f97a8;
+  --color-on-accent: #0f1115;
+
+  --color-accent: #818cf8;
+  --color-accent-hover: #9aa3fa;
+  --color-accent-text: #a5b0ff;
+  --color-accent-soft: #232748;
+
+  --color-border: #272b36;
+  --color-border-strong: #3a4050;
+  --color-focus-ring: #a5b0ff;
+
+  --color-success: #4ade80;
+  --color-danger: #ff6b6b;
+  --color-danger-soft: #3a1c20;
+  --color-warning: #fbbf24;
+  --color-online: #4ade80;
+
+  --bubble-out-bg: #4f46e5;
+  --bubble-out-text: #ffffff;
+  --bubble-out-border: transparent;
+  --bubble-in-bg: #1f232c;
+  --bubble-in-text: #e8eaf0;
+  --bubble-in-border: transparent;
+  --bubble-radius: 18px;
+  --bubble-radius-tail: 6px;
+
+  --font-body: var(--font-sans);
+  --font-mono: var(--font-mono-stack);
+  --font-meta: var(--font-sans);
+  --meta-letter-spacing: 0;
+  --meta-transform: none;
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+  --radius-full: 999px;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 14px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.6);
+  --glow: none;
+  --focus-glow: none;
+  --border-width: 1px;
+
+  --avatar-s: 50%;
+  --avatar-l: 30%;
+  --avatar-text: #ffffff;
+}
+
+/* ------------------------------------------------------------------ */
+/* Tech Green (replaces the old "hacker" theme)                        */
+/* ------------------------------------------------------------------ */
+[data-theme="tech-green"] {
+  color-scheme: dark;
+
+  --color-bg: #050a08;
+  --color-surface: #0a1310;
+  --color-surface-raised: #101c17;
+  --color-surface-sunken: #030605;
+  --color-scrim: rgba(0, 4, 2, 0.72);
+  --color-header-bg: #0a1310;
+  --color-header-text: #e6efea;
+
+  /* Body text is off-white, never neon: long reading stays comfortable */
+  --color-text: #e6efea;
+  --color-text-secondary: #a3b5ac;
+  --color-text-muted: #8aa095;
+  --color-on-accent: #03140b;
+
+  --color-accent: #00e07a;
+  --color-accent-hover: #33f096;
+  --color-accent-text: #00e07a;
+  --color-accent-soft: #0b2a1b;
+
+  --color-border: #1b2c25;
+  --color-border-strong: #2c4a3d;
+  --color-focus-ring: #00e07a;
+
+  --color-success: #00e07a;
+  --color-danger: #ff6b6b;
+  --color-danger-soft: #2f1416;
+  --color-warning: #ffc233;
+  --color-online: #00e07a;
+
+  --bubble-out-bg: #0d3a25;
+  --bubble-out-text: #e6efea;
+  --bubble-out-border: #1f7a4d;
+  --bubble-in-bg: #101c17;
+  --bubble-in-text: #e6efea;
+  --bubble-in-border: #1b2c25;
+  --bubble-radius: 8px;
+  --bubble-radius-tail: 2px;
+
+  /* Mono for meta, headers and timestamps; body stays readable sans */
+  --font-body: var(--font-sans);
+  --font-mono: var(--font-mono-stack);
+  --font-meta: var(--font-mono-stack);
+  --meta-letter-spacing: 0.04em;
+  --meta-transform: none;
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-full: 999px;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.6);
+  --shadow-md: 0 4px 14px rgba(0, 0, 0, 0.6);
+  --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.75);
+  --glow: 0 0 12px rgba(0, 224, 122, 0.28);
+  --focus-glow: 0 0 0 3px rgba(0, 224, 122, 0.22), 0 0 14px rgba(0, 224, 122, 0.35);
+  --border-width: 1px;
+
+  --avatar-s: 60%;
+  --avatar-l: 26%;
+  --avatar-text: #e6efea;
+}
+
+/* ------------------------------------------------------------------ */
+/* Tech Red                                                            */
+/* ------------------------------------------------------------------ */
+[data-theme="tech-red"] {
+  color-scheme: dark;
+
+  --color-bg: #0b0607;
+  --color-surface: #140c0e;
+  --color-surface-raised: #1d1214;
+  --color-surface-sunken: #070405;
+  --color-scrim: rgba(6, 2, 3, 0.75);
+  --color-header-bg: #140c0e;
+  --color-header-text: #f1e8e9;
+
+  --color-text: #f1e8e9;
+  --color-text-secondary: #bba9ac;
+  --color-text-muted: #a08e91;
+  --color-on-accent: #ffffff;
+
+  /* Fills use the deep crimson; text/links/focus use the brighter tone */
+  --color-accent: #b0132b;
+  --color-accent-hover: #c8182f;
+  --color-accent-text: #ff5a6e;
+  --color-accent-soft: #2e1015;
+
+  --color-border: #2c1a1d;
+  --color-border-strong: #4a2a2f;
+  --color-focus-ring: #e5384f;
+
+  --color-success: #3ddc97;
+  /* Destructive must not read as "accent": amber hue here, always paired with icon + label */
+  --color-danger: #ffa63d;
+  --color-danger-soft: #33210d;
+  --color-warning: #ffd23d;
+  --color-online: #3ddc97;
+
+  --bubble-out-bg: #5a0f1b;
+  --bubble-out-text: #f1e8e9;
+  --bubble-out-border: #b0132b;
+  --bubble-in-bg: #1d1214;
+  --bubble-in-text: #f1e8e9;
+  --bubble-in-border: #2c1a1d;
+  --bubble-radius: 8px;
+  --bubble-radius-tail: 2px;
+
+  --font-body: var(--font-sans);
+  --font-mono: var(--font-mono-stack);
+  --font-meta: var(--font-mono-stack);
+  --meta-letter-spacing: 0.04em;
+  --meta-transform: none;
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-full: 999px;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.6);
+  --shadow-md: 0 4px 14px rgba(0, 0, 0, 0.6);
+  --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.75);
+  --glow: 0 0 12px rgba(229, 56, 79, 0.3);
+  --focus-glow: 0 0 0 3px rgba(229, 56, 79, 0.25), 0 0 14px rgba(229, 56, 79, 0.4);
+  --border-width: 1px;
+
+  --avatar-s: 55%;
+  --avatar-l: 26%;
+  --avatar-text: #f1e8e9;
+}
+
+/* ------------------------------------------------------------------ */
+/* TEMPORARY legacy aliases                                            */
+/* Keep not-yet-migrated components rendering while screens are moved   */
+/* to the semantic tokens. Removed once the last component migrates.    */
+/* ------------------------------------------------------------------ */
+:root,
+[data-theme] {
+  --bg-primary: var(--color-bg);
+  --bg-secondary: var(--color-surface);
+  --bg-tertiary: var(--color-surface-sunken);
+  --accent-color: var(--color-accent-text);
+  --primary-color: var(--color-accent);
+  --text-primary: var(--color-text);
+  --text-secondary: var(--color-text-secondary);
+  --text-muted: var(--color-text-muted);
+  --border-color: var(--color-border);
+  --card-bg: var(--color-surface-raised);
+  --input-bg: var(--color-surface);
+  --input-border: var(--color-border-strong);
+  --message-sent-bg: var(--bubble-out-bg);
+  --message-received-bg: var(--bubble-in-bg);
+  --hover-bg: var(--color-accent-soft);
+  --active-bg: var(--color-accent-soft);
+  --shadow-color: rgba(0, 0, 0, 0.25);
+  --error-bg: var(--color-danger-soft);
+  --error-color: var(--color-danger);
+  --success-color: var(--color-success);
+  --scrollbar-track: var(--color-bg);
+  --scrollbar-thumb: var(--color-border-strong);
+  --gradient-primary: var(--color-accent);
+  --font-terminal: var(--font-meta);
+}

@@ -7,7 +7,9 @@ import './ControlPanel.css';
 
 export const ControlPanel = ({ variant = 'standard' }) => {
   const { t, i18n } = useTranslation();
-  const { theme, cycleTheme } = useTheme();
+  const { theme, setTheme, themes } = useTheme();
+  // TEMPORARY until the Settings sheet replaces this button
+  const cycleTheme = () => setTheme(themes[(themes.indexOf(theme) + 1) % themes.length]);
   const { logout } = useAuth();
   const { selectConversation } = useChat();
   const [showSettings, setShowSettings] = useState(false);
@@ -39,7 +41,7 @@ export const ControlPanel = ({ variant = 'standard' }) => {
         onClick={cycleTheme}
         title={`Cycle theme (current: ${theme})`}
       >
-        {theme === 'hacker' ? (
+        {theme.startsWith('tech') ? (
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="4 17 10 11 4 5" />
             <line x1="12" y1="19" x2="20" y2="19" />

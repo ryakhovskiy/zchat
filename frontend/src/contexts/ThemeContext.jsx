@@ -1,6 +1,13 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import {
+  THEMES,
+  readStoredTheme,
+  writeStoredTheme,
+  systemTheme,
+  syncThemeColorMeta,
+} from '../utils/theme';
 
-const ThemeContext = createContext();
+const ThemeContext = createContext(null);
 
 export const useTheme = () => {
   const context = useContext(ThemeContext);
@@ -11,28 +18,32 @@ export const useTheme = () => {
 };
 
 export const ThemeProvider = ({ children }) => {
-  const [theme, setTheme] = useState(() => {
-    const saved = localStorage.getItem('zchat-theme');
-    // If it's old boolean or invalid, default to 'hacker'
-    return ['hacker', 'dark', 'light'].includes(saved) ? saved : 'hacker';
-  });
+  // null = the user never chose: follow the OS preference
+  const [chosen, setChosen] = useState(readStoredTheme);
+  const [system, setSystem] = useState(systemTheme);
+  const theme = chosen || system;
+
+  // Follow OS changes only while there is no explicit choice
+  useEffect(() => {
+    if (!window.matchMedia) return undefined;
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    const onChange = () => setSystem(mq.matches ? 'dark' : 'light');
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
 
   useEffect(() => {
-    localStorage.setItem('zchat-theme', theme);
     document.documentElement.setAttribute('data-theme', theme);
+    syncThemeColorMeta();
   }, [theme]);
 
-  const cycleTheme = () => {
-    setTheme(prev => {
-      if (prev === 'hacker') return 'dark';
-      if (prev === 'dark') return 'light';
-      return 'hacker';
-    });
-  };
+  const setTheme = useCallback((next) => {
+    if (!THEMES.includes(next)) return;
+    setChosen(next);
+    writeStoredTheme(next);
+  }, []);
 
-  return (
-    <ThemeContext.Provider value={{ theme, cycleTheme }}>
-      {children}
-    </ThemeContext.Provider>
-  );
+  const value = useMemo(() => ({ theme, setTheme, themes: THEMES }), [theme, setTheme]);
+
+  return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 };
