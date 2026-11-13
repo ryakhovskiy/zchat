@@ -319,8 +319,11 @@ type MessageResponse struct {
 
 // ToResponse converts a domain message into a decrypted response DTO.
 func (s *MessageService) ToResponse(ctx context.Context, m *domain.Message) (*MessageResponse, error) {
-	content := m.Content
+	// Deleted messages expose no content: returning the stored value would leak
+	// raw ciphertext to clients (e.g. in quoted replies to a deleted message).
+	content := ""
 	if !m.IsDeleted {
+		content = m.Content
 		dec, err := s.encryptor.Decrypt(m.Content)
 		if err == nil {
 			content = dec
