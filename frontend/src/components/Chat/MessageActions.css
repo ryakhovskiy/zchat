@@ -1,6 +1,7 @@
 /* Touch action sheet */
 .quick-reactions {
   display: flex;
+  flex-wrap: wrap; /* safety net for large system font sizes / very narrow sheets */
   justify-content: space-between;
   gap: var(--space-1);
   padding-bottom: var(--space-3);

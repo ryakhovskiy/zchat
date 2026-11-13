@@ -70,11 +70,30 @@ export const MessageList = ({
     });
   }, [list]);
 
+  // Automatic follows are instant: a smooth scroll fires intermediate scroll events that would
+  // look like the reader scrolling away and wrongly un-pin the list. Only the explicit
+  // "Jump to latest" button scrolls smoothly, and not when the user prefers reduced motion.
+  const smoothingRef = useRef(false);
+  const smoothTimer = useRef(null);
   const scrollToBottom = useCallback((smooth = false) => {
     const el = containerRef.current;
     if (!el) return;
-    el.scrollTo({ top: el.scrollHeight, behavior: smooth ? 'smooth' : 'auto' });
+    pinnedRef.current = true;
+    const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    if (smooth && !reduceMotion) {
+      smoothingRef.current = true;
+      clearTimeout(smoothTimer.current);
+      smoothTimer.current = setTimeout(() => {
+        smoothingRef.current = false;
+        el.scrollTo({ top: el.scrollHeight, behavior: 'auto' }); // settle exactly at the bottom
+      }, 600);
+      el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+    } else {
+      el.scrollTo({ top: el.scrollHeight, behavior: 'auto' });
+    }
   }, []);
+
+  useEffect(() => () => clearTimeout(smoothTimer.current), []);
 
   // New conversation: jump to the bottom without animation
   useLayoutEffect(() => {
@@ -95,7 +114,7 @@ export const MessageList = ({
     if (firstPaint) {
       scrollToBottom(false);
     } else if (appended && (pinnedRef.current || mine)) {
-      scrollToBottom(true);
+      scrollToBottom(false);
     } else if (appended && !mine) {
       setShowJump(true);
     }
@@ -118,7 +137,8 @@ export const MessageList = ({
     const el = containerRef.current;
     if (!el) return;
     const distance = el.scrollHeight - el.scrollTop - el.clientHeight;
-    pinnedRef.current = distance < NEAR_BOTTOM_PX;
+    // Our own smooth scroll passes through intermediate positions: only real scrolling counts
+    if (!smoothingRef.current) pinnedRef.current = distance < NEAR_BOTTOM_PX;
     if (pinnedRef.current) setShowJump(false);
 
     if (el.scrollTop < 100 && hasMore && !loadingOlder) {

@@ -4,7 +4,8 @@ import { Icon } from '../Common/Icon';
 import { Sheet } from '../Common/Sheet';
 import './MessageActions.css';
 
-export const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
+// 5 + the "more" button = 6 x 44px targets, which fits the 286px body of a 320px sheet
+export const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '🙏'];
 
 /**
  * Actions for one message. Touch (long-press) opens a bottom action sheet with quick reactions;
