@@ -48,7 +48,32 @@
     "edited": "bearbeitet",
     "react_to_message": "Reagieren",
     "add_reaction": "Reaktion hinzufügen",
-    "remove_reaction": "Reaktion entfernen"
+    "remove_reaction": "Reaktion entfernen",
+    "back": "Zurück zu den Unterhaltungen",
+    "copy": "Kopieren",
+    "copied": "Kopiert",
+    "today": "Heute",
+    "yesterday": "Gestern",
+    "offline_banner": "Du bist offline. Nachrichten werden gesendet, sobald du wieder online bist.",
+    "reconnecting_banner": "Verbindung wird wiederhergestellt...",
+    "message_actions": "Nachrichtenaktionen",
+    "more_reactions": "Weitere Reaktionen",
+    "jump_to_latest": "Zu den neuesten springen",
+    "start_call": "Anrufen",
+    "delete_action": "Löschen",
+    "loading_older": "Frühere Nachrichten werden geladen...",
+    "cancel_edit": "Bearbeiten abbrechen",
+    "cancel_reply": "Antwort abbrechen",
+    "remove_attachment": "Anhang entfernen",
+    "sending": "Wird gesendet...",
+    "send_failed_hint": "Deine Nachricht steht noch im Eingabefeld, du kannst es erneut versuchen.",
+    "network_error": "Netzwerkfehler. Bitte überprüfe deine Verbindung.",
+    "conversation_with": "Unterhaltung mit {{name}}",
+    "unread_count": "{{count}} ungelesen",
+    "typing_placeholder": "Nachricht",
+    "attachment_preview": "Anhangsvorschau",
+    "open_image": "Bild öffnen",
+    "sender_group": "Gruppe"
   },
   "user_list": {
     "new_conversation": "Neue Konversation",
@@ -71,6 +96,41 @@
   },
   "theme": {
     "switch_to_light": "Zum hellen Design wechseln",
-    "switch_to_dark": "Zum dunklen Design wechseln"
+    "switch_to_dark": "Zum dunklen Design wechseln",
+    "name_light": "Hell",
+    "name_dark": "Dunkel",
+    "name_tech_green": "Tech Grün",
+    "name_tech_red": "Tech Rot"
+  },
+  "common": {
+    "close": "Schließen",
+    "back": "Zurück",
+    "retry": "Erneut versuchen",
+    "loading": "Wird geladen...",
+    "download": "Herunterladen",
+    "dismiss": "Ausblenden"
+  },
+  "settings": {
+    "title": "Einstellungen",
+    "theme": "Design",
+    "language": "Sprache",
+    "account": "Konto",
+    "signed_in_as": "Angemeldet als {{name}}",
+    "logout": "Abmelden"
+  },
+  "call": {
+    "incoming": "Eingehender Anruf",
+    "calling": "Anruf wird aufgebaut...",
+    "in_call": "Im Gespräch",
+    "accept": "Annehmen",
+    "decline": "Ablehnen",
+    "end": "Anruf beenden"
+  },
+  "browser": {
+    "title": "Chat-Browser",
+    "placeholder": "Suchen oder URL eingeben",
+    "go": "Los",
+    "error_title": "Seite konnte nicht geladen werden",
+    "view": "Browseransicht"
   }
 }

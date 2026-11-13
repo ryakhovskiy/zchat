@@ -18,6 +18,14 @@ for (const m of css.matchAll(/\[data-theme="([a-z-]+)"\]\s*\{([^}]*)\}/g)) {
 }
 delete themes.undefined;
 
+// Guard: a parser/selector change must not silently drop a theme from the check
+const EXPECTED = ['light', 'dark', 'tech-green', 'tech-red'];
+const found = Object.keys(themes).sort().join(',');
+if (found !== [...EXPECTED].sort().join(',')) {
+  console.error(`Expected themes ${EXPECTED.join(', ')} but found: ${found || '(none)'}`);
+  process.exit(1);
+}
+
 const hex = (v) => {
   const h = v.replace('#', '');
   return [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16) / 255);
@@ -59,6 +67,19 @@ const PAIRS = [
   ['--color-warning', '--color-surface', 4.5, 'warning text on surface'],
   ['--color-online', '--color-surface', 3, 'online dot on surface'],
   ['--avatar-text', '@avatar', 4.5, 'avatar initials (worst hue)'],
+  ['--color-bg', '--color-warning', 4.5, 'banner text on warning'],
+  ['--color-text', '--color-surface-sunken', 4.5, 'text on sunken surface'],
+  ['--color-text-secondary', '--color-surface-sunken', 4.5, 'secondary text on sunken surface (segmented control)'],
+  ['--color-text', '--color-accent-soft', 4.5, 'text on accent-soft (hover/selected rows)'],
+  ['--color-text-secondary', '--color-accent-soft', 4.5, 'secondary text on accent-soft'],
+  ['--color-text-muted', '--color-accent-soft', 4.5, 'muted text on accent-soft'],
+  ['--bubble-out-meta', '--bubble-out-bg', 4.5, 'timestamp in outgoing bubble'],
+  ['--bubble-in-meta', '--bubble-in-bg', 4.5, 'timestamp in incoming bubble'],
+  ['--color-on-success', '--color-success', 4.5, 'text on success button'],
+  ['--color-on-danger', '--color-danger', 4.5, 'text on danger button'],
+  ['--color-danger', '--bubble-in-bg', 4.5, 'danger text in incoming bubble'],
+  ['--color-accent-text', '--bubble-in-bg', 4.5, 'link text in incoming bubble'],
+  ['--sender-name', '@sender', 4.5, 'sender name in incoming bubble (worst hue)'],
 ];
 
 // Avatar background is hsl(hue, --avatar-s, --avatar-l); check the worst hue
@@ -76,7 +97,11 @@ for (const [id, t] of Object.entries(themes)) {
   console.log(`\n${id}`);
   for (const [fg, bg, min, label] of PAIRS) {
     let r;
-    if (bg === '@avatar') {
+    if (bg === '@sender') {
+      const sS = parseFloat(t['--sender-s']);
+      const sL = parseFloat(t['--sender-l']);
+      r = Math.min(...Array.from({ length: 36 }, (_, i) => ratio(hsl2hex(i * 10, sS, sL), t['--bubble-in-bg'])));
+    } else if (bg === '@avatar') {
       const s = parseFloat(t['--avatar-s']);
       const l = parseFloat(t['--avatar-l']);
       r = Math.min(...Array.from({ length: 36 }, (_, i) => ratio(t[fg], hsl2hex(i * 10, s, l))));

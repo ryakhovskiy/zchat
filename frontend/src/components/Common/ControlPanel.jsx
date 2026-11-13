@@ -1,87 +1,174 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
-import { useChat } from '../../contexts/ChatContext';
+import { Icon } from './Icon';
+import { Sheet } from './Sheet';
 import './ControlPanel.css';
 
-export const ControlPanel = ({ variant = 'standard' }) => {
-  const { t, i18n } = useTranslation();
+const THEME_ICONS = { light: 'sun', dark: 'moon', 'tech-green': 'terminal', 'tech-red': 'zap' };
+const LANGUAGES = [
+  { code: 'en', short: 'EN', name: 'English' },
+  { code: 'de', short: 'DE', name: 'Deutsch' },
+  { code: 'ru', short: 'RU', name: 'Русский' },
+];
+
+/** Roving-tabindex radiogroup: arrows move the selection, Tab leaves the group. */
+const useRadioKeys = (count, selectedIndex, onSelect) => (e) => {
+  const keys = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 };
+  if (e.key === 'Home' || e.key === 'End') {
+    e.preventDefault();
+    onSelect(e.key === 'Home' ? 0 : count - 1);
+  } else if (keys[e.key]) {
+    e.preventDefault();
+    onSelect((selectedIndex + keys[e.key] + count) % count);
+  }
+};
+
+const ThemePicker = () => {
+  const { t } = useTranslation();
   const { theme, setTheme, themes } = useTheme();
-  // TEMPORARY until the Settings sheet replaces this button
-  const cycleTheme = () => setTheme(themes[(themes.indexOf(theme) + 1) % themes.length]);
-  const { logout } = useAuth();
-  const { selectConversation } = useChat();
-  const [showSettings, setShowSettings] = useState(false);
+  const refs = useRef([]);
 
-  const toggleLanguage = () => {
-    const currentLang = (i18n.resolvedLanguage || 'en').substring(0, 2).toLowerCase();
-    const cycle = { en: 'de', de: 'ru', ru: 'en' };
-    const nextLang = cycle[currentLang] || 'en';
-    i18n.changeLanguage(nextLang);
+  const select = (index) => {
+    setTheme(themes[index]);
+    refs.current[index]?.focus();
   };
-
-  const displayLang = (i18n.resolvedLanguage || 'EN').substring(0, 2).toUpperCase();
+  const onKeyDown = useRadioKeys(themes.length, themes.indexOf(theme), select);
 
   return (
-    <div className={`control-panel ${variant}`}>
-      <button 
-        className="control-btn settings-btn" 
-        onClick={() => setShowSettings(!showSettings)}
-        title={t('settings.title') || "Settings"}
-      >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <circle cx="12" cy="12" r="3"></circle>
-            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-        </svg>
-      </button>
+    <section className="settings-section" aria-labelledby="settings-theme-label">
+      <h3 id="settings-theme-label" className="settings-label">{t('settings.theme')}</h3>
+      <div className="theme-grid" role="radiogroup" aria-labelledby="settings-theme-label" onKeyDown={onKeyDown}>
+        {themes.map((id, index) => {
+          const checked = id === theme;
+          const name = t(`theme.name_${id.replace('-', '_')}`);
+          return (
+            <button
+              key={id}
+              ref={(el) => { refs.current[index] = el; }}
+              type="button"
+              role="radio"
+              aria-checked={checked}
+              aria-label={name}
+              tabIndex={checked ? 0 : -1}
+              className={`theme-card ${checked ? 'theme-card--checked' : ''}`}
+              onClick={() => setTheme(id)}
+              data-theme-option={id}
+              data-testid={`theme-option-${id}`}
+            >
+              {/* Mini preview: scoped data-theme makes every token resolve to THAT theme */}
+              <span className="theme-preview" data-theme={id} aria-hidden="true">
+                <span className="theme-preview-bar" />
+                <span className="theme-preview-bubble theme-preview-bubble--in" />
+                <span className="theme-preview-bubble theme-preview-bubble--out" />
+              </span>
+              <span className="theme-card-name">
+                <Icon name={THEME_ICONS[id]} size={18} />
+                <span>{name}</span>
+                {checked && <Icon name="check" size={18} className="theme-card-check" />}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </section>
+  );
+};
 
+const LanguagePicker = () => {
+  const { t, i18n } = useTranslation();
+  const current = (i18n.resolvedLanguage || 'en').substring(0, 2).toLowerCase();
+  const selectedIndex = Math.max(0, LANGUAGES.findIndex((l) => l.code === current));
+  const refs = useRef([]);
+
+  const select = (index) => {
+    i18n.changeLanguage(LANGUAGES[index].code);
+    refs.current[index]?.focus();
+  };
+  const onKeyDown = useRadioKeys(LANGUAGES.length, selectedIndex, select);
+
+  return (
+    <section className="settings-section" aria-labelledby="settings-language-label">
+      <h3 id="settings-language-label" className="settings-label">{t('settings.language')}</h3>
+      <div className="segmented" role="radiogroup" aria-labelledby="settings-language-label" onKeyDown={onKeyDown}>
+        {LANGUAGES.map((lang, index) => {
+          const checked = index === selectedIndex;
+          return (
+            <button
+              key={lang.code}
+              ref={(el) => { refs.current[index] = el; }}
+              type="button"
+              role="radio"
+              aria-checked={checked}
+              aria-label={lang.name}
+              lang={lang.code}
+              tabIndex={checked ? 0 : -1}
+              className={`segmented-option ${checked ? 'segmented-option--checked' : ''}`}
+              onClick={() => i18n.changeLanguage(lang.code)}
+              data-testid={`language-option-${lang.code}`}
+            >
+              <span aria-hidden="true">{lang.short}</span>
+              <span className="segmented-name" aria-hidden="true">{lang.name}</span>
+            </button>
+          );
+        })}
+      </div>
+    </section>
+  );
+};
+
+/** Gear button + Settings sheet (popover on desktop, bottom sheet on phones). */
+export const ControlPanel = ({ className = '' }) => {
+  const { t } = useTranslation();
+  const { user, logout } = useAuth();
+  const [open, setOpen] = useState(false);
+  const buttonRef = useRef(null);
+
+  return (
+    <>
       <button
-        className="control-btn theme-btn"
-        onClick={cycleTheme}
-        title={`Cycle theme (current: ${theme})`}
+        ref={buttonRef}
+        type="button"
+        className={`icon-btn settings-btn ${className}`.trim()}
+        onClick={() => setOpen((v) => !v)}
+        aria-label={t('settings.title')}
+        title={t('settings.title')}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        data-testid="settings-button"
       >
-        {theme.startsWith('tech') ? (
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="4 17 10 11 4 5" />
-            <line x1="12" y1="19" x2="20" y2="19" />
-          </svg>
-        ) : theme === 'dark' ? (
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-          </svg>
-        ) : (
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <circle cx="12" cy="12" r="5" />
-            <line x1="12" y1="1" x2="12" y2="3" />
-            <line x1="12" y1="21" x2="12" y2="23" />
-            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
-            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
-            <line x1="1" y1="12" x2="3" y2="12" />
-            <line x1="21" y1="12" x2="23" y2="12" />
-            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
-            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
-          </svg>
-        )}
+        <Icon name="settings" />
       </button>
 
-      <button className="control-btn lang-btn" onClick={toggleLanguage}>
-        {displayLang}
-      </button>
+      <Sheet
+        open={open}
+        onClose={() => setOpen(false)}
+        title={t('settings.title')}
+        anchorRef={buttonRef}
+        testId="settings-sheet"
+      >
+        <div className="settings-content">
+          <ThemePicker />
+          <LanguagePicker />
 
-      <button className="control-btn logout-btn" onClick={logout} title="Logout">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-          <polyline points="16 17 21 12 16 7" />
-          <line x1="21" y1="12" x2="9" y2="12" />
-        </svg>
-      </button>
-
-      {showSettings && (
-        <div className="settings-popover">
-          <p>User Profile (Coming Soon)</p>
+          {user && (
+            <section className="settings-section settings-account" aria-labelledby="settings-account-label">
+              <h3 id="settings-account-label" className="settings-label">{t('settings.account')}</h3>
+              <p className="settings-user">{t('settings.signed_in_as', { name: user.username })}</p>
+              <button
+                type="button"
+                className="btn-danger settings-logout"
+                onClick={() => { setOpen(false); logout(); }}
+                data-testid="logout-button"
+              >
+                <Icon name="logout" size={20} />
+                <span>{t('settings.logout')}</span>
+              </button>
+            </section>
+          )}
         </div>
-      )}
-    </div>
+      </Sheet>
+    </>
   );
 };

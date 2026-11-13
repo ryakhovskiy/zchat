@@ -48,6 +48,11 @@
   --bp-tablet: 768px;   /* documentation only: custom properties cannot be used in @media */
   --bp-desktop: 1024px;
 
+  /* Full app height: 100vh fallback, 100dvh where supported (see @supports below), and
+     --app-height (set from visualViewport by useAppHeight) so the keyboard never covers the composer */
+  --vh-full: 100vh;
+  --app-h: var(--app-height, var(--vh-full));
+
   /* Safe areas (fall back to 0 where unsupported) */
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-right: env(safe-area-inset-right, 0px);
@@ -78,6 +83,12 @@
     "Apple Color Emoji", "Segoe UI Emoji", sans-serif;
   --font-mono-stack: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, "Liberation Mono",
     monospace;
+}
+
+@supports (height: 100dvh) {
+  :root {
+    --vh-full: 100dvh;
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -118,6 +129,8 @@
   --color-danger-soft: #fdecec;
   --color-warning: #b45309;
   --color-online: #16a34a;
+  --color-on-success: #ffffff;
+  --color-on-danger: #ffffff;
 
   /* Bubbles */
   --bubble-out-bg: #4f46e5;
@@ -126,6 +139,10 @@
   --bubble-in-bg: #ffffff;
   --bubble-in-text: #14171f;
   --bubble-in-border: #dfe2e8;
+  --bubble-out-meta: #e0defd;   /* timestamps/ticks inside outgoing bubbles (AA-checked) */
+  --bubble-in-meta: #5f6677;
+  --sender-s: 55%;            /* group-chat sender names: hue from username */
+  --sender-l: 30%;
   --bubble-radius: 18px;
   --bubble-radius-tail: 6px;        /* the corner nearest the sender */
 
@@ -152,6 +169,12 @@
   --avatar-s: 55%;
   --avatar-l: 29%;
   --avatar-text: #ffffff;
+
+  /* RGB triplets consumed by emoji-mart (it needs raw channels) */
+  --rgb-bg: 255, 255, 255;
+  --rgb-text: 20, 23, 31;
+  --rgb-accent: 79, 70, 229;
+  --rgb-input: 236, 238, 242;
 }
 
 /* ------------------------------------------------------------------ */
@@ -187,6 +210,8 @@
   --color-danger-soft: #3a1c20;
   --color-warning: #fbbf24;
   --color-online: #4ade80;
+  --color-on-success: #0f1115;
+  --color-on-danger: #0f1115;
 
   --bubble-out-bg: #4f46e5;
   --bubble-out-text: #ffffff;
@@ -194,6 +219,10 @@
   --bubble-in-bg: #1f232c;
   --bubble-in-text: #e8eaf0;
   --bubble-in-border: transparent;
+  --bubble-out-meta: #e0defd;   /* timestamps/ticks inside outgoing bubbles (AA-checked) */
+  --bubble-in-meta: #8f97a8;
+  --sender-s: 70%;            /* group-chat sender names: hue from username */
+  --sender-l: 72%;
   --bubble-radius: 18px;
   --bubble-radius-tail: 6px;
 
@@ -217,6 +246,12 @@
   --avatar-s: 50%;
   --avatar-l: 30%;
   --avatar-text: #ffffff;
+
+  /* RGB triplets consumed by emoji-mart (it needs raw channels) */
+  --rgb-bg: 23, 26, 33;
+  --rgb-text: 232, 234, 240;
+  --rgb-accent: 129, 140, 248;
+  --rgb-input: 31, 35, 44;
 }
 
 /* ------------------------------------------------------------------ */
@@ -253,6 +288,8 @@
   --color-danger-soft: #2f1416;
   --color-warning: #ffc233;
   --color-online: #00e07a;
+  --color-on-success: #03140b;
+  --color-on-danger: #1a0506;
 
   --bubble-out-bg: #0d3a25;
   --bubble-out-text: #e6efea;
@@ -260,6 +297,10 @@
   --bubble-in-bg: #101c17;
   --bubble-in-text: #e6efea;
   --bubble-in-border: #1b2c25;
+  --bubble-out-meta: #a3c9b5;   /* timestamps/ticks inside outgoing bubbles (AA-checked) */
+  --bubble-in-meta: #8aa095;
+  --sender-s: 60%;            /* group-chat sender names: hue from username */
+  --sender-l: 68%;
   --bubble-radius: 8px;
   --bubble-radius-tail: 2px;
 
@@ -284,6 +325,12 @@
   --avatar-s: 60%;
   --avatar-l: 26%;
   --avatar-text: #e6efea;
+
+  /* RGB triplets consumed by emoji-mart (it needs raw channels) */
+  --rgb-bg: 10, 19, 16;
+  --rgb-text: 230, 239, 234;
+  --rgb-accent: 0, 224, 122;
+  --rgb-input: 16, 28, 23;
 }
 
 /* ------------------------------------------------------------------ */
@@ -321,6 +368,8 @@
   --color-danger-soft: #33210d;
   --color-warning: #ffd23d;
   --color-online: #3ddc97;
+  --color-on-success: #031a10;
+  --color-on-danger: #1f1000;
 
   --bubble-out-bg: #5a0f1b;
   --bubble-out-text: #f1e8e9;
@@ -328,6 +377,10 @@
   --bubble-in-bg: #1d1214;
   --bubble-in-text: #f1e8e9;
   --bubble-in-border: #2c1a1d;
+  --bubble-out-meta: #d9b3b8;   /* timestamps/ticks inside outgoing bubbles (AA-checked) */
+  --bubble-in-meta: #a08e91;
+  --sender-s: 60%;            /* group-chat sender names: hue from username */
+  --sender-l: 70%;
   --bubble-radius: 8px;
   --bubble-radius-tail: 2px;
 
@@ -351,6 +404,12 @@
   --avatar-s: 55%;
   --avatar-l: 26%;
   --avatar-text: #f1e8e9;
+
+  /* RGB triplets consumed by emoji-mart (it needs raw channels) */
+  --rgb-bg: 20, 12, 14;
+  --rgb-text: 241, 232, 233;
+  --rgb-accent: 229, 56, 79;
+  --rgb-input: 29, 18, 20;
 }
 
 /* ------------------------------------------------------------------ */

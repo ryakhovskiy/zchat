@@ -48,7 +48,32 @@
     "edited": "edited",
     "react_to_message": "React",
     "add_reaction": "Add reaction",
-    "remove_reaction": "Remove reaction"
+    "remove_reaction": "Remove reaction",
+    "back": "Back to conversations",
+    "copy": "Copy",
+    "copied": "Copied",
+    "today": "Today",
+    "yesterday": "Yesterday",
+    "offline_banner": "You're offline. Messages will send when you're back online.",
+    "reconnecting_banner": "Reconnecting...",
+    "message_actions": "Message actions",
+    "more_reactions": "More reactions",
+    "jump_to_latest": "Jump to latest",
+    "start_call": "Call",
+    "delete_action": "Delete",
+    "loading_older": "Loading earlier messages...",
+    "cancel_edit": "Cancel editing",
+    "cancel_reply": "Cancel reply",
+    "remove_attachment": "Remove attachment",
+    "sending": "Sending...",
+    "send_failed_hint": "Your message is still in the box, so you can try again.",
+    "network_error": "Network error. Please check your connection.",
+    "conversation_with": "Conversation with {{name}}",
+    "unread_count": "{{count}} unread",
+    "typing_placeholder": "Message",
+    "attachment_preview": "Attachment preview",
+    "open_image": "Open image",
+    "sender_group": "Group"
   },
   "user_list": {
     "new_conversation": "New Conversation",
@@ -71,6 +96,41 @@
   },
   "theme": {
     "switch_to_light": "Switch to light theme",
-    "switch_to_dark": "Switch to dark theme"
+    "switch_to_dark": "Switch to dark theme",
+    "name_light": "Light",
+    "name_dark": "Dark",
+    "name_tech_green": "Tech Green",
+    "name_tech_red": "Tech Red"
+  },
+  "common": {
+    "close": "Close",
+    "back": "Back",
+    "retry": "Retry",
+    "loading": "Loading...",
+    "download": "Download",
+    "dismiss": "Dismiss"
+  },
+  "settings": {
+    "title": "Settings",
+    "theme": "Theme",
+    "language": "Language",
+    "account": "Account",
+    "signed_in_as": "Signed in as {{name}}",
+    "logout": "Log out"
+  },
+  "call": {
+    "incoming": "Incoming call",
+    "calling": "Calling...",
+    "in_call": "In call",
+    "accept": "Accept",
+    "decline": "Decline",
+    "end": "End call"
+  },
+  "browser": {
+    "title": "Chat Browser",
+    "placeholder": "Search or enter a URL",
+    "go": "Go",
+    "error_title": "Error loading page",
+    "view": "Browser view"
   }
 }

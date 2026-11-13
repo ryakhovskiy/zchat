@@ -1,0 +1,159 @@
+/* Overlay primitive: bottom sheet on phones, popover/modal from 768px. Tokens only. */
+
+.sheet-root {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-sheet);
+}
+
+.sheet-scrim {
+  position: absolute;
+  inset: 0;
+  background: var(--color-scrim);
+  animation: sheet-fade var(--motion-base) var(--ease-out);
+}
+
+.sheet-root--popover .sheet-scrim {
+  background: transparent; /* a popover dims nothing, but still catches outside taps */
+}
+
+.sheet-panel {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-surface-raised);
+  color: var(--color-text);
+  border: var(--border-width) solid var(--color-border);
+  box-shadow: var(--shadow-lg), var(--glow);
+  outline: none;
+  overflow: hidden;
+}
+
+/* Phone: bottom sheet */
+.sheet-panel--bottom {
+  left: 0;
+  right: 0;
+  bottom: 0;
+  max-height: calc(var(--app-h) - var(--safe-top) - var(--space-6));
+  padding-bottom: var(--safe-bottom);
+  padding-left: var(--safe-left);
+  padding-right: var(--safe-right);
+  border-bottom: 0;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  animation: sheet-up var(--motion-slow) var(--ease-out);
+}
+
+.sheet-panel--bottom.sheet-panel--tall {
+  height: calc(var(--app-h) - var(--safe-top) - var(--space-6));
+}
+
+/* Phone: full screen */
+.sheet-panel--fullscreen {
+  inset: 0;
+  padding: var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left);
+  border: 0;
+  border-radius: 0;
+  animation: sheet-fade var(--motion-base) var(--ease-out);
+}
+
+/* Tablet/desktop: centred modal */
+.sheet-panel--modal {
+  top: 50%;
+  left: 50%;
+  width: min(480px, calc(100vw - var(--space-8)));
+  max-height: min(680px, calc(100dvh - var(--space-8)));
+  border-radius: var(--radius-lg);
+  transform: translate(-50%, -50%);
+  animation: sheet-pop var(--motion-base) var(--ease-out);
+}
+
+/* Tablet/desktop: popover under its trigger */
+.sheet-panel--popover {
+  max-height: calc(100dvh - 80px);
+  border-radius: var(--radius-lg);
+  animation: sheet-pop-anchored var(--motion-base) var(--ease-out);
+}
+
+.sheet-grabber {
+  flex-shrink: 0;
+  align-self: center;
+  width: 36px;
+  height: 4px;
+  margin: var(--space-2) 0 0;
+  border-radius: var(--radius-full);
+  background: var(--color-border-strong);
+}
+
+.sheet-header {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4);
+  border-bottom: var(--border-width) solid var(--color-border);
+}
+
+.sheet-title {
+  font-family: var(--font-meta);
+  font-size: var(--text-lg);
+  font-weight: 600;
+  letter-spacing: var(--meta-letter-spacing);
+  line-height: var(--leading-tight);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sheet-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--space-4);
+}
+
+.sheet-footer {
+  display: flex;
+  flex-shrink: 0;
+  gap: var(--space-3);
+  justify-content: flex-end;
+  padding: var(--space-3) var(--space-4);
+  border-top: var(--border-width) solid var(--color-border);
+}
+
+/* Phone landscape: little vertical room, let sheets use all of it */
+@media (max-height: 480px) {
+  .sheet-panel--bottom {
+    max-height: calc(var(--app-h) - var(--safe-top));
+  }
+  .sheet-panel--bottom.sheet-panel--tall {
+    height: calc(var(--app-h) - var(--safe-top));
+  }
+  .sheet-grabber {
+    display: none;
+  }
+}
+
+@keyframes sheet-fade {
+  from { opacity: 0; }
+}
+
+@keyframes sheet-up {
+  from { transform: translateY(100%); }
+}
+
+@keyframes sheet-pop {
+  from { opacity: 0; transform: translate(-50%, -48%) scale(0.98); }
+}
+
+@keyframes sheet-pop-anchored {
+  from { opacity: 0; transform: translateY(-4px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sheet-scrim,
+  .sheet-panel {
+    animation: none;
+  }
+}

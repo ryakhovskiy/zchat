@@ -126,12 +126,10 @@ export class WebSocketClient {
 
     return new Promise((resolve, reject) => {
       try {
-        let opened = false;
         this.ws = new WebSocket(WS_BASE_URL, ['bearer', this.token]);
 
         this.ws.onopen = () => {
           console.log('WebSocket connected');
-          opened = true;
           this.hasEverConnected = true;
           this.reconnectAttempts = 0;
           resolve();
