@@ -33,7 +33,7 @@ export default defineConfig({
     launchOptions: { args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream'] },
   },
   projects: [
-    { name: 'theme-init', testMatch: ['theme-init.spec.js', 'theme-contract.spec.js', 'auth-form.spec.js', 'production.spec.js'], use: { viewport: { width: 390, height: 844 } } },
+    { name: 'theme-init', testMatch: ['theme-init.spec.js', 'theme-contract.spec.js', 'auth-form.spec.js', 'production.spec.js', 'uploads.spec.js'], use: { viewport: { width: 390, height: 844 } } },
     ...viewports.map(([width, height]) => ({
       name: `${width}x${height}`,
       testMatch: ['responsive.spec.js', 'regression.spec.js', 'composer-race.spec.js'],

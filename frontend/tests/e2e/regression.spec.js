@@ -80,7 +80,12 @@ for (const theme of themes) {
       name: 'qa-image.png', mimeType: 'image/png',
       buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a2ioAAAAASUVORK5CYII=', 'base64'),
     });
+    const uploaded = page.waitForResponse(response => new URL(response.url()).pathname === '/api/uploads/' && response.request().method() === 'POST');
     await page.locator('.send-button').click();
+    const upload = await uploaded;
+    expect(upload.ok(), 'authenticated image upload succeeds').toBeTruthy();
+    const uploadHeaders = await upload.request().allHeaders();
+    expect(/^Bearer \S+$/.test(uploadHeaders.authorization || ''), 'the UI upload carries a Bearer token').toBe(true);
     const image = page.locator('.attachment-image').last();
     await expect(image).toBeVisible();
     await expect.poll(() => image.evaluate(e => e.complete && e.naturalWidth > 0)).toBeTruthy();
