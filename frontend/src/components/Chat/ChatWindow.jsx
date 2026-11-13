@@ -53,6 +53,7 @@ export const ChatWindow = () => {
   const [toast, setToast] = useState('');
   const composerRef = useRef(null);
   const toastTimer = useRef(null);
+  const actionTriggerRef = useRef(null); // where focus was when the actions opened
 
   const conversationId = selectedConversation?.id;
   const conversationMessages = conversationId ? messages[conversationId] : undefined;
@@ -103,10 +104,24 @@ export const ChatWindow = () => {
   }, []);
 
   const openActions = useCallback((message, point) => {
+    // Remember where focus was (hover button, composer...) or fall back to the message row,
+    // which survives the menu/sheet unmounting, so closing never drops focus onto <body>
+    const active = document.activeElement;
+    actionTriggerRef.current = active && active !== document.body
+      ? active
+      : document.querySelector(`[data-message-id="${message.id}"]`);
     setActionTarget({ message, ...point, isMine: message.sender_id === user.id });
   }, [user.id]);
 
-  const closeActions = useCallback(() => setActionTarget(null), []);
+  const closeActions = useCallback(() => {
+    setActionTarget(null);
+    const trigger = actionTriggerRef.current;
+    if (trigger && document.contains(trigger)) {
+      trigger.focus({ preventScroll: true });
+    } else if (!coarse) {
+      composerRef.current?.focus(); // the message is gone (deleted): keep keyboard users in the chat
+    }
+  }, [coarse]);
 
   const startReply = useCallback((message) => {
     setEditing(null);

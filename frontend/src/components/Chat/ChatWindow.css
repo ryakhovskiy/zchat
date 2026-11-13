@@ -169,6 +169,10 @@
   touch-action: pan-y;
 }
 
+.message:focus {
+  outline: none; /* programmatic focus target only; keyboard focus ring is shown via :focus-visible */
+}
+
 .message--continues {
   margin-top: 2px;
 }

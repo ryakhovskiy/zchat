@@ -149,6 +149,7 @@ export const MessageBubble = ({
       ].filter(Boolean).join(' ')}
       data-testid="message"
       data-message-id={message.id}
+      tabIndex={-1}
       {...handlers}
     >
       <div className="message-content">

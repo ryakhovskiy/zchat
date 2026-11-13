@@ -2,17 +2,17 @@ import React, { useEffect, useId, useLayoutEffect, useRef, useState } from 'reac
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useIsPhone } from '../../hooks/useMediaQuery';
+import { getTabbables, trapTab } from '../../utils/focus';
+import { isTouchDown, onTouchRelease } from '../../utils/pointerState';
 import { Icon } from './Icon';
 import './Sheet.css';
-
-const FOCUSABLE =
-  'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 // Open sheets, topmost last: Esc only closes the topmost one
 const stack = [];
 
 const POPOVER_WIDTH = 360;
 const ARM_DELAY_MS = 350;
+const MAX_HOLD_WAIT_MS = 4000;
 
 /**
  * Overlay primitive. Phone (<768px): bottom sheet (or full screen with size="full").
@@ -67,15 +67,33 @@ export const Sheet = ({
     return () => window.removeEventListener('resize', place);
   }, [open, popover, anchorRef]);
 
-  // A sheet opened by a long-press appears under the finger: ignore pointer input for a moment
-  // so lifting that finger can never fire an action (e.g. "Delete") by accident.
+  // A sheet opened by a long-press appears under the still-down finger. Ignore pointer input until
+  // that finger lifts (plus a short grace period for the click the browser synthesises on release),
+  // so releasing can neither dismiss the sheet nor fire an action (e.g. "Delete") by accident.
   useEffect(() => {
     if (!open) {
       setArmed(false);
       return undefined;
     }
-    const timer = setTimeout(() => setArmed(true), ARM_DELAY_MS);
-    return () => clearTimeout(timer);
+    let armTimer;
+    let fallbackTimer;
+    let unsubscribe;
+    const armSoon = () => {
+      clearTimeout(armTimer);
+      armTimer = setTimeout(() => setArmed(true), ARM_DELAY_MS);
+    };
+    if (isTouchDown()) {
+      unsubscribe = onTouchRelease(armSoon);
+      // Safety net if the release is never reported: the sheet must stay dismissible by touch
+      fallbackTimer = setTimeout(armSoon, MAX_HOLD_WAIT_MS);
+    } else {
+      armSoon();
+    }
+    return () => {
+      clearTimeout(armTimer);
+      clearTimeout(fallbackTimer);
+      unsubscribe?.();
+    };
   }, [open]);
 
   // Focus management and Esc/Tab handling
@@ -86,7 +104,7 @@ export const Sheet = ({
     stack.push(token);
 
     const panel = panelRef.current;
-    const first = panel?.querySelector('[data-autofocus]') || panel?.querySelector(FOCUSABLE);
+    const first = panel?.querySelector('[data-autofocus]') || (panel && getTabbables(panel)[0]);
     (first || panel)?.focus({ preventScroll: true });
 
     const onKeyDown = (e) => {
@@ -96,21 +114,7 @@ export const Sheet = ({
         onCloseRef.current();
         return;
       }
-      if (e.key !== 'Tab' || !panel) return;
-      const items = [...panel.querySelectorAll(FOCUSABLE)].filter((el) => el.offsetParent !== null);
-      if (items.length === 0) {
-        e.preventDefault();
-        return;
-      }
-      const firstItem = items[0];
-      const lastItem = items[items.length - 1];
-      if (e.shiftKey && document.activeElement === firstItem) {
-        e.preventDefault();
-        lastItem.focus();
-      } else if (!e.shiftKey && document.activeElement === lastItem) {
-        e.preventDefault();
-        firstItem.focus();
-      }
+      if (e.key === 'Tab' && panel) trapTab(e, panel);
     };
 
     document.addEventListener('keydown', onKeyDown, true);
