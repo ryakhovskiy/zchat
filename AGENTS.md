@@ -22,7 +22,7 @@ Frontend (React) ─┐                      ┌─ PostgreSQL
 - **Shared WebSocket event types**: `message`, `message_edited`, `message_deleted`, `messages_read`, `typing`, `user_online`, `user_offline`, `call_offer`, `call_answer`, `ice_candidate`, `call_end`, `call_rejected`, `react_message` (client → server), `reaction_updated` (server → client).
 - **Frontend themes**: `light`, `dark`, `tech-green`, `tech-red`, defined as token sets in `frontend/src/styles/themes.css`. The first visit follows the OS color scheme; preferences use localStorage key `zchat-theme`, with legacy `hacker` migrated to `tech-green`.
 - **Settings and theme initialization**: The Settings gear opens a desktop popover or phone bottom sheet with a theme radiogroup, EN/DE/RU language control and separate logout action. `frontend/public/theme-init.js` runs synchronously from the HTML head before React mounts and updates `theme-color`.
-- **PWA**: `frontend/public/manifest.webmanifest` and `public/icons/` support standalone installation. `public/sw.js` handles push notifications; there is no offline cache or offline send queue. The embedded WebBrowser has been removed.
+- **PWA**: `frontend/public/manifest.webmanifest` and `frontend/public/icons/` support standalone installation. `frontend/public/sw.js` handles push notifications; there is no offline cache or offline send queue. The embedded WebBrowser has been removed.
 
 ## Network Topology
 | Service     | Dev Port | Docker Compose                                              |
@@ -48,7 +48,6 @@ Dev proxy: frontend Vite config proxies `/api` → `http://localhost:8000` and `
    - `MAX_USERS` — registration limit (default: 10); must be a positive integer, registration returns 403 when reached
    - `WS_PING_INTERVAL_SEC` — WebSocket ping interval in seconds (default: 30)
    - `WS_PONG_TIMEOUT_SEC` — WebSocket pong timeout in seconds (default: 60)
-   - `VITE_API_URL`, `VITE_WS_URL` — frontend build-time API base paths (default: `/api`, `/ws`)
    - `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` — Web Push is enabled when both are set; `VITE_VAPID_PUBLIC_KEY` is an optional frontend build-time key
    - `DEBUG` — backend debug mode and Swagger `/docs` availability (default: true for direct execution, false in Compose)
    - `APP_NAME`, `APP_ENV` — backend application metadata (defaults: `zChat Go API`, `development`)
@@ -56,13 +55,14 @@ Dev proxy: frontend Vite config proxies `/api` → `http://localhost:8000` and `
    - `ENCRYPTION_KEY_LEGACY` — comma-separated legacy Fernet keys (default: empty)
    - `FRONTEND_PORT`, `FRONTEND_BIND` — published frontend port/bind address in Docker Compose (default: `3000`, `127.0.0.1`)
    - `EXTRA_CA_FILE` — root CA passed as a build secret for Docker builds behind TLS-intercepting proxies (e.g. Zscaler)
+5. **Local frontend variables**: Copy `frontend/.env.example` to `frontend/.env` for direct backend URLs (`VITE_API_URL=http://localhost:8000/api`, `VITE_WS_URL=ws://localhost:8000/ws`), or set `VITE_API_URL=/api` and `VITE_WS_URL=/ws` in that file or the process environment to use the Vite dev proxy. Local Vite loads environment files from `frontend/`, not the root `.env`; the frontend helper scripts do not create this file. The `/api` and `/ws` defaults are provided only by Dockerfile/Compose image builds.
 
 `WS_PING_INTERVAL_SEC`, `WS_PONG_TIMEOUT_SEC`, `APP_NAME`, `APP_ENV` and `ENCRYPTION_KEY_LEGACY` are direct backend environment settings; the root Compose file does not forward them.
 
 ## General Setup & Execution
 - **Docker (full stack):** `docker compose up -d --build`. Images are multi-stage and minimal: backend = static Go binary on distroless (non-root), frontend = built SPA on `nginx-unprivileged:alpine-slim` (container config: `frontend/docker/nginx.conf`; `frontend/nginx.conf` is a separate host-nginx config).
-- **Frontend local dev:** `cd frontend && npm install && npm run dev` (or `./start.ps1` / `./start.sh`).
-- **Backend local dev:** Export the backend environment variables before `cd backend && go run cmd/server/main.go`; the backend does not load the root `.env` itself. Alternatively use `./start.ps1` / `./start.sh`, which supply development-only default secrets when unset.
+- **Frontend local dev:** Prepare `frontend/.env` or export the two `VITE_*` variables above, then `cd frontend && npm install && npm run dev` (or use `./start.ps1` / `bash ./start.sh` from `frontend/` with the same environment).
+- **Backend local dev:** Export the backend environment variables before `cd backend && go run cmd/server/main.go`; the backend does not load the root `.env` itself. Alternatively use `./start.ps1` / `bash ./start.sh` from `backend/`, which supply development-only default secrets when unset.
 - **Shell Scripts**: `start.ps1` (Windows) and `start.sh` (Bash) are available in both `frontend/` and `backend/`.
 
 ## Deployment
