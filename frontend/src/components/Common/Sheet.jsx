@@ -4,11 +4,9 @@ import { useTranslation } from 'react-i18next';
 import { useIsPhone } from '../../hooks/useMediaQuery';
 import { getTabbables, trapTab } from '../../utils/focus';
 import { isTouchDown, onTouchRelease } from '../../utils/pointerState';
+import { isTopOverlay, popOverlay, pushOverlay } from '../../utils/overlayStack';
 import { Icon } from './Icon';
 import './Sheet.css';
-
-// Open sheets, topmost last: Esc only closes the topmost one
-const stack = [];
 
 const POPOVER_WIDTH = 360;
 const ARM_DELAY_MS = 350;
@@ -100,15 +98,14 @@ export const Sheet = ({
   useEffect(() => {
     if (!open) return undefined;
     const previouslyFocused = document.activeElement;
-    const token = {};
-    stack.push(token);
+    const token = pushOverlay();
 
     const panel = panelRef.current;
     const first = panel?.querySelector('[data-autofocus]') || (panel && getTabbables(panel)[0]);
     (first || panel)?.focus({ preventScroll: true });
 
     const onKeyDown = (e) => {
-      if (stack[stack.length - 1] !== token) return;
+      if (!isTopOverlay(token)) return;
       if (e.key === 'Escape') {
         e.stopPropagation();
         onCloseRef.current();
@@ -120,8 +117,7 @@ export const Sheet = ({
     document.addEventListener('keydown', onKeyDown, true);
     return () => {
       document.removeEventListener('keydown', onKeyDown, true);
-      const index = stack.indexOf(token);
-      if (index >= 0) stack.splice(index, 1);
+      popOverlay(token);
       if (previouslyFocused && document.contains(previouslyFocused)) {
         previouslyFocused.focus?.({ preventScroll: true });
       }

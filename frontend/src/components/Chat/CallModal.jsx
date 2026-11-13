@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useCall } from '../../contexts/CallContext';
 import { useCoarsePointer, useIsPhone } from '../../hooks/useMediaQuery';
 import { trapTab } from '../../utils/focus';
+import { popOverlay, pushOverlay } from '../../utils/overlayStack';
 import { Avatar } from '../Common/Avatar';
 import { Icon } from '../Common/Icon';
 import './CallModal.css';
@@ -27,6 +28,13 @@ export const CallOverlay = () => {
     const interval = setInterval(() => setDuration((d) => d + 1), 1000);
     return () => clearInterval(interval);
   }, [callState]);
+
+  // Register as an overlay while a call is showing so sheets underneath stand down (Esc, Tab trap)
+  useEffect(() => {
+    if (!active) return undefined;
+    const token = pushOverlay();
+    return () => popOverlay(token);
+  }, [active]);
 
   // Focus lifecycle. Phone: the call is a full-screen modal, so focus moves into it and stays there.
   // Desktop: a non-modal corner card (chatting behind it stays possible) that still takes focus.

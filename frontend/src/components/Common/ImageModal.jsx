@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Icon } from './Icon';
+import { isTopOverlay, popOverlay, pushOverlay } from '../../utils/overlayStack';
 import './ImageModal.css';
 
 /** Full-screen lightbox on every viewport. Closes with X, a backdrop tap or Esc. */
@@ -14,8 +15,10 @@ const ImageModal = ({ url, onClose, originalName }) => {
 
   useEffect(() => {
     const previouslyFocused = document.activeElement;
+    const token = pushOverlay();
     closeRef.current?.focus();
     const onKeyDown = (e) => {
+      if (!isTopOverlay(token)) return;
       if (e.key === 'Escape') {
         e.stopPropagation();
         onCloseRef.current();
@@ -32,6 +35,7 @@ const ImageModal = ({ url, onClose, originalName }) => {
     document.addEventListener('keydown', onKeyDown, true);
     return () => {
       document.removeEventListener('keydown', onKeyDown, true);
+      popOverlay(token);
       previouslyFocused?.focus?.({ preventScroll: true });
     };
   }, []);
