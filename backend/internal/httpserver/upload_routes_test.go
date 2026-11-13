@@ -106,12 +106,16 @@ func TestUploadPostRequiresAuth(t *testing.T) {
 	require.Len(t, entries, 1)
 }
 
-// attachmentStub is a minimal database/sql driver: the attachments metadata
+// attachmentStub is a minimal database/sql driver and connector: the attachments metadata
 // SELECT returns one row with original_name "report final.txt", and UPDATEs
 // (read_count) are counted.
 type attachmentStub struct{ updates *int }
 
-func (d attachmentStub) Open(string) (driver.Conn, error) { return stubConn(d), nil }
+// attachmentStub is a driver.Connector, so each test gets its own instance and
+// nothing is registered globally (safe with -count=N).
+func (d attachmentStub) Connect(context.Context) (driver.Conn, error) { return stubConn(d), nil }
+func (d attachmentStub) Driver() driver.Driver                        { return d }
+func (d attachmentStub) Open(string) (driver.Conn, error)             { return stubConn(d), nil }
 
 type stubConn struct{ updates *int }
 
@@ -152,10 +156,7 @@ func TestUploadDownloadAuth(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "abc.txt"), []byte("file body"), 0o600))
 
 	updates := 0
-	driverName := "attachment-stub-" + t.Name()
-	sql.Register(driverName, attachmentStub{updates: &updates})
-	db, err := sql.Open(driverName, "")
-	require.NoError(t, err)
+	db := sql.OpenDB(attachmentStub{updates: &updates})
 	t.Cleanup(func() { _ = db.Close() })
 
 	tokens := security.NewTokenService("test-secret", time.Hour)
