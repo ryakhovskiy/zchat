@@ -20,7 +20,7 @@ const FORBIDDEN_EXTENSIONS = [
  * emoji, send, plus reply / edit banners and an inline error state. Exposes focus() and
  * addFile() (used by drag & drop in the parent).
  */
-export const Composer = forwardRef(({ conversation, replyingTo, editing, onCancelReply, onCancelEdit }, ref) => {
+export const Composer = forwardRef(({ conversation, replyingTo, editing, onCancelReply, onCancelEdit, onNotify }, ref) => {
   const { t } = useTranslation();
   const { sendMessage, editMessage } = useChat();
   const isPhone = useIsPhone();
@@ -37,6 +37,12 @@ export const Composer = forwardRef(({ conversation, replyingTo, editing, onCance
   const textareaRef = useRef(null);
   const fileInputRef = useRef(null);
   const emojiWrapRef = useRef(null);
+  // Sends finish asynchronously (upload, REST fallback). Their cleanup must only touch the chat and
+  // the exact draft/file that started them, never a different chat opened in the meantime.
+  const conversationIdRef = useRef(conversation.id);
+  const valueRef = useRef('');
+  const fileRef = useRef(null);
+  const pendingChats = useRef(new Set());
 
   const clearFile = () => {
     setFile(null);
@@ -73,11 +79,21 @@ export const Composer = forwardRef(({ conversation, replyingTo, editing, onCance
     addFile,
   }));
 
+  useEffect(() => {
+    valueRef.current = value;
+  }, [value]);
+  useEffect(() => {
+    fileRef.current = file;
+  }, [file]);
+
   // Reset per-conversation state when switching chats
   useEffect(() => {
+    conversationIdRef.current = conversation.id;
     setValue('');
     setError('');
     setEmojiOpen(false);
+    setUploading(false);
+    setProgress(0);
     clearFile();
   }, [conversation.id]);
 
@@ -139,27 +155,38 @@ export const Composer = forwardRef(({ conversation, replyingTo, editing, onCance
       return;
     }
 
+    const chatId = conversation.id;
+    if (pendingChats.current.has(chatId)) return; // already sending in this chat: no duplicates
+    const sentValue = value;
+    const sentFile = file;
+    const sentReplyId = replyingTo?.id;
+    const stillHere = () => conversationIdRef.current === chatId;
+
+    pendingChats.current.add(chatId);
     try {
       let fileData = null;
-      if (file) {
+      if (sentFile) {
         setUploading(true);
         setProgress(0);
-        const response = await filesAPI.upload(file, (event) => {
-          if (event.total) setProgress(Math.round((event.loaded * 100) / event.total));
+        const response = await filesAPI.upload(sentFile, (event) => {
+          if (event.total && stillHere()) setProgress(Math.round((event.loaded * 100) / event.total));
         });
         fileData = response.data;
-        setUploading(false);
-        setProgress(0);
+        if (stillHere()) {
+          setUploading(false);
+          setProgress(0);
+        }
       }
-      await sendMessage(conversation.id, value, fileData, replyingTo?.id);
-      setValue('');
-      onCancelReply();
-      clearFile();
-      setEmojiOpen(false);
+      await sendMessage(chatId, sentValue, fileData, sentReplyId);
+      if (stillHere()) {
+        // Clear only what was sent: text typed or files picked meanwhile must survive
+        if (valueRef.current === sentValue) setValue('');
+        if (fileRef.current === sentFile) clearFile();
+        onCancelReply(sentReplyId);
+        setEmojiOpen(false);
+      }
     } catch (err) {
       console.error('Failed to send message:', err);
-      setUploading(false);
-      setProgress(0);
       let message = t('chat.failed_to_send');
       if (err.response) {
         if (err.response.data?.detail) message = err.response.data.detail;
@@ -167,8 +194,16 @@ export const Composer = forwardRef(({ conversation, replyingTo, editing, onCance
       } else if (err.request) {
         message = t('chat.network_error');
       }
-      // The text stays in the box so the user can simply retry
-      setError(message);
+      if (stillHere()) {
+        setUploading(false);
+        setProgress(0);
+        // The text stays in the box so the user can simply retry
+        setError(message);
+      } else {
+        onNotify?.(message); // the user already left that chat: don't show its error in another one
+      }
+    } finally {
+      pendingChats.current.delete(chatId);
     }
   };
 
@@ -229,7 +264,7 @@ export const Composer = forwardRef(({ conversation, replyingTo, editing, onCance
             <span className="reply-sender">{replyingTo.sender_username}</span>
             <span className="reply-text">{replyingTo.content || t('chat.attachment')}</span>
           </div>
-          <button type="button" className="icon-btn cancel-reply-btn" onClick={onCancelReply} aria-label={t('chat.cancel_reply')}>
+          <button type="button" className="icon-btn cancel-reply-btn" onClick={() => onCancelReply()} aria-label={t('chat.cancel_reply')}>
             <Icon name="close" size={20} />
           </button>
         </div>

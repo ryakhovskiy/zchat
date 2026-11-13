@@ -29,7 +29,7 @@ export const CallOverlay = () => {
   }, [callState]);
 
   // Focus lifecycle. Phone: the call is a full-screen modal, so focus moves into it and stays there.
-  // Desktop: a non-modal corner card; only an incoming call pulls focus (it needs an answer).
+  // Desktop: a non-modal corner card (chatting behind it stays possible) that still takes focus.
   useEffect(() => {
     const previous = previousStateRef.current;
     previousStateRef.current = callState;
@@ -46,11 +46,9 @@ export const CallOverlay = () => {
     }
 
     if (previous === 'idle') restoreFocusRef.current = document.activeElement;
-    const answered = previous === 'incoming'; // the user just pressed Accept: keep them in the card
-    if (isPhone || callState === 'incoming' || answered) {
-      const primary = overlayRef.current?.querySelector('[data-primary]');
-      primary?.focus({ preventScroll: true });
-    }
+    // Every call state needs an answer or a way out (Accept/Decline, End), so focus goes to the
+    // primary control; this is also what lets Esc work for an outgoing call on desktop
+    overlayRef.current?.querySelector('[data-primary]')?.focus({ preventScroll: true });
   }, [callState, active, isPhone, coarse]);
 
   const onKeyDown = (e) => {

@@ -244,8 +244,9 @@ export const ChatWindow = () => {
         conversation={selectedConversation}
         replyingTo={replyingTo}
         editing={editing}
-        onCancelReply={() => setReplyingTo(null)}
+        onCancelReply={(id) => setReplyingTo((current) => (current && (id === undefined || current.id === id) ? null : current))}
         onCancelEdit={() => setEditing(null)}
+        onNotify={showToast}
       />
 
       {isDragging && (
