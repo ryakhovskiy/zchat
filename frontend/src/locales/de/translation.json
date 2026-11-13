@@ -130,12 +130,5 @@
     "accept": "Annehmen",
     "decline": "Ablehnen",
     "end": "Anruf beenden"
-  },
-  "browser": {
-    "title": "Chat-Browser",
-    "placeholder": "Suchen oder URL eingeben",
-    "go": "Los",
-    "error_title": "Seite konnte nicht geladen werden",
-    "view": "Browseransicht"
   }
 }

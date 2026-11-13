@@ -130,12 +130,5 @@
     "accept": "Accept",
     "decline": "Decline",
     "end": "End call"
-  },
-  "browser": {
-    "title": "Chat Browser",
-    "placeholder": "Search or enter a URL",
-    "go": "Go",
-    "error_title": "Error loading page",
-    "view": "Browser view"
   }
 }
