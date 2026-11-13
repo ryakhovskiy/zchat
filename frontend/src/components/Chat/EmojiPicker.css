@@ -1,0 +1,26 @@
+/* emoji-mart lives in a shadow root; CSS custom properties are the only way in. */
+.emoji-picker-host {
+  display: flex;
+  justify-content: center;
+}
+
+.emoji-picker-host em-emoji-picker {
+  --font-family: var(--font-body);
+  --border-radius: var(--radius-md);
+  --rgb-background: var(--emoji-rgb-bg);
+  --rgb-color: var(--emoji-rgb-text);
+  --rgb-accent: var(--emoji-rgb-accent);
+  --rgb-input: var(--emoji-rgb-input);
+  max-width: 100%;
+  height: min(380px, 50dvh);
+  box-shadow: none;
+}
+
+.emoji-picker-host--fluid {
+  display: block;
+}
+
+.emoji-picker-host--fluid em-emoji-picker {
+  width: 100%;
+  height: min(420px, 55dvh);
+}

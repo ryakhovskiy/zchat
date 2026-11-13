@@ -64,14 +64,37 @@
 .theme-card-name > span {
   flex: 1;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: var(--leading-tight);
+  overflow-wrap: anywhere; /* long translated names wrap instead of truncating */
 }
 
-.theme-card-check {
-  flex: none;
-  color: var(--color-accent-text);
+/* Checked marker sits on the swatch; it uses the previewed theme's own accent */
+.theme-preview-check {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-full);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+}
+
+@media (max-height: 700px) {
+  .theme-preview {
+    height: 48px;
+  }
+
+  .theme-preview-bubble--out {
+    top: 32px;
+  }
+
+  .settings-content {
+    gap: var(--space-4);
+  }
 }
 
 /* Inside .theme-preview the scoped data-theme re-binds every token to the previewed theme */

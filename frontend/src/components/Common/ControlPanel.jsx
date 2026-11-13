@@ -62,11 +62,13 @@ const ThemePicker = () => {
                 <span className="theme-preview-bar" />
                 <span className="theme-preview-bubble theme-preview-bubble--in" />
                 <span className="theme-preview-bubble theme-preview-bubble--out" />
+                {checked && (
+                  <span className="theme-preview-check"><Icon name="check" size={14} /></span>
+                )}
               </span>
               <span className="theme-card-name">
                 <Icon name={THEME_ICONS[id]} size={18} />
                 <span>{name}</span>
-                {checked && <Icon name="check" size={18} className="theme-card-check" />}
               </span>
             </button>
           );

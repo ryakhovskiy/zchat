@@ -1,312 +1,87 @@
-.user-list-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
+.user-list-modal .segmented {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-bottom: var(--space-4);
 }
 
-.user-list-modal {
-  background-color: var(--card-bg);
-  border-radius: 12px;
-  width: 90%;
-  max-width: 600px;
-  max-height: 80vh;
-  display: flex;
-  flex-direction: column;
-  box-shadow: 0 10px 40px var(--shadow-color);
-  transition: background-color 0.3s ease, box-shadow 0.3s ease;
+.user-list-heading {
+  margin-bottom: var(--space-2);
+  font-family: var(--font-meta);
+  font-size: var(--text-xs);
+  letter-spacing: var(--meta-letter-spacing);
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
 }
 
-.user-list-header {
-  padding: 1.5rem;
-  border-bottom: 1px solid var(--border-color);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+.user-list-count {
+  text-transform: none;
 }
 
-.user-list-header h2 {
-  margin: 0;
-  font-size: 1.5rem;
-  color: var(--text-primary);
-}
-
-.close-button {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background-color: var(--hover-bg);
-  border: none;
-  font-size: 1.5rem;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-secondary);
-  transition: background-color 0.2s;
-}
-
-.close-button:hover {
-  background-color: var(--active-bg);
-}
-
-.conversation-type-toggle {
-  padding: 1rem 1.5rem;
-  display: flex;
-  gap: 1rem;
-  border-bottom: 1px solid var(--border-color);
-}
-
-.toggle-option {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  cursor: pointer;
-  color: var(--text-primary);
-}
-
-.toggle-option input[type="radio"] {
-  cursor: pointer;
-}
-
-.user-list-content {
-  flex: 1;
-  overflow-y: auto;
-  padding: 1.5rem;
-}
-
-.user-list-content h3 {
-  margin: 0 0 1rem 0;
-  font-size: 1rem;
-  color: var(--text-secondary);
+.user-list-empty {
+  padding: var(--space-6) 0;
+  text-align: center;
+  color: var(--color-text-secondary);
 }
 
 .users-grid {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: var(--space-1);
 }
 
 .user-item {
   display: flex;
   align-items: center;
-  padding: 1rem;
-  border: 2px solid var(--border-color);
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.2s;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: 60px;
+  padding: var(--space-2) var(--space-3);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+  text-align: left;
+  transition: background-color var(--motion-fast), border-color var(--motion-fast);
 }
 
 .user-item:hover {
-  background-color: var(--hover-bg);
-  border-color: var(--accent-color);
+  background: var(--color-accent-soft);
 }
 
 .user-item.selected {
-  background-color: var(--active-bg);
-  border-color: var(--accent-color);
-}
-
-.user-avatar {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background: var(--gradient-primary);
-  color: white;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 600;
-  font-size: 1.125rem;
-  flex-shrink: 0;
+  background: var(--color-accent-soft);
+  border-color: var(--color-accent-text);
+  box-shadow: var(--glow);
 }
 
 .user-info {
+  display: flex;
   flex: 1;
-  margin-left: 1rem;
+  flex-direction: column;
+  min-width: 0;
 }
 
 .user-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-weight: 600;
-  color: var(--text-primary);
-  margin-bottom: 0.25rem;
 }
 
-.user-status {
-  font-size: 0.85rem;
-}
-
-.user-status.online {
-  color: var(--success-color);
-}
-
-.user-status.offline {
-  color: var(--text-muted);
+.user-item .user-status.online {
+  color: var(--color-success);
 }
 
 .checkbox {
-  width: 24px;
-  height: 24px;
-  border-radius: 4px;
-  background: var(--gradient-primary);
-  color: white;
-  display: flex;
+  display: inline-flex;
+  flex-shrink: 0;
   align-items: center;
   justify-content: center;
-  font-weight: 600;
-  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
 }
 
-.user-list-footer {
-  padding: 1.5rem;
-  border-top: 1px solid var(--border-color);
-  display: flex;
-  gap: 1rem;
-  justify-content: flex-end;
+.checkbox--checked {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: var(--color-on-accent);
 }
-/* Hacker Theme Exceptions - Add Chat Modal Terminal Style */
-[data-theme="hacker"] .user-list-modal {
-  border-radius: 0;
-  box-shadow: none;
-  border: 1px solid var(--accent-color);
-  font-family: var(--font-terminal);
-}
-
-[data-theme="hacker"] .user-list-header {
-  border-bottom: 1px dashed var(--accent-color);
-  padding: 0.75rem 1rem;
-}
-
-[data-theme="hacker"] .user-list-header h2 {
-  font-family: var(--font-terminal);
-  text-transform: uppercase;
-  font-weight: normal;
-}
-
-[data-theme="hacker"] .close-button {
-  background: transparent;
-  border-radius: 0;
-  color: var(--accent-color);
-}
-
-[data-theme="hacker"] .close-button:hover {
-  background: var(--accent-color);
-  color: var(--bg-primary);
-}
-
-[data-theme="hacker"] .conversation-type-toggle {
-  border-bottom: 1px dashed var(--accent-color);
-  padding: 0.75rem 1rem;
-}
-
-[data-theme="hacker"] .toggle-option {
-  font-family: var(--font-terminal);
-}
-
-[data-theme="hacker"] .user-list-content {
-  padding: 1rem;
-}
-
-[data-theme="hacker"] .user-list-content h3 {
-  font-family: var(--font-terminal);
-  text-transform: uppercase;
-  font-weight: normal;
-}
-
-[data-theme="hacker"] .user-item {
-  border-radius: 0;
-  border: 1px dashed var(--accent-color);
-  padding: 0.25rem 0.5rem;
-  margin-bottom: 0.25rem;
-}
-
-[data-theme="hacker"] .user-item:hover {
-  background-color: transparent;
-  border-left: 2px solid var(--accent-color);
-}
-
-[data-theme="hacker"] .user-avatar {
-  display: none;
-}
-
-[data-theme="hacker"] .user-info {
-  margin-left: 0;
-}
-
-[data-theme="hacker"] .user-name,
-[data-theme="hacker"] .user-status {
-  font-family: var(--font-terminal);
-  font-weight: normal;
-}
-
-[data-theme="hacker"] .checkbox {
-  border-radius: 0;
-  background: transparent;
-  border: 1px solid var(--accent-color);
-  color: var(--accent-color);
-}
-
-/* Selected Block Cursor */
-[data-theme="hacker"] .user-item.selected {
-  background-color: var(--accent-color);
-  border: 1px solid var(--accent-color);
-}
-
-[data-theme="hacker"] .user-item.selected .user-name,
-[data-theme="hacker"] .user-item.selected .user-status {
-  color: var(--bg-primary) !important;
-  font-weight: bold;
-}
-
-[data-theme="hacker"] .user-item.selected .checkbox {
-  border-color: var(--bg-primary);
-  color: var(--bg-primary);
-}
-
-[data-theme="hacker"] .user-list-footer {
-  border-top: 1px dashed var(--accent-color);
-  padding: 0.75rem 1rem;
-}
-
-/* Target the buttons inside the modal footer */
-[data-theme="hacker"] .user-list-footer button {
-  border-radius: 0;
-  font-family: var(--font-terminal);
-  text-transform: uppercase;
-}
-
-[data-theme="hacker"] .form-group input {
-  font-family: var(--font-terminal);
-}
-
-
-[data-theme="hacker"] .btn-primary,
-[data-theme="hacker"] .btn-secondary {
-  border-radius: 0;
-  border: 1px solid var(--accent-color);
-  background: transparent;
-  color: var(--accent-color);
-  font-family: var(--font-terminal);
-  text-transform: uppercase;
-}
-
-[data-theme="hacker"] .btn-primary:not(:disabled):hover,
-[data-theme="hacker"] .btn-secondary:not(:disabled):hover {
-  background: var(--accent-color);
-  color: var(--bg-primary);
-}
-
-[data-theme="hacker"] .form-group input {
-  border-radius: 0;
-  border: 1px dashed var(--accent-color);
-  background: transparent;
-  color: var(--accent-color);
-}
-

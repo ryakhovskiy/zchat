@@ -1,542 +1,153 @@
-import React, { useState, useEffect, useRef } from 'react';
-import Picker from '@emoji-mart/react';
-import data from '@emoji-mart/data';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useChat } from '../../contexts/ChatContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { useCall } from '../../contexts/CallContext';
-import { useTheme } from '../../contexts/ThemeContext';
-import { textToEmoji, LINK_PATTERN, isLink } from '../../utils/emojiUtils';
-import { filesAPI } from '../../services/api';
-import { ControlPanel } from '../Common/ControlPanel';
+import { useCoarsePointer, useIsPhone } from '../../hooks/useMediaQuery';
+import { Avatar } from '../Common/Avatar';
+import { Icon } from '../Common/Icon';
+import { Sheet } from '../Common/Sheet';
 import ImageModal from '../Common/ImageModal';
-import './Chat.css';
+import { Composer } from './Composer';
+import { EmojiPicker } from './EmojiPicker';
+import { MessageActions } from './MessageActions';
+import { MessageList } from './MessageList';
+import './ChatWindow.css';
+
+const copyText = async (text) => {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    // Clipboard API needs a secure context; fall back to a temporary textarea
+    const el = document.createElement('textarea');
+    el.value = text;
+    el.setAttribute('readonly', '');
+    el.style.position = 'fixed';
+    el.style.opacity = '0';
+    document.body.appendChild(el);
+    el.select();
+    const ok = document.execCommand('copy');
+    document.body.removeChild(el);
+    return ok;
+  }
+};
 
 export const ChatWindow = () => {
-  const { t } = useTranslation();
-  const { selectedConversation, messages, sendMessage, editMessage, deleteMessage, reactToMessage, selectConversation, setMessages, loadOlderMessages, hasMoreMessages } = useChat();
+  const { t, i18n } = useTranslation();
+  const {
+    selectedConversation, messages, deleteMessage, reactToMessage, selectConversation,
+    setMessages, loadOlderMessages, hasMoreMessages,
+  } = useChat();
   const { user, wsClient } = useAuth();
   const { startCall } = useCall();
-  const { theme } = useTheme();
-  const [inputValue, setInputValue] = useState('');
-  const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
-  const [selectedFile, setSelectedFile] = useState(null);
-  const [uploading, setUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [previewImage, setPreviewImage] = useState(null);
-  const [modalImageInfo, setModalImageInfo] = useState(null); // { url, name }
+  const coarse = useCoarsePointer();
+  const isPhone = useIsPhone();
+
+  const [modalImage, setModalImage] = useState(null); // { url, name }
   const [isDragging, setIsDragging] = useState(false);
-  const [contextMenu, setContextMenu] = useState(null); // { messageId, x, y, isMine }
-  const [editingMessage, setEditingMessage] = useState(null); // { id, content }
-  const [replyingToMessage, setReplyingToMessage] = useState(null); // { id, content, sender_username }
-  
-  const [reactionPickerMsgId, setReactionPickerMsgId] = useState(null);
-  const reactionPickerRef = useRef(null);
-  const [touchStartX, setTouchStartX] = useState(null);
-  const [touchCurrentX, setTouchCurrentX] = useState(null);
-  const [touchStartId, setTouchStartId] = useState(null);
+  const [actionTarget, setActionTarget] = useState(null); // { message, x, y, via, isMine }
+  const [reactionFor, setReactionFor] = useState(null);   // message awaiting an emoji
+  const [editing, setEditing] = useState(null);           // { id, content }
+  const [replyingTo, setReplyingTo] = useState(null);     // { id, content, sender_username }
+  const [toast, setToast] = useState('');
+  const composerRef = useRef(null);
+  const toastTimer = useRef(null);
 
-  const messagesEndRef = useRef(null);
-  const messagesContainerRef = useRef(null);
-  const emojiPickerRef = useRef(null);
-  const fileInputRef = useRef(null);
-  const textareaRef = useRef(null);
-  const contextMenuRef = useRef(null);
-  const isInitialLoadRef = useRef(true);
-  const [loadingOlder, setLoadingOlder] = useState(false);
+  const conversationId = selectedConversation?.id;
+  const conversationMessages = conversationId ? messages[conversationId] : undefined;
 
-  const conversationMessages = selectedConversation
-    ? messages[selectedConversation.id] || []
-    : [];
-
+  // Per-conversation UI state must not leak between chats
   useEffect(() => {
-    if (isInitialLoadRef.current) {
-      scrollToBottom();
-      isInitialLoadRef.current = false;
-    } else {
-      const container = messagesContainerRef.current;
-      if (container) {
-        const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 150;
-        if (isNearBottom) {
-          scrollToBottom();
-        }
-      }
-    }
-  }, [conversationMessages]);
+    setEditing(null);
+    setReplyingTo(null);
+    setActionTarget(null);
+    setReactionFor(null);
+  }, [conversationId]);
 
+  useEffect(() => () => clearTimeout(toastTimer.current), []);
+
+  // Read receipts from the other side
   useEffect(() => {
-    isInitialLoadRef.current = true;
-  }, [selectedConversation?.id]);
-
-  useEffect(() => {
-    if (textareaRef.current) {
-        // Reset height to auto to correctly calculate scrollHeight for shrinking
-        textareaRef.current.style.height = 'auto';
-        const scrollHeight = textareaRef.current.scrollHeight;
-        // Max height approx 120px (4-5 lines)
-        textareaRef.current.style.height = `${Math.min(scrollHeight, 120)}px`;
-    }
-  }, [inputValue]);
-
-  // Handle read receipts
-  useEffect(() => {
-    if (!wsClient) return;
-
+    if (!wsClient) return undefined;
     const handleMessagesRead = (data) => {
-      // If the read receipt is from the current user, we don't update our own sent messages 
-      // as read by "someone else". However, in a multi-device scenario, this might need adjustment.
       if (data.user_id === user.id) return;
-
       setMessages((prev) => {
-        const conversationId = data.conversation_id;
-        const currentMessages = prev[conversationId] || [];
-        
-        // Check if any message needs update to avoid unnecessary re-renders
-        const hasUnreadSentMessages = currentMessages.some(
-          msg => msg.sender_id === user.id && !msg.is_read
-        );
-
-        if (!hasUnreadSentMessages) return prev;
-
+        const current = prev[data.conversation_id] || [];
+        if (!current.some((m) => m.sender_id === user.id && !m.is_read)) return prev;
         return {
           ...prev,
-          [conversationId]: currentMessages.map((msg) => 
-            (msg.sender_id === user.id && !msg.is_read) ? { ...msg, is_read: true } : msg
-          )
+          [data.conversation_id]: current.map((m) =>
+            m.sender_id === user.id && !m.is_read ? { ...m, is_read: true } : m
+          ),
         };
       });
     };
-
     wsClient.on('messages_read', handleMessagesRead);
     return () => wsClient.off('messages_read', handleMessagesRead);
   }, [wsClient, setMessages, user.id]);
 
-  // Mark as read when conversation is open or messages update
+  // Mark as read while the conversation is open and messages arrive
   useEffect(() => {
-    if (selectedConversation && wsClient) {
-        const handleFocus = () => {
-             wsClient.markRead(selectedConversation.id);
-        };
-        
-        if (document.hasFocus()) {
-            handleFocus();
-        }
-        
-        window.addEventListener('focus', handleFocus);
-        return () => window.removeEventListener('focus', handleFocus);
-    }
-  }, [selectedConversation, wsClient, conversationMessages.length]);
+    if (!selectedConversation || !wsClient) return undefined;
+    const markRead = () => wsClient.markRead(selectedConversation.id);
+    if (document.hasFocus()) markRead();
+    window.addEventListener('focus', markRead);
+    return () => window.removeEventListener('focus', markRead);
+  }, [selectedConversation, wsClient, conversationMessages?.length]);
 
-  const handleKeyDown = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey && !e.altKey) {
-        e.preventDefault();
-        handleSubmit(e);
-    }
-  };
+  const showToast = useCallback((text) => {
+    setToast(text);
+    clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(''), 1800);
+  }, []);
 
-  const handlePaste = (e) => {
-    const items = e.clipboardData?.items;
-    if (!items) return;
-    for (const item of items) {
-      if (item.type.startsWith('image/')) {
-        e.preventDefault();
-        const file = item.getAsFile();
-        if (file) processFile(file);
-        return;
-      }
-    }
-  };
+  const openActions = useCallback((message, point) => {
+    setActionTarget({ message, ...point, isMine: message.sender_id === user.id });
+  }, [user.id]);
 
-  const handleMessageRightClick = (e, message) => {
-    if (message.is_deleted) return;
-    e.preventDefault();
-    setContextMenu({
-      messageId: message.id,
-      x: e.clientX,
-      y: e.clientY,
-      isMine: message.sender_id === user.id,
+  const closeActions = useCallback(() => setActionTarget(null), []);
+
+  const startReply = useCallback((message) => {
+    setEditing(null);
+    setReplyingTo({
+      id: message.id,
       content: message.content,
-      sender_username: message.sender_username || user.username
+      sender_username: message.sender_username || user.username,
     });
+  }, [user.username]);
+
+  const startEdit = (message) => {
+    setReplyingTo(null);
+    setEditing({ id: message.id, content: message.content });
   };
 
-  const handleMessageClick = (e, message) => {
-    if (window.innerWidth <= 768 && !message.is_deleted) {
-      handleMessageRightClick(e, message);
-    }
+  const handleCopy = async (message) => {
+    if (await copyText(message.content || '')) showToast(t('chat.copied'));
   };
 
-  const handleTouchStart = (e, message) => {
-    if (message.is_deleted) return;
-    setTouchStartX(e.touches[0].clientX);
-    setTouchCurrentX(e.touches[0].clientX);
-    setTouchStartId(message.id);
-  };
-
-  const handleTouchMove = (e) => {
-    if (touchStartX !== null) {
-      setTouchCurrentX(e.touches[0].clientX);
-    }
-  };
-
-  const handleTouchEnd = (e, message) => {
-    if (touchStartX !== null && touchStartId === message.id) {
-      const distance = touchCurrentX - touchStartX;
-      if (distance > 60) {
-        // Swipe right to reply
-        setReplyingToMessage({
-          id: message.id,
-          content: message.content,
-          sender_username: message.sender_username || user.username
-        });
-        setTimeout(() => {
-          if (textareaRef.current) textareaRef.current.focus();
-        }, 0);
-      }
-    }
-    setTouchStartX(null);
-    setTouchStartId(null);
-  };
-
-  const handleReactStart = () => {
-    setReactionPickerMsgId(contextMenu.messageId);
-    closeContextMenu();
-  };
-
-  const handleReactionSelect = (emoji, messageId) => {
-    reactToMessage(messageId, emoji.native);
-    setReactionPickerMsgId(null);
-  };
-
-  // Close reaction picker on outside click
-  useEffect(() => {
-    if (!reactionPickerMsgId) return;
-    const handleClick = (e) => {
-      if (reactionPickerRef.current && !reactionPickerRef.current.contains(e.target)) {
-        setReactionPickerMsgId(null);
-      }
-    };
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, [reactionPickerMsgId]);
-
-  const closeContextMenu = () => setContextMenu(null);
-
-  const handleReplyStart = () => {
-    setReplyingToMessage({ 
-      id: contextMenu.messageId, 
-      content: contextMenu.content,
-      sender_username: contextMenu.sender_username 
-    });
-    setEditingMessage(null);
-    closeContextMenu();
-    setTimeout(() => {
-      if (textareaRef.current) textareaRef.current.focus();
-    }, 0);
-  };
-
-  const handleReplyCancel = () => {
-    setReplyingToMessage(null);
-  };
-
-  const handleEditStart = () => {
-    setEditingMessage({ id: contextMenu.messageId, content: contextMenu.content });
-    setReplyingToMessage(null);
-    setInputValue(contextMenu.content);
-    closeContextMenu();
-  };
-
-  const handleEditSubmit = () => {
-    if (!editingMessage || !inputValue.trim()) return;
-    editMessage(editingMessage.id, inputValue.trim());
-    setEditingMessage(null);
-    setInputValue('');
-  };
-
-  const handleEditCancel = () => {
-    setEditingMessage(null);
-    setInputValue('');
-  };
-
-  const handleDeleteForMe = () => {
-    deleteMessage(contextMenu.messageId, 'for_me');
-    closeContextMenu();
-  };
-
-  const handleDeleteForEveryone = () => {
-    deleteMessage(contextMenu.messageId, 'for_everyone');
-    closeContextMenu();
-  };
-
-  // Close context menu on outside click
-  useEffect(() => {
-    if (!contextMenu) return;
-    const handleClick = () => closeContextMenu();
-    document.addEventListener('click', handleClick);
-    return () => document.removeEventListener('click', handleClick);
-  }, [contextMenu]);
-
-  useEffect(() => {
-    if (!isEmojiPickerOpen) return;
-
-    const handleClickOutside = (event) => {
-      if (emojiPickerRef.current && !emojiPickerRef.current.contains(event.target)) {
-        setIsEmojiPickerOpen(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isEmojiPickerOpen]);
-
-  const formatMessageContent = (content) => {
-    if (!content) return null;
-
-    // Split content by links (http, https, tg), including the links themselves
-    return content.split(LINK_PATTERN).map((part, index) => {
-      if (isLink(part)) {
-        return (
-          <a
-            key={index}
-            href={part}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="message-link"
-            onClick={(e) => e.stopPropagation()}
-            style={{ color: '#4dabf7', textDecoration: 'underline' }}
-          >
-            {part}
-          </a>
-        );
-      }
-      
-      // If not a URL, apply emoji conversion
-      return <span key={index}>{textToEmoji(part)}</span>;
-    });
-  };
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
-
-  const handleMessagesScroll = async () => {
-    const container = messagesContainerRef.current;
-    if (!container || loadingOlder) return;
-    if (!selectedConversation) return;
-    if (!hasMoreMessages[selectedConversation.id]) return;
-
-    if (container.scrollTop < 100) {
-      setLoadingOlder(true);
-      const prevScrollHeight = container.scrollHeight;
-
-      const olderMessages = await loadOlderMessages(selectedConversation.id);
-
-      if (olderMessages.length > 0) {
-        requestAnimationFrame(() => {
-          const newScrollHeight = container.scrollHeight;
-          container.scrollTop = newScrollHeight - prevScrollHeight;
-        });
-      }
-
-      setLoadingOlder(false);
-    }
-  };
-
-  const processFile = (file) => {
-    const MAX_SIZE = 50 * 1024 * 1024; // 50MB
-    
-    const FORBIDDEN_EXTENSIONS = [
-      '.exe', '.dll', '.bat', '.cmd', '.sh', '.cgi', '.jar', '.js', '.vbs', 
-      '.ps1', '.py', '.php', '.msi', '.com', '.scr', '.pif', '.reg', '.app',
-      '.bin', '.wsf', '.vb', '.iso', '.dmg', '.pkg'
-    ];
-
-    if (file.size > MAX_SIZE) {
-      alert(t('chat.file_too_large'));
-      if (fileInputRef.current) fileInputRef.current.value = '';
-      return;
-    }
-    
-    const ext = '.' + file.name.split('.').pop().toLowerCase();
-    if (FORBIDDEN_EXTENSIONS.includes(ext)) {
-      alert(t('chat.file_type_not_allowed'));
-      if (fileInputRef.current) fileInputRef.current.value = '';
-      return;
-    }
-
-    setSelectedFile(file);
-    if (file.type.startsWith('image/')) {
-      setPreviewImage(URL.createObjectURL(file));
-    } else {
-      setPreviewImage(null);
-    }
-  };
-
-  const handleFileSelect = (e) => {
-    if (e.target.files && e.target.files[0]) {
-      processFile(e.target.files[0]);
-    }
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
-    if (editingMessage) {
-      handleEditSubmit();
-      return;
-    }
-
-    if ((!inputValue.trim() && !selectedFile) || !selectedConversation) return;
-
-    try {
-      let fileData = null;
-      if (selectedFile) {
-        setUploading(true);
-        setUploadProgress(0);
-        const response = await filesAPI.upload(selectedFile, (progressEvent) => {
-          if (progressEvent.total) {
-            const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-            setUploadProgress(percentCompleted);
-          }
-        });
-        fileData = response.data;
-        setUploading(false);
-        setUploadProgress(0);
-      }
-
-      await sendMessage(selectedConversation.id, inputValue, fileData, replyingToMessage?.id);
-      setInputValue('');
-      setReplyingToMessage(null);
-      clearFile();
-      setIsEmojiPickerOpen(false);
-    } catch (error) {
-      console.error('Failed to send message:', error);
-      setUploading(false);
-      setUploadProgress(0);
-      let errorMessage = t('chat.failed_to_send');
-      
-      if (error.response) {
-        if (error.response.data && error.response.data.detail) {
-           errorMessage = error.response.data.detail;
-        } else if (error.response.status === 413) {
-           errorMessage = t('chat.file_too_large');
-        }
-      } else if (error.request) {
-        errorMessage = "Network error. Please check your connection.";
-      }
-
-      alert(errorMessage);
-    }
-  };
-
-  const clearFile = () => {
-    setSelectedFile(null);
-    if (previewImage) {
-      URL.revokeObjectURL(previewImage);
-      setPreviewImage(null);
-    }
-    if (fileInputRef.current) fileInputRef.current.value = '';
-  };
-
-  const handleEmojiSelect = (emoji) => {
-    if (!emoji || !emoji.native) return;
-    setInputValue((prev) => `${prev}${emoji.native}`);
-    setIsEmojiPickerOpen(false);
-  };
-
-  const formatTime = (dateString) => {
-    const date = new Date(dateString);
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  };
-
-  const formatTimestamp = (dateString) => {
-    const d = new Date(dateString);
-    const pad = (n) => String(n).padStart(2, '0');
-    return `[${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()} - ${pad(d.getHours())}:${pad(d.getMinutes())}.${pad(d.getSeconds())}]`;
-  };
-
-  const getConversationTitle = () => {
-    if (!selectedConversation) return '';
-    
-    if (selectedConversation.is_group) {
-      return selectedConversation.name || t('chat.group_chat_default');
-    }
-    
-    const otherUser = selectedConversation.participants.find(
-      (p) => p.id !== user.id
-    );
-    return otherUser?.username || 'Chat';
-  };
-
-  const getOnlineStatus = () => {
-    if (!selectedConversation || selectedConversation.is_group) return null;
-    
-    const otherUser = selectedConversation.participants.find(
-      (p) => p.id !== user.id
-    );
-    return otherUser?.is_online;
-  };
-
-  const VIDEO_EXTENSIONS = ['mp4', 'webm', 'ogg', 'mov', 'avi', 'mkv', 'flv', 'wmv', 'm4v'];
-
-  const getAttachments = (msg) => {
-    if (msg.attachments && msg.attachments.length > 0) return msg.attachments;
-    if (msg.file_path) {
-      const fileName = msg.file_path.split('\\').pop().split('/').pop();
-      const ext = fileName.split('.').pop().toLowerCase();
-      const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext);
-      const isVideo = VIDEO_EXTENSIONS.includes(ext);
-      return [{ 
-        file_path: msg.file_path, 
-        file_type: msg.file_type || (isImage ? 'image' : isVideo ? 'video' : 'file'), 
-        original_name: fileName,
-        file_size: null
-      }];
-    }
-    return [];
-  };
-
-  const formatBytes = (bytes, decimals = 2) => {
-    if (!bytes || +bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const dm = decimals < 0 ? 0 : decimals;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
-  };
-
-  const getParticipantColor = (username) => {
-    if (!username) return 'blue';
-    const colors = ['seagreen', 'steelblue', 'darkcyan', 'lightseagreen'];
-    let hash = 0;
-    for (let i = 0; i < username.length; i++) {
-      hash = username.charCodeAt(i) + ((hash << 5) - hash);
-    }
-    return colors[Math.abs(hash) % colors.length];
-  };
+  const handleReact = useCallback((message, emoji) => reactToMessage(message.id, emoji), [reactToMessage]);
 
   const handleDragOver = (e) => {
     e.preventDefault();
     setIsDragging(true);
   };
-
   const handleDragLeave = (e) => {
-    e.preventDefault();
+    // Ignore dragleave fired when moving between child elements
+    if (e.currentTarget.contains(e.relatedTarget)) return;
     setIsDragging(false);
   };
-
   const handleDrop = (e) => {
     e.preventDefault();
     setIsDragging(false);
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      processFile(e.dataTransfer.files[0]);
-    }
+    if (e.dataTransfer.files?.[0]) composerRef.current?.addFile(e.dataTransfer.files[0]);
   };
 
   if (!selectedConversation) {
     return (
-      <div className="chat-window" onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
+      <div className="chat-window chat-window--empty" data-testid="chat-empty">
         <div className="empty-state">
+          <span className="empty-icon empty-icon--lg" aria-hidden="true"><Icon name="chat" size={48} /></span>
           <h2>{t('chat.welcome_title')}</h2>
           <p>{t('chat.welcome_subtitle')}</p>
         </div>
@@ -544,394 +155,120 @@ export const ChatWindow = () => {
     );
   }
 
-  const isOnline = getOnlineStatus();
+  const other = selectedConversation.is_group
+    ? null
+    : selectedConversation.participants?.find((p) => p.id !== user.id);
+  const title = selectedConversation.is_group
+    ? selectedConversation.name || t('chat.group_chat_default')
+    : other?.username || 'Chat';
+  const subtitle = selectedConversation.is_group
+    ? selectedConversation.participants?.map((p) => p.username).join(', ')
+    : other?.is_online ? t('chat.online') : t('chat.offline');
 
   return (
-    <div className={`chat-window ${isDragging ? 'dragging' : ''}`} onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
-      {modalImageInfo && (
-        <ImageModal 
-          url={modalImageInfo.url} 
-          originalName={modalImageInfo.name} 
-          onClose={() => setModalImageInfo(null)} 
-        />
-      )}
-      <div className="chat-header">
-        <div className="chat-header-info">
-          <button 
-            className="mobile-back-button"
-            onClick={() => selectConversation(null)}
-            aria-label="Back to conversations"
-          >
-            ←
-          </button>
-          <div className="chat-info-text">
-            <h3>{getConversationTitle()}</h3>
-            {isOnline !== null && (
-              <span className={`status-indicator ${isOnline ? 'online' : 'offline'}`}>
-                {isOnline ? t('chat.online') : t('chat.offline')}
-              </span>
-            )}
-          </div>
-        </div>
-
-        {selectedConversation && !selectedConversation.is_group && (
-            <button 
-                className="call-button"
-                onClick={() => {
-                    const otherUser = selectedConversation.participants?.find(p => p.id !== user.id);
-                    if (otherUser) {
-                      startCall(otherUser.id, otherUser.username, selectedConversation.id);
-                    }
-                }}
-                title={t('chat.start_call', 'Call')}
-            >
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
-                </svg>
-            </button>
-        )}
-
-      </div>
-
-      <div className="messages-container" ref={messagesContainerRef} onScroll={handleMessagesScroll}>
-        {loadingOlder && (
-          <div style={{ textAlign: 'center', padding: '0.5rem', color: 'var(--text-muted)', fontFamily: 'var(--font-terminal)', fontSize: '0.85rem' }}>
-            Loading...
-          </div>
-        )}
-        {conversationMessages.length === 0 ? (
-          <div className="no-messages">
-            <p>{t('chat.no_messages')}</p>
-          </div>
-        ) : (
-          conversationMessages.map((message) => {
-            const repliedMessage = message.reply_to_id 
-              ? conversationMessages.find(m => m.id === message.reply_to_id) 
-              : null;
-            return (
-            <div
-              key={message.id}
-              className={`message ${
-                message.sender_id === user.id ? 'message-sent' : 'message-received'
-              }`}
-              onContextMenu={(e) => handleMessageRightClick(e, message)}
-              onClick={(e) => handleMessageClick(e, message)}
-              onTouchStart={(e) => handleTouchStart(e, message)}
-              onTouchMove={handleTouchMove}
-              onTouchEnd={(e) => handleTouchEnd(e, message)}
-            >
-              <div className="message-content">
-                {repliedMessage && (
-                  <div className="message-replied-to">
-                    <span className="replied-sender">{repliedMessage.sender_username || t('chat.unknown_user', 'Unknown')}: </span>
-                    <span className="replied-text">{repliedMessage.content || t('chat.attachment', 'Attachment')}</span>
-                  </div>
-                )}
-                {theme === 'hacker' ? (
-                  <>
-                    <span className="message-header">
-                      <span style={{ color: 'darkgray' }}>{formatTimestamp(message.created_at)}</span>{' '}
-                      <span style={{ color: getParticipantColor(message.sender_username || user.username) }}>
-                        {'<'}@{message.sender_username || user.username}{'>'}
-                      </span>:
-                    </span>{' '}
-                    {getAttachments(message).length > 0 && !message.is_deleted && (
-                      <div className="message-attachments">
-                        {getAttachments(message).map((att, i) => {
-                          const fileName = att.original_name || att.file_path.split('\\').pop().split('/').pop();
-                          const fileUrl = filesAPI.getFileUrl(att.file_path.split('\\').pop().split('/').pop());
-                          return (
-                            <div key={att.id || i} className="message-attachment">
-                              {att.file_type === 'image' ? (
-                                <img 
-                                  src={fileUrl} 
-                                  alt={t('chat.attachment')} 
-                                  className="attachment-image"
-                                  onClick={() => setModalImageInfo({url: fileUrl, name: fileName})}
-                                  style={{ cursor: 'pointer' }}
-                                />
-                              ) : att.file_type === 'video' ? (
-                                <video
-                                  src={fileUrl}
-                                  className="attachment-video"
-                                  controls
-                                  preload="metadata"
-                                  onClick={(e) => e.stopPropagation()}
-                                />
-                              ) : (
-                                <div className="attachment-file">
-                                  <a 
-                                    href={fileUrl}
-                                    target="_blank" 
-                                    rel="noopener noreferrer"
-                                  >
-                                    📄 {fileName}
-                                    {att.file_size && <span className="attachment-size" style={{fontSize: '0.8em', color: '#888', marginLeft: '5px'}}>({formatBytes(att.file_size)})</span>}
-                                  </a>
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                    <span className="message-text">
-                      {message.is_deleted
-                        ? <em className="message-deleted-text">{t('chat.message_deleted', 'Message deleted')}</em>
-                        : formatMessageContent(message.content)
-                      }
-                    </span>
-                    {message.is_edited && !message.is_deleted && (
-                      <span className="message-edited-label"> · {t('chat.edited', 'edited')}</span>
-                    )}
-                    {message.sender_id === user.id && (
-                      <span className="read-receipt" style={{ marginLeft: '4px', fontSize: '0.8em', opacity: 0.5 }}>
-                        {!message.id ? '' : (message.is_read ? '✓✓' : '✓')}
-                      </span>
-                    )}
-                    {!message.is_deleted && message.reactions && message.reactions.length > 0 && (
-                      <div className="message-reactions">
-                        {message.reactions.map((r) => (
-                          <button
-                            key={r.emoji}
-                            className={`reaction-chip ${r.user_ids?.includes(user.id) ? 'reaction-chip--mine' : ''}`}
-                            onClick={(e) => { e.stopPropagation(); reactToMessage(message.id, r.emoji); }}
-                            title={r.user_ids?.includes(user.id) ? t('chat.remove_reaction', 'Remove reaction') : t('chat.add_reaction', 'Add reaction')}
-                          >
-                            {r.emoji} <span className="reaction-count">{r.count}</span>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  <>
-                    {message.sender_id !== user.id && (
-                      <div className="message-sender">{message.sender_username || user.username}</div>
-                    )}
-                    {getAttachments(message).length > 0 && !message.is_deleted && (
-                      <div className="message-attachments">
-                        {getAttachments(message).map((att, i) => {
-                          const fileName = att.original_name || att.file_path.split('\\').pop().split('/').pop();
-                          const fileUrl = filesAPI.getFileUrl(att.file_path.split('\\').pop().split('/').pop());
-                          return (
-                            <div key={att.id || i} className="message-attachment">
-                              {att.file_type === 'image' ? (
-                                <img 
-                                  src={fileUrl} 
-                                  alt={t('chat.attachment')} 
-                                  className="attachment-image"
-                                  onClick={() => setModalImageInfo({url: fileUrl, name: fileName})}
-                                  style={{ cursor: 'pointer' }}
-                                />
-                              ) : att.file_type === 'video' ? (
-                                <video
-                                  src={fileUrl}
-                                  className="attachment-video"
-                                  controls
-                                  preload="metadata"
-                                  onClick={(e) => e.stopPropagation()}
-                                />
-                              ) : (
-                                <div className="attachment-file">
-                                  <a 
-                                    href={fileUrl}
-                                    target="_blank" 
-                                    rel="noopener noreferrer"
-                                  >
-                                    📄 {fileName}
-                                    {att.file_size && <span className="attachment-size" style={{fontSize: '0.8em', color: '#888', marginLeft: '5px'}}>({formatBytes(att.file_size)})</span>}
-                                  </a>
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                    <div className="message-text">
-                      {message.is_deleted
-                        ? <em className="message-deleted-text">{t('chat.message_deleted', 'Message deleted')}</em>
-                        : formatMessageContent(message.content)
-                      }
-                    </div>
-                    <div className="message-time">
-                      {formatTime(message.created_at)}
-                      {message.is_edited && !message.is_deleted && (
-                        <span className="message-edited-label"> · {t('chat.edited', 'edited')}</span>
-                      )}
-                      {message.sender_id === user.id && (
-                        <span className="read-receipt" style={{ marginLeft: '4px', fontSize: '0.8em' }}>
-                          {!message.id ? '' : (message.is_read ? '✓✓' : '✓')}
-                        </span>
-                      )}
-                    </div>
-                    {!message.is_deleted && message.reactions && message.reactions.length > 0 && (
-                      <div className="message-reactions">
-                        {message.reactions.map((r) => (
-                          <button
-                            key={r.emoji}
-                            className={`reaction-chip ${r.user_ids?.includes(user.id) ? 'reaction-chip--mine' : ''}`}
-                            onClick={(e) => { e.stopPropagation(); reactToMessage(message.id, r.emoji); }}
-                            title={r.user_ids?.includes(user.id) ? t('chat.remove_reaction', 'Remove reaction') : t('chat.add_reaction', 'Add reaction')}
-                          >
-                            {r.emoji} <span className="reaction-count">{r.count}</span>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-            </div>
-          );
-          })
-        )}
-        <div ref={messagesEndRef} />
-      </div>
-
-      <form className="message-input-container" onSubmit={handleSubmit}>
-        {editingMessage && (
-          <div className="edit-mode-banner">
-            <span>{t('chat.editing_message', 'Editing message')}</span>
-            <button type="button" className="cancel-edit-btn" onClick={handleEditCancel}>✕</button>
-          </div>
-        )}
-        {replyingToMessage && !editingMessage && (
-          <div className="reply-mode-banner">
-            <div className="reply-content-preview">
-              <span className="reply-sender">{replyingToMessage.sender_username}: </span>
-              <span className="reply-text">{replyingToMessage.content}</span>
-            </div>
-            <button type="button" className="cancel-reply-btn" onClick={handleReplyCancel}>✕</button>
-          </div>
-        )}
-        <div className="message-input-row">
-        <div className="input-field-wrapper">
-          {selectedFile && (
-            <div className="selected-file-preview">
-              {previewImage ? (
-                <div style={{ position: 'relative', display: 'flex' }}>
-                  <img src={previewImage} alt="Preview" style={{ height: '40px', width: '40px', borderRadius: '4px', objectFit: 'cover' }} />
-                </div>
-              ) : (
-                <span className="file-icon" style={{ fontSize: '24px' }}>📄</span>
-              )}
-              <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', minWidth: 0 }}>
-                <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontSize: '0.9em' }}>{selectedFile.name}</span>
-                {uploading && (
-                  <div style={{ height: '4px', background: 'rgba(0,0,0,0.1)', borderRadius: '2px', marginTop: '4px', width: '100%', overflow: 'hidden' }}>
-                    <div style={{ height: '100%', background: 'var(--primary-color, #007bff)', width: `${uploadProgress}%`, transition: 'width 0.2s' }} />
-                  </div>
-                )}
-              </div>
-              <button type="button" onClick={clearFile} className="clear-file-btn" disabled={uploading} style={{ alignSelf: 'flex-start' }}>×</button>
-            </div>
-          )}
-          <div className="emoji-picker-wrapper" ref={emojiPickerRef}>
-              <button
-                type="button"
-                className="emoji-button"
-                onClick={() => setIsEmojiPickerOpen((prev) => !prev)}
-                aria-label={t('chat.toggle_emoji')}
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="emoji-icon">
-                  <circle cx="12" cy="12" r="10"></circle>
-                  <path d="M8 14s1.5 2 4 2 4-2 4-2"></path>
-                  <line x1="9" y1="9" x2="9.01" y2="9"></line>
-                  <line x1="15" y1="9" x2="15.01" y2="9"></line>
-                </svg>
-              </button>
-              {isEmojiPickerOpen && (
-                <div className="emoji-picker">
-                  <Picker data={data} onEmojiSelect={handleEmojiSelect} theme="light" previewPosition="none" />
-                </div>
-              )}
-          </div>
-          <textarea
-            ref={textareaRef}
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            onKeyDown={handleKeyDown}
-            onPaste={handlePaste}
-            placeholder={uploading ? t('chat.uploading') : t('chat.type_message')}
-            maxLength={5000}
-            className="message-input"
-            disabled={uploading}
-            rows={1}
-          />
-          {!inputValue.trim() && (
-            <div className="attachment-button-wrapper">
-              <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleFileSelect}
-                style={{ display: 'none' }}
-              />
-              <button
-                type="button"
-                className="attachment-button"
-                onClick={() => fileInputRef.current?.click()}
-                aria-label={t('chat.attach_file')}
-                title={t('chat.attach_file')}
-              >
-                <svg viewBox="0 0 24 24" fill="none" className="paperclip-icon" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path>
-                </svg>
-              </button>
-            </div>
-          )}
-          <button type="submit" className="send-button" disabled={(!inputValue.trim() && !selectedFile) || uploading}>
-            {uploading ? '...' : (editingMessage ? '✓' : (
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="send-icon">
-                <line x1="22" y1="2" x2="11" y2="13"></line>
-                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-              </svg>
-            ))}
-          </button>
-        </div>
-        </div>
-      </form>
-
-      {reactionPickerMsgId && (
-        <div className="reaction-picker-overlay" ref={reactionPickerRef}>
-          <Picker
-            data={data}
-            onEmojiSelect={(emoji) => handleReactionSelect(emoji, reactionPickerMsgId)}
-            theme="light"
-            previewPosition="none"
-            skinTonePosition="none"
-          />
-        </div>
-      )}
-
-      {contextMenu && (
-        <div
-          className="message-context-menu"
-          style={{ top: contextMenu.y, left: contextMenu.x }}
-          ref={contextMenuRef}
-          onClick={(e) => e.stopPropagation()}
+    <div
+      className={`chat-window ${isDragging ? 'dragging' : ''}`}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+      data-testid="chat-window"
+    >
+      {/* On phones this header IS the top bar (the app bar belongs to the list view) */}
+      <header className="chat-header">
+        <button
+          type="button"
+          className="icon-btn mobile-back-button"
+          onClick={() => selectConversation(null)}
+          aria-label={t('chat.back')}
+          data-testid="back-button"
         >
-          <button className="context-menu-item" onClick={handleReactStart}>
-            😊 {t('chat.react_to_message', 'React')}
-          </button>
-          <button className="context-menu-item" onClick={handleReplyStart}>
-            ↩️ {t('chat.reply_message', 'Reply')}
-          </button>
-          {contextMenu.isMine && (
-            <button className="context-menu-item" onClick={handleEditStart}>
-              ✏️ {t('chat.edit_message', 'Edit')}
-            </button>
-          )}
-          <button className="context-menu-item" onClick={handleDeleteForMe}>
-            🗑️ {t('chat.delete_for_me', 'Delete for me')}
-          </button>
-          {contextMenu.isMine && (
-            <button className="context-menu-item context-menu-item--danger" onClick={handleDeleteForEveryone}>
-              🗑️ {t('chat.delete_for_everyone', 'Delete for everyone')}
-            </button>
-          )}
+          <Icon name="back" />
+        </button>
+        <Avatar name={title} size="md" isGroup={selectedConversation.is_group} online={other ? !!other.is_online : null} />
+        <div className="chat-info-text">
+          <h2 className="chat-title" data-testid="chat-title">{title}</h2>
+          <span className={`status-indicator ${other ? (other.is_online ? 'online' : 'offline') : 'group'}`}>
+            {subtitle}
+          </span>
         </div>
+        {other && (
+          <button
+            type="button"
+            className="icon-btn call-button"
+            onClick={() => startCall(other.id, other.username, selectedConversation.id)}
+            title={t('chat.start_call')}
+            aria-label={t('chat.start_call')}
+            data-testid="call-button"
+          >
+            <Icon name="phone" />
+          </button>
+        )}
+      </header>
+
+      <MessageList
+        conversation={selectedConversation}
+        title={title}
+        messages={conversationMessages}
+        user={user}
+        coarse={coarse}
+        locale={i18n.language}
+        hasMore={!!hasMoreMessages[selectedConversation.id]}
+        loadOlder={() => loadOlderMessages(selectedConversation.id)}
+        onOpenActions={openActions}
+        onSwipeReply={startReply}
+        onImageClick={setModalImage}
+        onReact={handleReact}
+      />
+
+      {toast && (
+        <div className="toast" role="status" data-testid="toast">{toast}</div>
+      )}
+
+      <Composer
+        ref={composerRef}
+        conversation={selectedConversation}
+        replyingTo={replyingTo}
+        editing={editing}
+        onCancelReply={() => setReplyingTo(null)}
+        onCancelEdit={() => setEditing(null)}
+      />
+
+      {isDragging && (
+        <div className="drop-overlay" aria-hidden="true">
+          <Icon name="paperclip" size={32} />
+          <span>{t('chat.attach_file')}</span>
+        </div>
+      )}
+
+      <MessageActions
+        target={actionTarget}
+        onClose={closeActions}
+        onReply={() => startReply(actionTarget.message)}
+        onCopy={() => handleCopy(actionTarget.message)}
+        onEdit={() => startEdit(actionTarget.message)}
+        onDelete={(type) => deleteMessage(actionTarget.message.id, type)}
+        onReact={(emoji) => handleReact(actionTarget.message, emoji)}
+        onMoreReactions={() => setReactionFor(actionTarget.message)}
+      />
+
+      <Sheet
+        open={!!reactionFor}
+        onClose={() => setReactionFor(null)}
+        title={t('chat.add_reaction', 'Add reaction')}
+        testId="reaction-sheet"
+      >
+        <EmojiPicker
+          fluid={isPhone}
+          skinTone={false}
+          onSelect={(emoji) => {
+            if (emoji?.native) handleReact(reactionFor, emoji.native);
+            setReactionFor(null);
+          }}
+        />
+      </Sheet>
+
+      {modalImage && (
+        <ImageModal url={modalImage.url} originalName={modalImage.name} onClose={() => setModalImage(null)} />
       )}
     </div>
   );

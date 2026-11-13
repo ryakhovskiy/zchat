@@ -12,6 +12,7 @@ const FOCUSABLE =
 const stack = [];
 
 const POPOVER_WIDTH = 360;
+const ARM_DELAY_MS = 350;
 
 /**
  * Overlay primitive. Phone (<768px): bottom sheet (or full screen with size="full").
@@ -38,8 +39,15 @@ export const Sheet = ({
   const isPhone = useIsPhone();
   const panelRef = useRef(null);
   const titleId = useId();
+  const onCloseRef = useRef(onClose);
   const [position, setPosition] = useState(null);
+  const [armed, setArmed] = useState(false);
   const popover = !isPhone && !!anchorRef;
+
+  // Callers pass inline callbacks; keep the latest one without re-running the focus effect
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  });
 
   // Anchor the popover under its trigger (clamped to the viewport)
   useLayoutEffect(() => {
@@ -59,6 +67,17 @@ export const Sheet = ({
     return () => window.removeEventListener('resize', place);
   }, [open, popover, anchorRef]);
 
+  // A sheet opened by a long-press appears under the finger: ignore pointer input for a moment
+  // so lifting that finger can never fire an action (e.g. "Delete") by accident.
+  useEffect(() => {
+    if (!open) {
+      setArmed(false);
+      return undefined;
+    }
+    const timer = setTimeout(() => setArmed(true), ARM_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [open]);
+
   // Focus management and Esc/Tab handling
   useEffect(() => {
     if (!open) return undefined;
@@ -74,7 +93,7 @@ export const Sheet = ({
       if (stack[stack.length - 1] !== token) return;
       if (e.key === 'Escape') {
         e.stopPropagation();
-        onClose();
+        onCloseRef.current();
         return;
       }
       if (e.key !== 'Tab' || !panel) return;
@@ -103,7 +122,7 @@ export const Sheet = ({
         previouslyFocused.focus?.({ preventScroll: true });
       }
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 
@@ -111,7 +130,7 @@ export const Sheet = ({
   const style = popover && position ? { top: position.top, left: position.left, width: position.width } : undefined;
 
   return createPortal(
-    <div className={`sheet-root sheet-root--${mode}`} data-testid={testId ? `${testId}-root` : undefined}>
+    <div className={`sheet-root sheet-root--${mode}${armed ? '' : ' sheet-root--arming'}`} data-testid={testId ? `${testId}-root` : undefined}>
       <div className="sheet-scrim" onClick={onClose} data-testid="sheet-scrim" />
       <div
         ref={panelRef}

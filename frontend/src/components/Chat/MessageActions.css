@@ -1,0 +1,123 @@
+/* Touch action sheet */
+.quick-reactions {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-1);
+  padding-bottom: var(--space-3);
+  margin-bottom: var(--space-2);
+  border-bottom: var(--border-width) solid var(--color-border);
+}
+
+.quick-reaction {
+  display: inline-flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--tap-size);
+  height: var(--tap-size);
+  border-radius: var(--radius-full);
+  font-size: 1.5rem;
+  line-height: 1;
+  transition: background-color var(--motion-fast), transform var(--motion-fast);
+}
+
+.quick-reaction:hover,
+.quick-reaction:active {
+  background: var(--color-accent-soft);
+  transform: scale(1.12);
+}
+
+.quick-reaction--more {
+  flex: 0 0 var(--tap-size);
+  font-size: var(--text-md);
+  color: var(--color-text-secondary);
+  background: var(--color-surface-sunken);
+}
+
+.action-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  list-style: none;
+}
+
+.action-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  width: 100%;
+  min-height: 52px;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-md);
+  font-size: var(--text-md);
+  text-align: left;
+  color: var(--color-text);
+}
+
+.action-item:hover,
+.action-item:active {
+  background: var(--color-accent-soft);
+}
+
+/* Destructive: tinted + bordered + trash icon + explicit label, so it never relies on colour alone */
+.action-item--danger {
+  color: var(--color-danger);
+  background: var(--color-danger-soft);
+  border: var(--border-width) solid var(--color-danger);
+  margin-top: var(--space-2);
+}
+
+.action-item--danger:hover,
+.action-item--danger:active {
+  background: var(--color-danger);
+  color: var(--color-on-danger);
+}
+
+/* Desktop context menu */
+.message-context-menu {
+  position: fixed;
+  z-index: var(--z-dropdown);
+  display: flex;
+  flex-direction: column;
+  min-width: 200px;
+  max-width: calc(100vw - var(--space-4));
+  padding: var(--space-1);
+  background: var(--color-surface-raised);
+  border: var(--border-width) solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-overlay);
+  animation: menu-in var(--motion-fast) var(--ease-out);
+}
+
+.context-menu-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 40px;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  text-align: left;
+  color: var(--color-text);
+}
+
+.context-menu-item:hover,
+.context-menu-item:focus-visible {
+  background: var(--color-accent-soft);
+}
+
+.context-menu-item--danger {
+  color: var(--color-danger);
+  border: var(--border-width) solid var(--color-danger);
+  margin-top: var(--space-1);
+}
+
+.context-menu-item--danger:hover,
+.context-menu-item--danger:focus-visible {
+  background: var(--color-danger);
+  color: var(--color-on-danger);
+}
+
+@keyframes menu-in {
+  from { opacity: 0; transform: scale(0.97); }
+}

@@ -268,8 +268,9 @@ input:focus-visible,
 textarea:focus-visible,
 select:focus-visible {
   border-color: var(--color-focus-ring);
-  outline: none;
-  box-shadow: var(--focus-glow), 0 0 0 2px var(--color-focus-ring);
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 0;
+  box-shadow: var(--focus-glow);
 }
 
 input[type="checkbox"],

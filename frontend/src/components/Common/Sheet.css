@@ -6,6 +6,10 @@
   z-index: var(--z-sheet);
 }
 
+.sheet-root--arming {
+  pointer-events: none; /* see Sheet.jsx: guards against the lifting finger of a long-press */
+}
+
 .sheet-scrim {
   position: absolute;
   inset: 0;
@@ -24,7 +28,7 @@
   background: var(--color-surface-raised);
   color: var(--color-text);
   border: var(--border-width) solid var(--color-border);
-  box-shadow: var(--shadow-lg), var(--glow);
+  box-shadow: var(--shadow-overlay);
   outline: none;
   overflow: hidden;
 }
@@ -61,7 +65,7 @@
   top: 50%;
   left: 50%;
   width: min(480px, calc(100vw - var(--space-8)));
-  max-height: min(680px, calc(100dvh - var(--space-8)));
+  max-height: min(680px, calc(var(--vh-full) - var(--space-8)));
   border-radius: var(--radius-lg);
   transform: translate(-50%, -50%);
   animation: sheet-pop var(--motion-base) var(--ease-out);
@@ -69,7 +73,7 @@
 
 /* Tablet/desktop: popover under its trigger */
 .sheet-panel--popover {
-  max-height: calc(100dvh - 80px);
+  max-height: calc(var(--vh-full) - 80px);
   border-radius: var(--radius-lg);
   animation: sheet-pop-anchored var(--motion-base) var(--ease-out);
 }

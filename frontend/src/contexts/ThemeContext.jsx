@@ -43,7 +43,9 @@ export const ThemeProvider = ({ children }) => {
     writeStoredTheme(next);
   }, []);
 
-  const value = useMemo(() => ({ theme, setTheme, themes: THEMES }), [theme, setTheme]);
+  // 'light' | 'dark': for third-party widgets (emoji picker) that only understand a scheme
+  const colorScheme = theme === 'light' ? 'light' : 'dark';
+  const value = useMemo(() => ({ theme, setTheme, themes: THEMES, colorScheme }), [theme, setTheme, colorScheme]);
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 };

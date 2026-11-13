@@ -1,54 +1,133 @@
+/*
+ * App shell. Mobile-first: one pane under 768px (list OR chat, switched by data-view),
+ * two panes from 768px, wider sidebar from 1024px.
+ */
+
 .app-layout {
   display: flex;
+  flex: 1;
   flex-direction: column;
-  height: 100vh;
-  width: 100vw;
+  min-height: 0;
+  width: 100%;
   overflow: hidden;
-  background-color: var(--bg-primary);
+  background: var(--color-bg);
+}
+
+.chat-container {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Sidebar (list view) ---------------------------------------------------- */
+.sidebar {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--color-surface);
 }
 
 .top-bar {
   display: flex;
+  flex-shrink: 0;
   align-items: center;
   justify-content: space-between;
-  padding: 0.5rem 1rem;
-  background-color: var(--bg-secondary);
-  border-bottom: 1px solid var(--border-color);
-  height: 60px;
-  flex-shrink: 0;
-  z-index: 100;
+  gap: var(--space-2);
+  min-height: 64px;
+  padding: var(--space-2) calc(var(--space-2) + var(--safe-right)) var(--space-2) calc(var(--space-4) + var(--safe-left));
+  padding-top: calc(var(--space-2) + var(--safe-top));
+  background: var(--color-header-bg);
+  color: var(--color-header-text);
+  border-bottom: var(--border-width) solid var(--color-border);
 }
 
 .top-bar-branding {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: var(--space-3);
+  min-width: 0;
 }
 
-.top-bar-branding h1 {
-  margin: 0;
-  font-size: 1.25rem;
-  color: var(--text-primary);
-  font-weight: 600;
+.top-bar-title {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.top-bar-title h1 {
+  font-family: var(--font-meta);
+  font-size: var(--text-lg);
+  letter-spacing: var(--meta-letter-spacing);
+  line-height: var(--leading-tight);
+}
+
+.user-status {
+  font-family: var(--font-meta);
+  font-size: var(--text-xs);
+  letter-spacing: var(--meta-letter-spacing);
+  color: var(--color-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
 }
 
 .android-download {
-  display: flex;
-  align-items: center;
-  color: var(--text-secondary);
-  opacity: 0.7;
-  transition: opacity 0.2s;
+  color: var(--color-text-secondary);
 }
 
-.android-download:hover {
-  opacity: 1;
-}
-
-/* Adjust chat-container to fill remaining space */
-.chat-container {
+/* Chat pane -------------------------------------------------------------- */
+.chat-pane {
   display: flex;
   flex: 1;
-  overflow: hidden; /* Prevent body scroll */
-  position: relative;
-  height: calc(100vh - 60px); /* Explicit height calculation */
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--color-bg);
+}
+
+/* Phone: single pane. data-view decides which one is on screen. */
+@media (max-width: 767.98px) {
+  .app-layout[data-view="list"] .chat-pane,
+  .app-layout[data-view="chat"] .sidebar {
+    display: none;
+  }
+}
+
+/* Tablet and up: both panes, sidebar ~300px */
+@media (min-width: 768px) {
+  .sidebar {
+    flex: 0 0 var(--sidebar-width);
+    border-right: var(--border-width) solid var(--color-border);
+  }
+
+  .top-bar {
+    padding-left: calc(var(--space-4) + var(--safe-left));
+    padding-right: var(--space-2);
+  }
+}
+
+/* Desktop */
+@media (min-width: 1024px) {
+  .sidebar {
+    flex-basis: var(--sidebar-width-wide);
+  }
+}
+
+/* Phone landscape: every vertical pixel counts */
+@media (max-height: 480px) and (orientation: landscape) {
+  .top-bar {
+    min-height: 52px;
+    padding-top: calc(var(--space-1) + var(--safe-top));
+    padding-bottom: var(--space-1);
+  }
 }

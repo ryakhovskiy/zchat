@@ -161,6 +161,7 @@
   --shadow-sm: 0 1px 2px rgba(20, 23, 31, 0.06);
   --shadow-md: 0 4px 14px rgba(20, 23, 31, 0.1);
   --shadow-lg: 0 16px 40px rgba(20, 23, 31, 0.18);
+  --shadow-overlay: 0 16px 40px rgba(20, 23, 31, 0.18);   /* elevation + glow, composed here because `none` cannot sit in a shadow list */
   --glow: none;
   --focus-glow: none;
   --border-width: 1px;
@@ -171,10 +172,10 @@
   --avatar-text: #ffffff;
 
   /* RGB triplets consumed by emoji-mart (it needs raw channels) */
-  --rgb-bg: 255, 255, 255;
-  --rgb-text: 20, 23, 31;
-  --rgb-accent: 79, 70, 229;
-  --rgb-input: 236, 238, 242;
+  --emoji-rgb-bg: 255, 255, 255;
+  --emoji-rgb-text: 20, 23, 31;
+  --emoji-rgb-accent: 79, 70, 229;
+  --emoji-rgb-input: 236, 238, 242;
 }
 
 /* ------------------------------------------------------------------ */
@@ -239,6 +240,7 @@
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
   --shadow-md: 0 4px 14px rgba(0, 0, 0, 0.45);
   --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.6);
+  --shadow-overlay: 0 16px 40px rgba(0, 0, 0, 0.6);   /* elevation + glow, composed here because `none` cannot sit in a shadow list */
   --glow: none;
   --focus-glow: none;
   --border-width: 1px;
@@ -248,10 +250,10 @@
   --avatar-text: #ffffff;
 
   /* RGB triplets consumed by emoji-mart (it needs raw channels) */
-  --rgb-bg: 23, 26, 33;
-  --rgb-text: 232, 234, 240;
-  --rgb-accent: 129, 140, 248;
-  --rgb-input: 31, 35, 44;
+  --emoji-rgb-bg: 23, 26, 33;
+  --emoji-rgb-text: 232, 234, 240;
+  --emoji-rgb-accent: 129, 140, 248;
+  --emoji-rgb-input: 31, 35, 44;
 }
 
 /* ------------------------------------------------------------------ */
@@ -318,6 +320,7 @@
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.6);
   --shadow-md: 0 4px 14px rgba(0, 0, 0, 0.6);
   --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.75);
+  --shadow-overlay: 0 16px 40px rgba(0, 0, 0, 0.75), 0 0 12px rgba(0, 224, 122, 0.28);
   --glow: 0 0 12px rgba(0, 224, 122, 0.28);
   --focus-glow: 0 0 0 3px rgba(0, 224, 122, 0.22), 0 0 14px rgba(0, 224, 122, 0.35);
   --border-width: 1px;
@@ -327,10 +330,10 @@
   --avatar-text: #e6efea;
 
   /* RGB triplets consumed by emoji-mart (it needs raw channels) */
-  --rgb-bg: 10, 19, 16;
-  --rgb-text: 230, 239, 234;
-  --rgb-accent: 0, 224, 122;
-  --rgb-input: 16, 28, 23;
+  --emoji-rgb-bg: 10, 19, 16;
+  --emoji-rgb-text: 230, 239, 234;
+  --emoji-rgb-accent: 0, 224, 122;
+  --emoji-rgb-input: 16, 28, 23;
 }
 
 /* ------------------------------------------------------------------ */
@@ -397,6 +400,7 @@
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.6);
   --shadow-md: 0 4px 14px rgba(0, 0, 0, 0.6);
   --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.75);
+  --shadow-overlay: 0 16px 40px rgba(0, 0, 0, 0.75), 0 0 12px rgba(229, 56, 79, 0.3);
   --glow: 0 0 12px rgba(229, 56, 79, 0.3);
   --focus-glow: 0 0 0 3px rgba(229, 56, 79, 0.25), 0 0 14px rgba(229, 56, 79, 0.4);
   --border-width: 1px;
@@ -406,41 +410,8 @@
   --avatar-text: #f1e8e9;
 
   /* RGB triplets consumed by emoji-mart (it needs raw channels) */
-  --rgb-bg: 20, 12, 14;
-  --rgb-text: 241, 232, 233;
-  --rgb-accent: 229, 56, 79;
-  --rgb-input: 29, 18, 20;
-}
-
-/* ------------------------------------------------------------------ */
-/* TEMPORARY legacy aliases                                            */
-/* Keep not-yet-migrated components rendering while screens are moved   */
-/* to the semantic tokens. Removed once the last component migrates.    */
-/* ------------------------------------------------------------------ */
-:root,
-[data-theme] {
-  --bg-primary: var(--color-bg);
-  --bg-secondary: var(--color-surface);
-  --bg-tertiary: var(--color-surface-sunken);
-  --accent-color: var(--color-accent-text);
-  --primary-color: var(--color-accent);
-  --text-primary: var(--color-text);
-  --text-secondary: var(--color-text-secondary);
-  --text-muted: var(--color-text-muted);
-  --border-color: var(--color-border);
-  --card-bg: var(--color-surface-raised);
-  --input-bg: var(--color-surface);
-  --input-border: var(--color-border-strong);
-  --message-sent-bg: var(--bubble-out-bg);
-  --message-received-bg: var(--bubble-in-bg);
-  --hover-bg: var(--color-accent-soft);
-  --active-bg: var(--color-accent-soft);
-  --shadow-color: rgba(0, 0, 0, 0.25);
-  --error-bg: var(--color-danger-soft);
-  --error-color: var(--color-danger);
-  --success-color: var(--color-success);
-  --scrollbar-track: var(--color-bg);
-  --scrollbar-thumb: var(--color-border-strong);
-  --gradient-primary: var(--color-accent);
-  --font-terminal: var(--font-meta);
+  --emoji-rgb-bg: 20, 12, 14;
+  --emoji-rgb-text: 241, 232, 233;
+  --emoji-rgb-accent: 229, 56, 79;
+  --emoji-rgb-input: 29, 18, 20;
 }

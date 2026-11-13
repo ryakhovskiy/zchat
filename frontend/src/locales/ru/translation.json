@@ -73,7 +73,10 @@
     "typing_placeholder": "Сообщение",
     "attachment_preview": "Предпросмотр вложения",
     "open_image": "Открыть изображение",
-    "sender_group": "Группа"
+    "sender_group": "Группа",
+    "download_android": "Скачать приложение для Android",
+    "status_sent": "Отправлено",
+    "status_read": "Прочитано"
   },
   "user_list": {
     "new_conversation": "Новая беседа",
@@ -92,7 +95,9 @@
     "chats_header": "Чаты",
     "new_chat_button_title": "Новая беседа",
     "no_conversations": "Нет бесед",
-    "start_new_chat": "Начать новый чат"
+    "start_new_chat": "Начать новый чат",
+    "no_users": "Других пользователей пока нет",
+    "create_failed": "Не удалось создать чат"
   },
   "theme": {
     "switch_to_light": "Переключить на светлую тему",

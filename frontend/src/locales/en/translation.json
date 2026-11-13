@@ -73,7 +73,10 @@
     "typing_placeholder": "Message",
     "attachment_preview": "Attachment preview",
     "open_image": "Open image",
-    "sender_group": "Group"
+    "sender_group": "Group",
+    "download_android": "Download Android app",
+    "status_sent": "Sent",
+    "status_read": "Read"
   },
   "user_list": {
     "new_conversation": "New Conversation",
@@ -92,7 +95,9 @@
     "chats_header": "Chats",
     "new_chat_button_title": "New conversation",
     "no_conversations": "No conversations yet",
-    "start_new_chat": "Start a new chat"
+    "start_new_chat": "Start a new chat",
+    "no_users": "No other users yet",
+    "create_failed": "Failed to create conversation"
   },
   "theme": {
     "switch_to_light": "Switch to light theme",

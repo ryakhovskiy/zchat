@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ChatProvider } from './contexts/ChatContext';
 import { CallProvider } from './contexts/CallContext';
@@ -11,29 +12,69 @@ import { ConversationList } from './components/Chat/ConversationList';
 import { UserList } from './components/UserList/UserList';
 import { ControlPanel } from './components/Common/ControlPanel';
 import { useChat } from './contexts/ChatContext';
-import './App.css';
+import { Avatar } from './components/Common/Avatar';
+import { Icon } from './components/Common/Icon';
+import { useConnectionStatus } from './hooks/useConnectionStatus';
+import { useAppHeight } from './hooks/useAppHeight';
 import './AppLayout.css';
 
-const TopBar = () => {
+const ConnectionBanner = () => {
+  const { t } = useTranslation();
+  const status = useConnectionStatus();
+  if (status === 'online') return null;
   return (
-    <div className="top-bar">
-      <div className="top-bar-branding">
-        <h1>ZChat</h1>
-        <a href="/app/android/zchat.apk" download className="android-download" title="Download Android App">
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M6 18c0 .55.45 1 1 1h1v3.5c0 .83.67 1.5 1.5 1.5s1.5-.67 1.5-1.5V19h2v3.5c0 .83.67 1.5 1.5 1.5s1.5-.67 1.5-1.5V19h1c.55 0 1-.45 1-1V8H6v10zM3.5 8C2.67 8 2 8.67 2 9.5v7c0 .83.67 1.5 1.5 1.5S5 17.33 5 16.5v-7C5 8.67 4.33 8 3.5 8zm17 0c-.83 0-1.5.67-1.5 1.5v7c0 .83.67 1.5 1.5 1.5s1.5-.67 1.5-1.5v-7c0-.83-.67-1.5-1.5-1.5zm-4.97-5.84l1.3-1.3c.2-.2.2-.51 0-.71-.2-.2-.51-.2-.71 0l-1.48 1.48A5.84 5.84 0 0012 1c-.96 0-1.86.23-2.66.63L7.85.15c-.2-.2-.51-.2-.71 0-.2.2-.2.51 0 .71l1.31 1.31A5.983 5.983 0 006 7h12c0-2.21-1.2-4.15-2.97-5.18-.15-.09-.2-.15-.5.16zM10 5H9V4h1v1zm5 0h-1V4h1v1z"/>
-          </svg>
-        </a>
-      </div>
-      <ControlPanel />
+    <div className="banner connection-banner" role="status" aria-live="polite" data-testid="connection-banner" data-status={status}>
+      <Icon name="alert" size={18} />
+      <span>{status === 'offline' ? t('chat.offline_banner') : t('chat.reconnecting_banner')}</span>
     </div>
   );
 };
 
-const ChatMain = () => {
+// App bar of the list view. On phones, opening a chat hides this pane: the chat header is the top bar.
+const SidebarHeader = ({ onNewChat }) => {
+  const { t } = useTranslation();
   const { user } = useAuth();
+  return (
+    <header className="sidebar-header top-bar">
+      <div className="top-bar-branding">
+        <Avatar name={user.username} size="md" online />
+        <div className="top-bar-title">
+          <h1>ZChat</h1>
+          <span className="user-status online" data-testid="current-username">
+            {user.username}
+          </span>
+        </div>
+      </div>
+      <div className="sidebar-actions">
+        <a
+          href="/app/android/zchat.apk"
+          download
+          className="icon-btn android-download"
+          title={t('chat.download_android')}
+          aria-label={t('chat.download_android')}
+        >
+          <Icon name="android" />
+        </a>
+        <button
+          type="button"
+          className="icon-btn new-chat-button"
+          onClick={onNewChat}
+          title={t('user_list.new_chat_button_title')}
+          aria-label={t('user_list.new_chat_button_title')}
+          data-testid="new-chat-button"
+        >
+          <Icon name="plus" />
+        </button>
+        <ControlPanel />
+      </div>
+    </header>
+  );
+};
+
+const ChatMain = () => {
   const { selectedConversation, unreadCounts } = useChat();
   const [showUserList, setShowUserList] = useState(false);
+  useAppHeight();
 
   useEffect(() => {
     const totalUnread = Object.values(unreadCounts).reduce((a, b) => a + b, 0);
@@ -41,36 +82,33 @@ const ChatMain = () => {
   }, [unreadCounts]);
 
   return (
-    <div className="app-layout">
-      <TopBar />
-      <div className={`chat-container ${selectedConversation ? 'conversation-active' : ''}`}>
-        <div className="sidebar">
-          <div className="sidebar-header">
-            <div>
-              <h2>{user.username}</h2>
-              <span className="user-status online">Online</span>
-            </div>
-            {/* ControlPanel removed from here */}
-          </div>
+    <div className="app-layout" data-view={selectedConversation ? 'chat' : 'list'}>
+      <ConnectionBanner />
+      <div className="chat-container">
+        <aside className="sidebar" data-testid="sidebar">
+          <SidebarHeader onNewChat={() => setShowUserList(true)} />
           <ConversationList onNewChat={() => setShowUserList(true)} />
-        </div>
+        </aside>
 
-        <ChatWindow />
-
-        {showUserList && <UserList onClose={() => setShowUserList(false)} />}
+        <main className="chat-pane">
+          <ChatWindow />
+        </main>
       </div>
+
+      <UserList open={showUserList} onClose={() => setShowUserList(false)} />
     </div>
   );
 };
 
 const ChatApp = () => {
+  const { t } = useTranslation();
   const { user, loading } = useAuth();
 
   if (loading) {
     return (
       <div className="loading-screen">
         <div className="spinner"></div>
-        <p>Loading...</p>
+        <p>{t('common.loading')}</p>
       </div>
     );
   }
@@ -90,6 +128,7 @@ const ChatApp = () => {
 };
 
 const AuthFlow = () => {
+  useAppHeight();
   const [isLogin, setIsLogin] = useState(true);
 
   return isLogin ? (

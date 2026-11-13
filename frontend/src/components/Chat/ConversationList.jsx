@@ -3,121 +3,124 @@ import { useTranslation } from 'react-i18next';
 import { useChat } from '../../contexts/ChatContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { textToEmoji } from '../../utils/emojiUtils';
-import './Chat.css';
+import { Avatar } from '../Common/Avatar';
+import { Icon } from '../Common/Icon';
+import './ConversationList.css';
+
+const SkeletonRows = () => (
+  <div className="conversations" aria-busy="true" data-testid="conversations-skeleton">
+    {Array.from({ length: 7 }, (_, i) => (
+      <div className="conversation-item conversation-item--skeleton" key={i} aria-hidden="true">
+        <span className="skeleton skeleton--circle" style={{ width: 48, height: 48 }} />
+        <span className="conversation-details">
+          <span className="skeleton" style={{ width: `${45 + ((i * 17) % 35)}%`, height: 14 }} />
+          <span className="skeleton" style={{ width: `${60 + ((i * 11) % 30)}%`, height: 12, marginTop: 8 }} />
+        </span>
+      </div>
+    ))}
+  </div>
+);
 
 export const ConversationList = ({ onNewChat }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { conversations, selectedConversation, selectConversation, loading, unreadCounts } = useChat();
   const { user } = useAuth();
 
+  const getOtherUser = (conversation) => conversation.participants.find((p) => p.id !== user.id);
+
   const getConversationTitle = (conversation) => {
-    if (conversation.is_group) {
-      return conversation.name || t('chat.group_chat_default');
-    }
-    
-    const otherUser = conversation.participants.find((p) => p.id !== user.id);
-    return otherUser?.username || t('chat.unknown_user');
+    if (conversation.is_group) return conversation.name || t('chat.group_chat_default');
+    return getOtherUser(conversation)?.username || t('chat.unknown_user');
   };
 
   const getLastMessage = (conversation) => {
-    if (!conversation.last_message) return t('chat.no_messages');
-    
-    const prefix = conversation.last_message.sender_id === user.id ? `${t('chat.you')}: ` : '';
-    
+    const last = conversation.last_message;
+    if (!last) return t('chat.no_messages');
+    const prefix = last.sender_id === user.id ? `${t('chat.you')}: ` : '';
     // textToEmoji leaves URLs (http://, tg://, ...) untouched
-    const content = textToEmoji(conversation.last_message.content || '');
-
-    return prefix + (content.length > 40 ? content.substring(0, 40) + '...' : content);
+    return prefix + textToEmoji(last.content || '');
   };
 
   const formatTime = (dateString) => {
     const date = new Date(dateString);
     const now = new Date();
-    const isToday = date.getFullYear() === now.getFullYear() &&
-                    date.getMonth() === now.getMonth() &&
-                    date.getDate() === now.getDate();
-
-    if (isToday) {
-      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    }
-    const pad = (n) => String(n).padStart(2, '0');
-    return `${pad(date.getDate())}.${pad(date.getMonth() + 1)}.${date.getFullYear()}`;
+    const sameDay = date.toDateString() === now.toDateString();
+    if (sameDay) return date.toLocaleTimeString(i18n.language, { hour: '2-digit', minute: '2-digit' });
+    const yesterday = new Date(now);
+    yesterday.setDate(now.getDate() - 1);
+    if (date.toDateString() === yesterday.toDateString()) return t('chat.yesterday');
+    return date.toLocaleDateString(i18n.language, { day: '2-digit', month: '2-digit', year: '2-digit' });
   };
 
-  if (loading) {
+  if (loading) return <SkeletonRows />;
+
+  if (conversations.length === 0) {
     return (
-      <div className="conversation-list">
-        <div className="conversation-list-header">
-          <h2>{t('user_list.chats_header')}</h2>
-          <button className="new-chat-button" onClick={onNewChat}>
-            +
+      <div className="conversations">
+        <div className="empty-conversations" data-testid="empty-conversations">
+          <span className="empty-icon" aria-hidden="true"><Icon name="chat" size={40} /></span>
+          <p>{t('user_list.no_conversations')}</p>
+          <button type="button" className="btn-primary" onClick={onNewChat}>
+            <Icon name="plus" size={20} />
+            {t('user_list.start_new_chat')}
           </button>
         </div>
-        <div className="loading-state">Loading...</div>
       </div>
     );
   }
 
-  return (
-    <div className="conversation-list">
-      <div className="conversation-list-header">
-        <h2>{t('user_list.chats_header')}</h2>
-        <button className="new-chat-button" onClick={onNewChat} title={t('user_list.new_chat_button_title')}>
-          +
-        </button>
-      </div>
+  const sorted = [...conversations].sort((a, b) => {
+    const aTime = a.last_message?.created_at || a.updated_at;
+    const bTime = b.last_message?.created_at || b.updated_at;
+    return new Date(bTime) - new Date(aTime);
+  });
 
-      <div className="conversations">
-        {conversations.length === 0 ? (
-          <div className="empty-conversations">
-            <p>{t('user_list.no_conversations')}</p>
-            <button className="btn-secondary" onClick={onNewChat}>
-              {t('user_list.start_new_chat')}
-            </button>
-          </div>
-        ) : (
-          [...conversations]
-            .sort((a, b) => {
-              const aTime = a.last_message?.created_at || a.updated_at;
-              const bTime = b.last_message?.created_at || b.updated_at;
-              return new Date(bTime) - new Date(aTime);
-            })
-            .map((conversation) => {
-              const unreadCount = unreadCounts[conversation.id] || 0;
-              const isUnread = unreadCount > 0 && selectedConversation?.id !== conversation.id;
-              
-              return (
-                <div
-                  key={conversation.id}
-                  className={`conversation-item ${
-                    selectedConversation?.id === conversation.id ? 'active' : ''
-                  }${isUnread ? ' unread' : ''}`}
-                  onClick={() => selectConversation(conversation)}
-                >
-                  <div className="conversation-avatar">
-                    {getConversationTitle(conversation).charAt(0).toUpperCase()}
-                  </div>
-                  <div className="conversation-details">
-                    <div className="conversation-header-row">
-                      <h4>{getConversationTitle(conversation)}</h4>
-                      <div className="conversation-meta">
-                        {isUnread && (
-                          <span className="unread-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>
-                        )}
-                        {conversation.last_message && (
-                          <span className="conversation-time">
-                            {formatTime(conversation.last_message.created_at || conversation.updated_at)}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <p className="conversation-preview">{getLastMessage(conversation)}</p>
-                  </div>
-                </div>
-              );
-            })
-        )}
-      </div>
-    </div>
+  return (
+    <nav className="conversations" aria-label={t('user_list.chats_header')} data-testid="conversation-list">
+      {sorted.map((conversation) => {
+        const unreadCount = unreadCounts[conversation.id] || 0;
+        const active = selectedConversation?.id === conversation.id;
+        const isUnread = unreadCount > 0 && !active;
+        const title = getConversationTitle(conversation);
+        const other = conversation.is_group ? null : getOtherUser(conversation);
+
+        return (
+          <button
+            type="button"
+            key={conversation.id}
+            className={`conversation-item${active ? ' active' : ''}${isUnread ? ' unread' : ''}`}
+            onClick={() => selectConversation(conversation)}
+            aria-current={active ? 'true' : undefined}
+            data-testid="conversation-item"
+            data-conversation-id={conversation.id}
+          >
+            <Avatar
+              name={title}
+              size="lg"
+              isGroup={conversation.is_group}
+              online={other ? !!other.is_online : null}
+            />
+            <span className="conversation-details">
+              <span className="conversation-header-row">
+                <span className="conversation-title">{title}</span>
+                {conversation.last_message && (
+                  <span className="conversation-time">
+                    {formatTime(conversation.last_message.created_at || conversation.updated_at)}
+                  </span>
+                )}
+              </span>
+              <span className="conversation-footer-row">
+                <span className="conversation-preview">{getLastMessage(conversation)}</span>
+                {isUnread && (
+                  <span className="unread-badge" aria-label={t('chat.unread_count', { count: unreadCount })}>
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </span>
+                )}
+              </span>
+            </span>
+          </button>
+        );
+      })}
+    </nav>
   );
 };
