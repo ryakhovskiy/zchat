@@ -1,81 +1,143 @@
+/* Phone: full-screen call view. 768px+: floating card. */
 .call-overlay {
-    position: fixed;
-    top: 20px;
-    right: 20px;
-    z-index: 9999;
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-call);
+  display: flex;
+  background: var(--color-bg);
+  padding: var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left);
+  animation: call-in var(--motion-base) var(--ease-out);
 }
 
 .call-card {
-    background: var(--card-bg);
-    color: var(--text-primary);
-    padding: 20px;
-    border-radius: 12px;
-    box-shadow: 0 4px 12px var(--shadow-color);
-    width: 250px;
-    text-align: center;
-    border: 1px solid var(--border-color);
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-6);
+  padding: var(--space-8) var(--space-4);
+  text-align: center;
+  overflow-y: auto;
 }
 
 .call-status {
-    font-size: 0.9em;
-    color: var(--text-secondary);
-    margin-bottom: 10px;
+  font-family: var(--font-meta);
+  font-size: var(--text-sm);
+  letter-spacing: var(--meta-letter-spacing);
+  color: var(--color-text-secondary);
 }
 
-.peer-avatar {
-    width: 60px;
-    height: 60px;
-    background: var(--gradient-primary);
-    border-radius: 50%;
-    margin: 0 auto 10px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 24px;
-    font-weight: bold;
-    color: #fff;
+.call-peer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
 }
 
 .peer-name {
-    font-size: 1.2em;
-    margin-bottom: 15px;
+  font-size: var(--text-xl);
+  font-weight: 600;
+  overflow-wrap: anywhere;
 }
 
 .call-timer {
-    font-family: monospace;
-    font-size: 1.5em;
-    margin-bottom: 15px;
+  font-family: var(--font-mono);
+  font-size: var(--text-xl);
+  color: var(--color-text);
 }
 
 .call-actions {
-    display: flex;
-    justify-content: center;
-    gap: 15px;
+  display: flex;
+  justify-content: center;
+  gap: var(--space-8);
 }
 
 .call-btn {
-    border: none;
-    padding: 10px 20px;
-    border-radius: 20px;
-    cursor: pointer;
-    font-weight: bold;
-    color: white;
-    transition: transform 0.1s;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 88px;
+  color: var(--color-text);
+  font-family: var(--font-meta);
+  font-size: var(--text-sm);
 }
 
-.call-btn:active {
-    transform: scale(0.95);
+/* Big round buttons; accept/decline always differ by icon AND label, not only colour */
+.call-btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  border-radius: var(--radius-full);
+  box-shadow: var(--shadow-md);
+  transition: transform var(--motion-fast);
 }
 
-.call-btn.accept {
-    background: var(--success-color);
+.call-btn:active .call-btn-icon {
+  transform: scale(0.94);
 }
 
-.call-btn.reject {
-    background: var(--error-color);
+.call-btn.accept .call-btn-icon {
+  background: var(--color-success);
+  color: var(--color-on-success);
 }
 
-.call-btn.end {
-    background: var(--error-color);
-    width: 100%;
+.call-btn.reject .call-btn-icon,
+.call-btn.end .call-btn-icon {
+  background: var(--color-danger);
+  color: var(--color-on-danger);
+}
+
+@media (min-width: 768px) {
+  .call-overlay {
+    inset: auto;
+    top: var(--space-5);
+    right: var(--space-5);
+    padding: 0;
+    background: transparent;
+  }
+
+  .call-card {
+    flex: none;
+    width: 300px;
+    padding: var(--space-6);
+    gap: var(--space-4);
+    background: var(--color-surface-raised);
+    border: var(--border-width) solid var(--color-border-strong);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-overlay);
+  }
+
+  .call-peer .avatar {
+    --avatar-size: 72px;
+  }
+
+  .peer-name {
+    font-size: var(--text-lg);
+  }
+
+  .call-actions {
+    gap: var(--space-4);
+  }
+}
+
+/* Phone landscape: lay the call out horizontally so nothing is clipped */
+@media (max-width: 767.98px) and (max-height: 480px) {
+  .call-card {
+    flex-direction: row;
+    justify-content: space-around;
+    padding: var(--space-3);
+    gap: var(--space-4);
+  }
+
+  .call-peer .avatar {
+    --avatar-size: 64px;
+  }
+}
+
+@keyframes call-in {
+  from { opacity: 0; }
 }

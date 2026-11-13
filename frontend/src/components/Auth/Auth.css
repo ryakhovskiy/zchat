@@ -1,306 +1,110 @@
+/* Login / Register: centred card on a scrollable page (works at 320px and in landscape) */
 .auth-container {
+  position: relative;
   display: flex;
+  flex: 1;
+  align-items: flex-start;
   justify-content: center;
-  align-items: center;
-  min-height: 100vh;
-  background: var(--gradient-primary);
-  transition: background 0.3s ease;
+  height: var(--app-h);
+  padding: calc(var(--space-6) + var(--safe-top)) calc(var(--space-4) + var(--safe-right)) calc(var(--space-6) + var(--safe-bottom)) calc(var(--space-4) + var(--safe-left));
+  overflow-y: auto;
+  background: var(--color-bg);
+}
+
+@media (min-height: 700px) {
+  .auth-container {
+    align-items: center;
+  }
+}
+
+.auth-settings {
+  position: absolute;
+  top: calc(var(--space-2) + var(--safe-top));
+  right: calc(var(--space-2) + var(--safe-right));
 }
 
 .auth-card {
-  background: var(--card-bg);
-  padding: 3rem;
-  border-radius: 12px;
-  box-shadow: 0 10px 40px var(--shadow-color);
   width: 100%;
   max-width: 420px;
-  transition: background-color 0.3s ease, box-shadow 0.3s ease;
+  padding: var(--space-6);
+  background: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
 }
 
-.auth-card h1 {
-  margin: 0 0 0.5rem 0;
-  font-size: 2rem;
-  color: var(--text-primary);
-  text-align: center;
+@media (max-width: 380px) {
+  .auth-card {
+    padding: var(--space-4);
+  }
+}
+
+.auth-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-2);
+}
+
+.auth-logo {
+  border-radius: var(--radius-md);
+}
+
+.auth-brand h1 {
+  font-family: var(--font-meta);
+  font-size: var(--text-xl);
+  letter-spacing: var(--meta-letter-spacing);
 }
 
 .auth-card h2 {
-  margin: 0 0 2rem 0;
-  font-size: 1.25rem;
-  color: var(--text-secondary);
+  margin-bottom: var(--space-5);
+  font-family: var(--font-meta);
+  font-size: var(--text-md);
   font-weight: 400;
-  text-align: center;
-}
-
-.form-group {
-  margin-bottom: 1.5rem;
-}
-
-.form-group label {
-  display: block;
-  margin-bottom: 0.5rem;
-  color: var(--text-primary);
-  font-weight: 500;
-  font-size: 0.95rem;
-}
-
-.form-group input {
-  width: 100%;
-  padding: 0.75rem;
-  border: 2px solid var(--input-border);
-  border-radius: 8px;
-  font-size: 1rem;
-  transition: border-color 0.2s, background-color 0.3s ease;
-  box-sizing: border-box;
-  background-color: var(--input-bg);
-  color: var(--text-primary);
-}
-
-.form-group input::placeholder {
-  color: var(--text-muted);
-}
-
-.form-group input:focus {
-  outline: none;
-  border-color: var(--accent-color);
-}
-
-.form-group input:disabled {
-  background-color: var(--hover-bg);
-  cursor: not-allowed;
-}
-
-.btn-primary {
-  width: 100%;
-  padding: 0.875rem;
-  background: var(--gradient-primary);
-  color: white;
-  border: none;
-  border-radius: 8px;
-  font-size: 1rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: transform 0.2s, box-shadow 0.2s, opacity 0.2s;
-}
-
-.btn-primary:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 5px 15px var(--shadow-color);
-  opacity: 0.9;
-}
-
-.btn-primary:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.error-message {
-  background-color: var(--error-bg);
-  color: var(--error-color);
-  padding: 0.875rem;
-  border-radius: 8px;
-  margin-bottom: 1.5rem;
-  font-size: 0.95rem;
-  border-left: 4px solid var(--error-color);
-}
-
-.auth-switch {
-  text-align: center;
-  margin-top: 1.5rem;
-  color: var(--text-secondary);
-  font-size: 0.95rem;
-}
-
-.link-button {
-  background: none;
-  border: none;
-  color: var(--accent-color);
-  cursor: pointer;
-  font-weight: 600;
-  padding: 0;
-  text-decoration: none;
-}
-
-.link-button:hover {
-  text-decoration: underline;
+  letter-spacing: var(--meta-letter-spacing);
+  color: var(--color-text-secondary);
 }
 
 .password-wrapper {
   position: relative;
-  display: flex;
-  align-items: center;
 }
 
 .password-wrapper input {
-  padding-right: 40px; /* Space for the eye icon */
+  padding-right: var(--tap-size);
 }
 
 .password-toggle {
   position: absolute;
-  right: 10px;
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-secondary);
-  opacity: 0.7;
-  transition: opacity 0.2s;
+  top: 0;
+  right: 0;
+  color: var(--color-text-secondary);
 }
 
-.password-toggle:hover {
-  opacity: 1;
-}
-
-/* Remember Me checkbox */
-.remember-me {
-  margin-bottom: 1.25rem;
+.field-hint {
+  font-size: var(--text-xs);
+  color: var(--color-text-secondary);
 }
 
 .checkbox-label {
   display: flex;
-  flex-direction: row;
   align-items: center;
-  gap: 10px;
+  gap: var(--space-3);
+  min-height: var(--tap-size);
+  font-size: var(--text-sm);
   cursor: pointer;
-  font-size: 0.9rem;
-  font-weight: 400;
-  color: var(--text-secondary);
-  user-select: none;
-  line-height: 18px;
 }
 
-.checkbox-label input[type="checkbox"] {
-  appearance: none;
-  -webkit-appearance: none;
-  width: 18px;
-  height: 18px;
-  min-width: 18px;
-  flex-shrink: 0;
-  margin: 0;
-  border: 2px solid var(--input-border);
-  border-radius: 4px;
-  background-color: var(--input-bg);
-  cursor: pointer;
-  position: relative;
-  transition: border-color 0.2s, background-color 0.2s;
+.remember-me {
+  margin-bottom: var(--space-3);
 }
 
-.checkbox-label input[type="checkbox"]:checked {
-  background-color: var(--accent-color);
-  border-color: var(--accent-color);
+.auth-submit {
+  width: 100%;
 }
 
-.checkbox-label input[type="checkbox"]:checked::after {
-  content: '';
-  position: absolute;
-  left: 4px;
-  top: 1px;
-  width: 5px;
-  height: 9px;
-  border: 2px solid #fff;
-  border-top: none;
-  border-left: none;
-  transform: rotate(45deg);
+.auth-switch {
+  margin-top: var(--space-4);
+  text-align: center;
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
 }
-
-.checkbox-label input[type="checkbox"]:focus-visible {
-  outline: 2px solid var(--accent-color);
-  outline-offset: 2px;
-}
-
-.checkbox-label input[type="checkbox"]:disabled {
-  cursor: not-allowed;
-  opacity: 0.5;
-}
-
-.checkbox-label:has(input:disabled) {
-  cursor: not-allowed;
-  opacity: 0.6;
-}
-/* Hacker Theme Exceptions - Auth Modal Terminal Style */
-[data-theme="hacker"] .auth-container {
-  background: var(--bg-primary);
-}
-
-[data-theme="hacker"] .auth-card {
-  border-radius: 0;
-  box-shadow: none;
-  border: 1px dashed var(--accent-color);
-}
-
-[data-theme="hacker"] .auth-card h2 {
-  font-family: var(--font-terminal);
-  text-transform: uppercase;
-  font-weight: normal;
-}
-
-[data-theme="hacker"] .auth-card p {
-  font-family: var(--font-terminal);
-}
-
-[data-theme="hacker"] .form-group label {
-  font-family: var(--font-terminal);
-  text-transform: uppercase;
-}
-
-[data-theme="hacker"] .form-group input {
-  border-radius: 0;
-  border: 1px solid var(--accent-color);
-  font-family: var(--font-terminal);
-  background-color: transparent;
-}
-
-[data-theme="hacker"] .form-group input:focus {
-  outline: none;
-  border-color: var(--text-primary);
-  background-color: rgba(0, 255, 0, 0.05);
-}
-
-[data-theme="hacker"] .btn-primary {
-  border-radius: 0;
-  background: transparent;
-  color: var(--accent-color);
-  border: 1px solid var(--accent-color);
-  font-family: var(--font-terminal);
-  text-transform: uppercase;
-  font-weight: normal;
-  box-shadow: none;
-}
-
-[data-theme="hacker"] .btn-primary:not(:disabled):hover {
-  background: var(--accent-color);
-  color: var(--bg-primary);
-  transform: none;
-  box-shadow: none;
-}
-
-[data-theme="hacker"] .auth-switch {
-  font-family: var(--font-terminal);
-}
-
-[data-theme="hacker"] .link-button {
-  font-family: var(--font-terminal);
-  font-weight: normal;
-  text-transform: uppercase;
-  text-decoration: none;
-}
-
-[data-theme="hacker"] .link-button::before {
-  content: "[ ";
-  color: var(--accent-color);
-}
-
-[data-theme="hacker"] .link-button::after {
-  content: " ]";
-  color: var(--accent-color);
-}
-
-[data-theme="hacker"] .link-button:hover {
-  text-decoration: none;
-  background-color: var(--accent-color);
-  color: var(--bg-primary);
-}
-
