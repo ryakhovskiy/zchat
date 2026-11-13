@@ -1,6 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useCall } from '../../contexts/CallContext';
+import { useCoarsePointer, useIsPhone } from '../../hooks/useMediaQuery';
+import { trapTab } from '../../utils/focus';
 import { Avatar } from '../Common/Avatar';
 import { Icon } from '../Common/Icon';
 import './CallModal.css';
@@ -9,7 +11,13 @@ import './CallModal.css';
 export const CallOverlay = () => {
   const { t } = useTranslation();
   const { callState, callPeer, acceptCall, rejectCall, endCall } = useCall();
+  const isPhone = useIsPhone();
+  const coarse = useCoarsePointer();
   const [duration, setDuration] = useState(0);
+  const overlayRef = useRef(null);
+  const previousStateRef = useRef('idle');
+  const restoreFocusRef = useRef(null);
+  const active = callState !== 'idle';
 
   useEffect(() => {
     if (callState !== 'active') {
@@ -20,7 +28,48 @@ export const CallOverlay = () => {
     return () => clearInterval(interval);
   }, [callState]);
 
-  if (callState === 'idle') return null;
+  // Focus lifecycle. Phone: the call is a full-screen modal, so focus moves into it and stays there.
+  // Desktop: a non-modal corner card; only an incoming call pulls focus (it needs an answer).
+  useEffect(() => {
+    const previous = previousStateRef.current;
+    previousStateRef.current = callState;
+
+    if (!active) {
+      const target = restoreFocusRef.current;
+      restoreFocusRef.current = null;
+      // Don't pop the on-screen keyboard back up on touch devices
+      const isTextField = target && /^(INPUT|TEXTAREA)$/.test(target.tagName);
+      if (target && document.contains(target) && !(coarse && isTextField)) {
+        target.focus({ preventScroll: true });
+      }
+      return;
+    }
+
+    if (previous === 'idle') restoreFocusRef.current = document.activeElement;
+    const answered = previous === 'incoming'; // the user just pressed Accept: keep them in the card
+    if (isPhone || callState === 'incoming' || answered) {
+      const primary = overlayRef.current?.querySelector('[data-primary]');
+      primary?.focus({ preventScroll: true });
+    }
+  }, [callState, active, isPhone, coarse]);
+
+  const onKeyDown = (e) => {
+    if (e.key === 'Tab' && isPhone && overlayRef.current) {
+      trapTab(e, overlayRef.current);
+    } else if (e.key === 'Escape') {
+      // Decline an incoming call or cancel an outgoing one. An active call is never ended by a
+      // stray Esc: hanging up needs the explicit End button.
+      if (callState === 'incoming') {
+        e.preventDefault();
+        rejectCall();
+      } else if (callState === 'calling') {
+        e.preventDefault();
+        endCall();
+      }
+    }
+  };
+
+  if (!active) return null;
 
   const formatDuration = (secs) => `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
   const statusLabel = {
@@ -32,9 +81,11 @@ export const CallOverlay = () => {
 
   return (
     <div
+      ref={overlayRef}
       className="call-overlay"
       role={callState === 'incoming' ? 'alertdialog' : 'dialog'}
-      aria-modal="true"
+      aria-modal={isPhone ? 'true' : 'false'}
+      onKeyDown={onKeyDown}
       aria-label={`${statusLabel}: ${callPeer?.username || ''}`}
       data-testid="call-overlay"
       data-call-state={callState}
@@ -52,7 +103,7 @@ export const CallOverlay = () => {
         <div className="call-actions">
           {callState === 'incoming' && (
             <>
-              <button type="button" className="call-btn accept" onClick={acceptCall} data-testid="call-accept">
+              <button type="button" className="call-btn accept" onClick={acceptCall} data-testid="call-accept" data-primary>
                 <span className="call-btn-icon"><Icon name="phone" size={28} /></span>
                 <span className="call-btn-label">{t('call.accept')}</span>
               </button>
@@ -64,7 +115,7 @@ export const CallOverlay = () => {
           )}
 
           {(callState === 'calling' || callState === 'active') && (
-            <button type="button" className="call-btn end" onClick={() => endCall()} data-testid="call-end">
+            <button type="button" className="call-btn end" onClick={() => endCall()} data-testid="call-end" data-primary>
               <span className="call-btn-icon"><Icon name="phone-off" size={28} /></span>
               <span className="call-btn-label">{t('call.end')}</span>
             </button>
