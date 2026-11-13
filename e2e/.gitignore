@@ -1,0 +1,4 @@
+.env
+seed-result.json
+http-verification.json
+__pycache__/

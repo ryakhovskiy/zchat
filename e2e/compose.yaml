@@ -1,0 +1,67 @@
+services:
+  postgres:
+    image: postgres@sha256:e3d24f6906d0760bf4da0dae872415391ededefad23fd471c47dc53b0ddf3c42
+    environment:
+      POSTGRES_DB: zchat_e2e
+      POSTGRES_USER: e2e
+      POSTGRES_PASSWORD: ${E2E_DB_PASSWORD:?run e2e/run.sh first}
+    volumes:
+      - database:/var/lib/postgresql
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U e2e -d zchat_e2e']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    networks: [database]
+
+  backend:
+    image: zchat-e2e-backend:local
+    build:
+      context: ../backend
+      secrets: [extra_ca]
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: '5432'
+      POSTGRES_DB: zchat_e2e
+      POSTGRES_USER: e2e
+      POSTGRES_PASSWORD: ${E2E_DB_PASSWORD:?run e2e/run.sh first}
+      JWT_SECRET: ${E2E_JWT_SECRET:?run e2e/run.sh first}
+      ENCRYPTION_KEY: ${E2E_ENCRYPTION_KEY:?run e2e/run.sh first}
+      HTTP_HOST: 0.0.0.0
+      HTTP_PORT: '8000'
+      UPLOAD_DIR: /app/uploads
+      CORS_ORIGINS: http://127.0.0.1:38080,http://localhost:38080
+      MAX_USERS: '50'
+      MAX_MESSAGES_PER_CONVERSATION: '1000'
+      DEBUG: 'false'
+    volumes: [uploads:/app/uploads]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [database, web]
+
+  frontend:
+    image: zchat-e2e-frontend:local
+    build:
+      context: ../frontend
+      args:
+        VITE_API_URL: /api
+        VITE_WS_URL: /ws
+        VITE_VAPID_PUBLIC_KEY: ''
+      secrets: [extra_ca]
+    ports: ['127.0.0.1:38080:8080']
+    depends_on: [backend]
+    networks: [web]
+
+networks:
+  database:
+    internal: true
+  web:
+
+volumes:
+  database:
+  uploads:
+
+secrets:
+  extra_ca:
+    file: ${EXTRA_CA_FILE:-/dev/null}
