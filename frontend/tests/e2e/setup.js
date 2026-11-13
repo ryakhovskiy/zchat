@@ -27,6 +27,17 @@ export default async function setup(config) {
       session = await response.json();
     }
     if (!session.access_token) throw new Error('Isolated stack login returned no access token');
+    const headers = { Authorization: `Bearer ${session.access_token}` };
+    const usersResponse = await client.get('/api/users/', { headers });
+    if (!usersResponse.ok()) throw new Error('Cannot inspect isolated fixture users');
+    const scratchUser = `${username}_qa`;
+    const users = await usersResponse.json();
+    if (!users.some(user => user.username === scratchUser)) {
+      // Conversation identity is deduplicated by participant set. A fourth,
+      // fixture-only participant keeps destructive tests out of seeded chats.
+      const registered = await client.post('/api/auth/register', { data: { username: scratchUser, password } });
+      if (!registered.ok()) throw new Error(`Cannot create isolated scratch participant: HTTP ${registered.status()}`);
+    }
     await mkdir(new URL('../../test-results/.auth/', import.meta.url), { recursive: true, mode: 0o700 });
     await mkdir(new URL('../../playwright/.cache/', import.meta.url), { recursive: true, mode: 0o700 });
     await writeFile(cacheFile, JSON.stringify({ baseURL, username, session }), { mode: 0o600 });

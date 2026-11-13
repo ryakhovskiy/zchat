@@ -75,6 +75,9 @@ export async function assertTouchTargets(page, selector, label) {
   const targets = page.locator(selector).and(page.locator(':visible'));
   expect.soft(await targets.count(), `${label}: touch controls present`).toBeGreaterThan(0);
   for (const target of await targets.all()) {
+    // Scrollable sheets may contain rows below their clipped body viewport.
+    // Check each control after bringing it into view, just as a user would.
+    await target.scrollIntoViewIfNeeded();
     const box = await target.boundingBox();
     const name = await target.getAttribute('aria-label') || await target.getAttribute('title') || await target.textContent();
     expect.soft(box.width, `${label}: ${name} width`).toBeGreaterThanOrEqual(44);
@@ -95,10 +98,15 @@ export async function capture(page, testInfo, name, scope) {
   await testInfo.attach(`${name}-contrast`, { body: JSON.stringify({ violations: results.violations, incomplete: results.incomplete, passes: results.passes }, null, 2), contentType: 'application/json' });
   expect.soft(results.violations.map(v => ({ id: v.id, nodes: v.nodes.map(n => ({ target: n.target, summary: n.failureSummary })) })), `${name}: WCAG AA text contrast`).toEqual([]);
   if (scope) await assertFits(scope, name);
-  await testInfo.attach(name, { path: await page.screenshot({ path: testInfo.outputPath(`${name}.png`), animations: 'disabled' }), contentType: 'image/png' });
+  const path = testInfo.outputPath(`${name}.png`);
+  await page.screenshot({ path, animations: 'disabled' });
+  await testInfo.attach(name, { path, contentType: 'image/png' });
 }
 
 export async function dismiss(page, overlay, mode, closeSelector) {
+  if ((await overlay.getAttribute('class'))?.includes('sheet-root')) {
+    await expect(overlay).not.toHaveClass(/sheet-root--arming/);
+  }
   if (mode === 'escape') await page.keyboard.press('Escape');
   else if (mode === 'close') await overlay.locator(closeSelector).click();
   else {
@@ -119,9 +127,12 @@ export async function dismiss(page, overlay, mode, closeSelector) {
 }
 
 export async function openActions(page, message) {
-  await message.scrollIntoViewIfNeeded();
+  const text = message.locator('.message-text');
+  await text.scrollIntoViewIfNeeded();
+  // Wait for anchoring/focus restoration to settle before choosing touch coordinates.
+  await text.click({ trial: true });
   if (await page.evaluate(() => matchMedia('(pointer: coarse)').matches)) {
-    const box = await message.boundingBox();
+    const box = await text.boundingBox();
     const client = await page.context().newCDPSession(page);
     try {
       await client.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: box.x + box.width / 2, y: box.y + box.height / 2 }] });

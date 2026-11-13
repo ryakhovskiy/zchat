@@ -22,6 +22,8 @@ export default defineConfig({
   reporter: [['list'], ['html', { open: 'never' }], ['json', { outputFile: 'test-results/results.json' }]],
   use: {
     baseURL,
+    actionTimeout: 10_000,
+    navigationTimeout: 20_000,
     browserName: 'chromium',
     channel: 'chromium',
     locale: 'en-US',
@@ -31,10 +33,10 @@ export default defineConfig({
     launchOptions: { args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream'] },
   },
   projects: [
-    { name: 'theme-init', testMatch: ['theme-init.spec.js', 'theme-contract.spec.js'], use: { viewport: { width: 390, height: 844 } } },
+    { name: 'theme-init', testMatch: ['theme-init.spec.js', 'theme-contract.spec.js', 'auth-form.spec.js'], use: { viewport: { width: 390, height: 844 } } },
     ...viewports.map(([width, height]) => ({
       name: `${width}x${height}`,
-      testMatch: ['responsive.spec.js', 'regression.spec.js'],
+      testMatch: ['responsive.spec.js', 'regression.spec.js', 'composer-race.spec.js'],
       use: { viewport: { width, height }, isMobile: width < 768, hasTouch: width < 768 },
     })),
     { name: 'wide-touch', testMatch: 'input-types.spec.js', use: { viewport: { width: 1024, height: 900 }, hasTouch: true } },

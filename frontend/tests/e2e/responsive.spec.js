@@ -9,7 +9,14 @@ for (const theme of themes) {
     await prepare(page, theme);
     await page.goto('/');
     await expect(page.locator('.auth-card')).toBeVisible();
-    await capture(page, testInfo, 'login', page.locator('.auth-card'));
+    expect(await page.locator('html').evaluate(element => getComputedStyle(element).colorScheme)).toBe(theme === 'light' ? 'light' : 'dark');
+    await capture(page, testInfo, 'login');
+    // Auth forms may scroll vertically on a short landscape viewport. Every
+    // control must remain reachable; the whole card need not fit at once.
+    for (const selector of ['#username', '#password', '.auth-card button[type="submit"]']) {
+      await page.locator(selector).scrollIntoViewIfNeeded();
+      await assertFits(page.locator(selector), `login ${selector}`);
+    }
     await assertTouchTargets(page, '.password-toggle, .auth-card button[type="submit"], .auth-switch button', 'login');
     await page.getByRole('button', { name: 'Sign Up', exact: true }).click();
     await capture(page, testInfo, 'register');
@@ -149,6 +156,21 @@ test('settings traps keyboard focus, preserves language-radio focus and saves la
     await expect(page.getByTestId(`language-option-${code}`)).toBeChecked();
     await page.getByTestId(`language-option-${code}`).focus();
   }
+});
+
+test('unauthenticated settings wraps after the selected language radio', async ({ page }) => {
+  await prepare(page, 'light');
+  await page.goto('/');
+  await expect(page.locator('.auth-card')).toBeVisible();
+  await openSettings(page);
+  const close = page.getByTestId('settings-sheet').getByTestId('sheet-close');
+  await page.getByTestId('language-option-en').focus();
+  await page.keyboard.press('Tab');
+  await expect(close).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
+  await expect(page.getByTestId('language-option-en')).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('settings-button')).toBeFocused();
 });
 
 test('theme selection survives denied writes during the session and ignores OS changes', async ({ page }) => {

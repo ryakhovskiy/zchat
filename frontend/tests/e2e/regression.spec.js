@@ -13,13 +13,14 @@ for (const theme of themes) {
     const users = await usersResponse.json();
     const peer = users.find(user => user.username === credentials().peer);
     expect(peer, 'seeded peer exists').toBeTruthy();
-    const secondPeer = users.find(user => ![credentials().username, credentials().peer].includes(user.username));
-    expect(secondPeer, 'seed includes a second peer for group regression isolation').toBeTruthy();
-    const title = `QA ${randomUUID().slice(0, 8)}`;
-    const created = await request.post('/api/conversations/', { headers, data: { participant_ids: [peer.id, secondPeer.id], is_group: true, name: title } });
+    const secondPeer = users.find(user => user.username === `${credentials().username}_qa`);
+    expect(secondPeer, 'fixture-only scratch participant exists').toBeTruthy();
+    const requestedTitle = 'QA regression scratch';
+    const created = await request.post('/api/conversations/', { headers, data: { participant_ids: [peer.id, secondPeer.id], is_group: true, name: requestedTitle } });
     expect(created.ok(), 'create independent regression conversation').toBeTruthy();
     const conversation = await created.json();
     const conversationId = conversation.id ?? conversation.ID;
+    const title = conversation.name ?? conversation.Name ?? requestedTitle;
 
     await prepare(page, theme);
     await page.goto('/');
@@ -31,6 +32,7 @@ for (const theme of themes) {
     await page.locator('.send-button').click();
     const sent = page.locator('.message-sent').filter({ has: page.locator('.message-text', { hasText: content }) });
     await expect(sent).toHaveCount(1);
+    const sentId = Number(await sent.getAttribute('data-message-id'));
     await openActions(page, sent);
     await actions(page).getByTestId('action-edit').click();
     const edited = `${content} edited`;
@@ -52,12 +54,20 @@ for (const theme of themes) {
     else await actions(page).getByTestId('action-react').click();
     const picker = page.getByTestId('reaction-sheet');
     await expect(picker).toBeVisible();
+    await expect(page.getByTestId('reaction-sheet-root')).not.toHaveClass(/sheet-root--arming/);
     await assertFits(picker.locator('em-emoji-picker'), 'reaction picker');
+    const pickerClose = picker.getByTestId('sheet-close');
+    await pickerClose.focus();
+    await page.keyboard.press('Tab');
+    await expect.poll(() => picker.locator('em-emoji-picker').evaluate(host => !!host.shadowRoot?.activeElement), { message: 'Tab reaches emoji picker shadow controls' }).toBeTruthy();
+    await page.keyboard.press('Shift+Tab');
+    await expect(pickerClose).toBeFocused();
     // Emoji Mart uses shadow DOM, which Playwright CSS and role locators pierce.
-    await picker.getByRole('button', { name: /thumbs up/i }).first().click();
+    await picker.locator('input[type="search"]').fill('thumbs up');
+    await picker.getByRole('button', { name: '👍', exact: true }).click();
     await expect(sent.locator('.reaction-chip')).toContainText('👍');
 
-    const longText = `https://example.com/${'long-url'.repeat(35)} ${'Unbroken'.repeat(40)}`;
+    const longText = `https://example.com/${randomUUID()}/${'long-url'.repeat(35)} ${'Unbroken'.repeat(40)}`;
     await input.fill(longText);
     await page.locator('.send-button').click();
     await expect(page.locator('.message-text').filter({ hasText: longText })).toBeVisible();
@@ -89,13 +99,19 @@ for (const theme of themes) {
     await expect(replyBubble.locator('.message-replied-to')).toContainText(edited);
     await openActions(page, sent);
     await actions(page).getByTestId('action-delete-all').click();
-    await expect(page.locator('.message-deleted-text')).toBeVisible();
+    await expect(page.locator(`[data-message-id="${sentId}"] .message-deleted-text`)).toBeVisible();
     await expect(page.locator('.message-text').filter({ hasText: new RegExp(`^${edited}$`) })).toHaveCount(0);
     const persisted = await request.get(`/api/conversations/${conversationId}/messages?limit=100`, { headers });
     expect(persisted.ok()).toBeTruthy();
     const serverMessages = await persisted.json();
-    expect(serverMessages.some(m => m.is_deleted)).toBeTruthy();
-    expect(serverMessages.some(m => m.content === reply && m.reply_to_id)).toBeTruthy();
+    expect(serverMessages.find(m => m.id === sentId)?.is_deleted).toBe(true);
+    expect(serverMessages.find(m => m.content === reply)?.reply_to_id).toBe(sentId);
+    // Regression: a deleted original used to expose encrypted storage content in
+    // reply quotes after a fresh history fetch (backend fix a878ecf).
+    await page.reload();
+    await expect(page.getByTestId('conversation-list')).toBeVisible();
+    await openConversation(page, title);
+    await expect(replyBubble.locator('.replied-text')).toHaveText('Message deleted');
   });
 }
 
@@ -145,3 +161,37 @@ for (const theme of themes) {
     await expect(page.locator('.call-overlay')).toBeHidden();
   });
 }
+
+test('call overlay dismisses with Escape', async ({ page }) => {
+  await prepare(page, 'dark');
+  await page.goto('/');
+  await login(page);
+  await openConversation(page);
+  await page.context().grantPermissions(['microphone']);
+  await page.locator('.call-button').click();
+  await expect(page.locator('.call-overlay')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.call-overlay')).toBeHidden();
+});
+
+test('incoming call takes keyboard focus and dismisses with Escape', async ({ page }) => {
+  let socket;
+  // Exercise the real call event handler without signaling or writes to the server.
+  await page.routeWebSocket('**/ws', route => { socket = route; });
+  await prepare(page, 'dark');
+  await page.goto('/');
+  await login(page);
+  await openConversation(page);
+  await page.locator('.message-input').focus();
+  await expect.poll(() => !!socket).toBeTruthy();
+  socket.send(JSON.stringify({ type: 'call_offer', sender_id: 2, sender_username: credentials().peer, conversation_id: 1, sdp: { type: 'offer', sdp: 'qa-incoming-offer' } }));
+  const dialog = page.getByTestId('call-overlay');
+  await expect(dialog).toBeVisible();
+  await expect.poll(() => dialog.evaluate(element => element.contains(document.activeElement)), { message: 'incoming call takes focus into its dialog' }).toBeTruthy();
+  await page.keyboard.press('Escape');
+  await expect(dialog).toBeHidden();
+  if (await page.evaluate(() => matchMedia('(pointer: coarse)').matches)) {
+    // Closing a phone call intentionally leaves the software keyboard closed.
+    await expect(page.locator('.message-input')).not.toBeFocused();
+  } else await expect(page.locator('.message-input')).toBeFocused();
+});

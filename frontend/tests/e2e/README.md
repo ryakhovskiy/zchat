@@ -19,8 +19,10 @@ npm run test:e2e
 ```
 
 The seeded user must have a direct conversation with `E2E_PEER`, at least one text
-message, a served image attachment, and a second peer user. Tests use independent temporary group
-conversations for mutable regressions; reset/reseed the isolated stack when needed.
+message and a served image attachment. Setup creates one fixture-only participant
+named `<E2E_USERNAME>_qa` if needed. Mutable regressions use a scratch group with that
+participant (the backend deduplicates groups by participant set) and unique message
+contents; reset/reseed the isolated stack when needed.
 
 Seven projects cover 320×640, 360×740, 390×844, 430×932, 740×360, 768×1024,
 1440×900. Each runs Light, Dark, Tech Green and Tech Red. A separate project blocks
@@ -41,6 +43,7 @@ npm run test:e2e -- --project=theme-init
 npm run test:e2e -- --project=390x844 --grep=tech-green
 npm run test:e2e -- --list
 npx playwright show-report
+node tests/e2e/report.mjs
 ```
 
 Screenshots and axe color-contrast results are attached to the HTML report.
