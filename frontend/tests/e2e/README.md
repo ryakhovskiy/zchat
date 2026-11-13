@@ -1,31 +1,39 @@
 # Isolated browser acceptance tests
 
-Install with `npm install`. The pinned Playwright 1.65.0 uses cached Chromium revision
+From `frontend/`, install with `npm install`. The pinned Playwright 1.65.0 uses cached Chromium revision
 1254 (`channel: chromium`), so no browser download is needed on the QA host. Other
 hosts can run `npx playwright install chromium` once. Install system libraries once
 with `sudo npx playwright install-deps chromium` (requires administrator access).
 
-Provide a **disposable test stack** with its own database, uploads, and seeded test
-users. This checkout does not provision that stack or its seed data. Never point
-the suite at a stack containing real accounts, messages, or files: regression tests
-create conversations, upload images, and change messages. The config requires an
-explicit loopback `E2E_BASE_URL` and never starts a server or reads the repository
-root `.env`.
+Use the included **disposable test stack** in `e2e/`, which needs Docker Compose
+and Python 3. Its production nginx frontend listens on `127.0.0.1:38080` and
+proxies to an unpublished backend and database in Compose project `zchat-e2e`.
+It generates dummy DB/JWT/encryption secrets and a test-user password in ignored
+`e2e/.env`; it does not read the repository root `.env`.
 
-Set the URL of the disposable frontend you prepared. Port 38080 below is only an
-example, not a service supplied by this repository. Set `E2E_EXPECT_BUNDLE=1` when
-validating a rebuilt production image; omit it for an isolated development server.
+Never point the suite at a stack containing real accounts, messages, or files:
+regression tests create conversations, upload images, and change messages. The
+Playwright config requires an explicit loopback `E2E_BASE_URL` and does not start a
+server. From the repository root:
 
 ```sh
-export E2E_BASE_URL=http://127.0.0.1:38080
-export E2E_EXPECT_BUNDLE=1
-export E2E_USERNAME='<isolated seeded user>'
-export E2E_PASSWORD='<isolated seeded password>'
-export E2E_PEER='<isolated seeded direct-chat peer>'
+bash e2e/run.sh up
+bash e2e/run.sh seed
+eval "$(bash e2e/run.sh env)"
+cd frontend
 npm run test:e2e
 ```
 
-Prepare these fixtures before running:
+The `env` action exports only the client `E2E_*` variables, including the generated
+password and `E2E_EXPECT_BUNDLE=1`; do not assume a fixed password. Behind a TLS
+intercepting proxy, set `EXTRA_CA_FILE` to your trusted CA bundle before `up` or
+`reset`.
+
+The seed supplies `alice_ui`, `bob_ui`, `carol_ui`, and `alice_ui_qa`, a direct chat
+with 60 messages and an image among the latest 15, plus group/scratch conversations.
+For a custom disposable stack, provide the following fixtures and set the client
+variables explicitly (`E2E_EXPECT_BUNDLE=1` for a production image, omitted for an
+isolated development server):
 
 - A test account named `E2E_USERNAME` with password `E2E_PASSWORD`; `setup.js` logs
   in to this existing account and does not create it.
@@ -41,10 +49,17 @@ Mutable regressions create or reuse a scratch group containing the test account 
 both peers (the backend deduplicates groups by participant set), with unique message
 contents. Reset/reseed only your disposable stack when needed.
 
+From the repository root, `bash e2e/run.sh down` removes the test containers while
+retaining data. `bash e2e/run.sh down --volumes` discards the disposable database and
+uploads; `bash e2e/run.sh reset` rebuilds and reseeds them. `bash e2e/run.sh verify`
+checks the production HTTP assets and container identities.
+
 Seven projects cover 320×640, 360×740, 390×844, 430×932, 740×360, 768×1024,
 1440×900. Each runs Light, Dark, Tech Green and Tech Red. A separate project blocks
 the React entry script to check synchronous theme initialization before mount.
 Two extra projects decouple pointer type from width (wide touch and narrow mouse).
+An unauthenticated valid multipart upload must return 401; each image-upload UI
+regression requires a successful request carrying a Bearer token and a served image.
 Global setup authenticates when a reusable session is unavailable, and each browser
 context reuses that isolated session to stay below the login endpoint's 10
 requests/minute/IP limit. One dedicated test also signs in through the actual form.
