@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """API fixtures for the disposable production stack on loopback port 38080."""
 import json
+import subprocess
 import sys
 import time
 import urllib.error
@@ -11,6 +12,37 @@ HERE = Path(__file__).resolve().parent
 REPO = HERE.parent
 BASE = 'http://127.0.0.1:38080'
 USERS = ['alice_ui', 'bob_ui', 'carol_ui']
+
+
+def assert_stack_owner():
+    """Refuse fixture writes unless Docker owns the expected local listener."""
+    try:
+        inspected = subprocess.run(
+            ['docker', 'container', 'inspect', 'zchat-e2e-frontend-1'],
+            capture_output=True, text=True, check=False,
+        )
+    except OSError as exc:
+        raise RuntimeError('Cannot verify the disposable stack ownership with Docker') from exc
+    if inspected.returncode:
+        raise RuntimeError('Disposable frontend is absent; run bash e2e/run.sh up before seeding')
+    try:
+        containers = json.loads(inspected.stdout)
+        if len(containers) != 1:
+            raise ValueError('unexpected container count')
+        container = containers[0]
+        labels = container.get('Config', {}).get('Labels') or {}
+        bindings = container.get('NetworkSettings', {}).get('Ports', {}).get('8080/tcp')
+        owned = (
+            container.get('Name') == '/zchat-e2e-frontend-1'
+            and container.get('State', {}).get('Running') is True
+            and labels.get('com.docker.compose.project') == 'zchat-e2e'
+            and labels.get('com.docker.compose.service') == 'frontend'
+            and bindings == [{'HostIp': '127.0.0.1', 'HostPort': '38080'}]
+        )
+    except (ValueError, TypeError, AttributeError, KeyError) as exc:
+        raise RuntimeError('Cannot verify the disposable frontend metadata') from exc
+    if not owned:
+        raise RuntimeError('Refusing to seed: 127.0.0.1:38080 must belong to the running zchat-e2e frontend')
 
 
 def request(method, path, payload=None, token=None, raw=None, content_type=None):
@@ -28,6 +60,7 @@ def request(method, path, payload=None, token=None, raw=None, content_type=None)
 
 
 def main():
+    assert_stack_owner()
     values = dict(line.split('=', 1) for line in (HERE / '.env').read_text().splitlines() if '=' in line)
     password = values['E2E_PASSWORD']
     for attempt in range(60):
