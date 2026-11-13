@@ -1,12 +1,12 @@
 ### zChat Go backend (`backend`)
 
-This is a Go rewrite of the existing Python/FastAPI backend. It provides the same core features (auth, users, conversations, messages, uploads, WebSockets) with an idiomatic Go architecture.
+The zChat backend is a Go REST API and WebSocket server backed by PostgreSQL. It provides auth, users, conversations, messages (with replies and reactions), file uploads, Web Push notifications and WebRTC call signaling over WebSockets, with an idiomatic Go architecture. See `AGENTS.md` for the package layout, routes and WebSocket protocol.
 
 ---
 
 ### Requirements
 
-- Go **1.21+**
+- Go **1.26+**
 - PostgreSQL (driver: `github.com/jackc/pgx/v5/stdlib`)
 - Environment variables:
   - **JWT_SECRET**: secret key for signing JWT tokens.
@@ -14,12 +14,26 @@ This is a Go rewrite of the existing Python/FastAPI backend. It provides the sam
   - Optional:
     - **HTTP_HOST** (default `0.0.0.0`)
     - **HTTP_PORT** (default `8000`)
-    - **DATABASE_URL** (default `postgres://postgres:postgres@localhost:5432/zchat?sslmode=disable`)
+    - **POSTGRES_HOST** (default `localhost`), **POSTGRES_PORT** (default `5432`), **POSTGRES_USER** (default `postgres`), **POSTGRES_PASSWORD** (default `postgres`), **POSTGRES_DB** (default `zchat`): the database connection is built from these (there is no `DATABASE_URL`).
     - **CORS_ORIGINS** (comma‑separated list; default `http://localhost:3000,http://localhost:5173`)
     - **MAX_MESSAGES_PER_CONVERSATION** (default `1000`)
     - **MAX_USERS** (default `10`; positive integer): maximum total users, including inactive accounts. Set `MAX_USERS=10` in the root `.env` for Docker Compose, or export it when running locally. Registration at or above the limit returns HTTP 403 with an error displayed by the frontend. Existing users can still log in. Restart the backend after changing this value.
+    - **ACCESS_TOKEN_EXPIRE_MINUTES** (default `1440`), **REMEMBER_ME_TOKEN_EXPIRE_DAYS** (default `30`)
+    - **UPLOAD_DIR** (default `uploads`)
+    - **DEBUG** (default `true`): when `true`, Swagger UI is served at `/docs/`
+    - **WS_PING_INTERVAL_SEC** (default `30`), **WS_PONG_TIMEOUT_SEC** (default `60`)
+    - **ENCRYPTION_KEY_LEGACY**: comma-separated legacy Fernet keys, for decrypting migrated messages
+    - **VAPID_PUBLIC_KEY**, **VAPID_PRIVATE_KEY**: Web Push keys; push notifications are enabled only when both are set
 
-You can reuse values from the existing `.env` used by the Python backend (e.g. `ENCRYPTION_KEY`).
+See `AGENTS.md` for the full environment variable reference.
+
+### Tests
+
+```bash
+go test ./...
+```
+
+`internal/store/postgres` tests need a PostgreSQL instance and are skipped unless `ZCHAT_TEST_DATABASE_URL` is set.
 
 ---
 
@@ -38,6 +52,8 @@ The script:
 - Verifies that `go` is installed.
 - Sets development defaults for `JWT_SECRET`, `ENCRYPTION_KEY`, and `HTTP_PORT` if they are not already set.
 - Runs the server with `go run ./cmd/server`.
+
+A PostgreSQL instance must be reachable using the `POSTGRES_*` settings above.
 
 The server listens on `http://localhost:8000` by default.
 
@@ -82,7 +98,7 @@ docker run \
   zchat-backend-go
 ```
 
-The container listens on `0.0.0.0:8000` by default, which matches the Nginx configuration in `deployment.md` that proxies `/api` and `/ws` to port `8000`.
+The container listens on `0.0.0.0:8000` by default, which matches the nginx configuration (`frontend/docker/nginx.conf`) that proxies `/api` and `/ws` to port `8000`. The container also needs a reachable PostgreSQL: pass the `POSTGRES_*` variables (e.g. `-e POSTGRES_HOST=...`). Or run the full stack with `docker compose up -d --build` from the repo root.
 
 ---
 
@@ -132,6 +148,6 @@ go mod tidy
 
 ### Notes
 
-- The Go backend now targets PostgreSQL by default. Configure `DATABASE_URL` to your local/dev/prod Postgres instance.
+- The backend uses PostgreSQL only. Configure the `POSTGRES_*` variables for your local/dev/prod instance.
 - For production, **always** override the default development secrets and configure CORS appropriately for your domain.
 
