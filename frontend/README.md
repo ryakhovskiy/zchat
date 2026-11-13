@@ -9,14 +9,20 @@ React 18 + Vite web client for the zChat real-time messenger. It ships four them
 npm install
 ```
 
-2. Start the development server (the backend must be running on port 8000):
+2. Create the frontend environment file. The Vite dev server has no built-in defaults and reads `frontend/.env` only (not the repository root `.env`); without it API calls go to the wrong path and the WebSocket cannot connect:
+```bash
+cp .env.example .env
+```
+The example points at a backend on port 8000: `VITE_API_URL=http://localhost:8000/api`, `VITE_WS_URL=ws://localhost:8000/ws` (`VITE_VAPID_PUBLIC_KEY` is optional, for Web Push). Setting them to `/api` and `/ws` instead sends requests through the Vite proxy below.
+
+3. Start the development server (the backend must be running on port 8000):
 ```bash
 npm run dev
 ```
 
-The app is served at http://localhost:3000. Vite proxies `/api`, `/ws` and `/app` to `http://localhost:8000`.
+The app is served at http://localhost:3000. For relative URLs, Vite proxies `/api`, `/ws` and `/app` to `http://localhost:8000`. `./start.sh` and `./start.ps1` only run `npm install` and `npm run dev`; they do not create `.env`.
 
-Build-time variables (optional): `VITE_API_URL` (default `/api`), `VITE_WS_URL` (default `/ws`), `VITE_VAPID_PUBLIC_KEY` (Web Push).
+`/api` and `/ws` are the defaults of the Docker build (`VITE_API_URL`, `VITE_WS_URL` build args); they do not apply to `npm run dev`.
 
 ## Available Scripts
 

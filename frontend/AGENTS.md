@@ -5,7 +5,7 @@ Web interface built with React 18, Vite 5 and JavaScript (no TypeScript, no rout
 
 ## Setup & Dev Scripts
 - **Install dependencies:** `npm install`
-- **Start development server:** `npm run dev` (port 3000; proxies `/api`, `/ws`, `/app` to the backend on 8000)
+- **Start development server:** `npm run dev` (port 3000). First copy `.env.example` to `.env` here: the dev server has no env defaults and does not read the root `.env` (see Environment & Proxy Config)
 - **Build for production:** `npm run build`
 - **Preview production build:** `npm run preview`
 - **Lint code:** `npm run lint` (ESLint 8, config in `.eslintrc.cjs`)
@@ -149,9 +149,9 @@ Rules: `--glow` and `--focus-glow` are `none` in light/dark, so never put them i
 - **Messages:** consecutive messages from one sender group; the list stays pinned to the bottom unless the user scrolled up (then "Jump to latest" appears); deleted messages arrive with empty content and render as "Message deleted".
 
 ### Environment & Proxy Config
-- **Dev proxy** (`vite.config.js`): `/api` → `http://localhost:8000`, `/ws` → `ws://localhost:8000`
+- **Dev proxy** (`vite.config.js`): `/api` and `/app` → `http://localhost:8000`, `/ws` → `ws://localhost:8000`. It only applies when `VITE_API_URL`/`VITE_WS_URL` are relative (`/api`, `/ws`); `.env.example` instead points them straight at `http://localhost:8000/api` and `ws://localhost:8000/ws`.
 - **Container proxy** (`docker/nginx.conf`): `/api`, `/ws`, `/app` proxied to `http://backend:8000` over the Compose `web` network, with WebSocket upgrade headers; derives the client IP from `CF-Connecting-IP` and forwards it as `X-Real-IP` (Cloudflare Tunnel). It also sets the security headers (HSTS, `nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy`, `Permissions-Policy`; no `Content-Security-Policy` yet, `public/theme-init.js` is external so one can be added without `unsafe-inline`), and serves `/manifest.webmanifest` as `application/manifest+json`. `nginx.conf` is a separate host-level (Ubuntu/Nginx) config; the old `deployment.md` guide it referred to has been removed.
-- **Build-time env vars**: `VITE_API_URL` (default: `/api`), `VITE_WS_URL` (default: `/ws`)
+- **Build-time env vars**: `VITE_API_URL`, `VITE_WS_URL`, `VITE_VAPID_PUBLIC_KEY` (optional). `vite.config.js` reads them from `frontend/.env` or the process environment and `src/services/api.js` has no fallback, so `npm run dev` needs `cp .env.example .env`. `/api` and `/ws` are only the defaults of the Docker build args (`Dockerfile`, Compose); the root `.env` is not loaded by Vite.
 
 ## Code Style
 - Use modern ES6+ concepts (arrow functions, destructuring, optional chaining).
