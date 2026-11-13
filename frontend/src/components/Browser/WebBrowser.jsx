@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { browserAPI } from '../../services/api';
+import { Icon } from '../Common/Icon';
 import './WebBrowser.css';
 
 export const WebBrowser = () => {
-  const [url, setUrl] = useState('');
+  const { t } = useTranslation();
   const [inputUrl, setInputUrl] = useState('');
   const [loading, setLoading] = useState(false);
   const [htmlContent, setHtmlContent] = useState('');
@@ -13,88 +15,83 @@ export const WebBrowser = () => {
     e.preventDefault();
     if (!inputUrl.trim()) return;
 
-    let targetUrl = inputUrl;
-    
-    // Basic URL validation/fixing
+    let targetUrl = inputUrl.trim();
     if (!targetUrl.startsWith('http://') && !targetUrl.startsWith('https://')) {
-        // If it looks like a domain, prepend https
-        if (targetUrl.includes('.') && !targetUrl.includes(' ')) {
-            targetUrl = `https://${targetUrl}`;
-        } else {
-            // Otherwise treat as search query
-            targetUrl = `https://www.bing.com/search?q=${encodeURIComponent(targetUrl)}`;
-        }
+      // Looks like a domain: add https. Otherwise treat it as a search query.
+      targetUrl = targetUrl.includes('.') && !targetUrl.includes(' ')
+        ? `https://${targetUrl}`
+        : `https://www.bing.com/search?q=${encodeURIComponent(targetUrl)}`;
     }
 
     setLoading(true);
-    setUrl(targetUrl);
     setError(null);
     setHtmlContent('');
 
     try {
-        const response = await browserAPI.proxy(targetUrl);
-        if (typeof response.data === 'string') {
-          setHtmlContent(response.data);
-        } else if (response.data?.html) {
-          setHtmlContent(response.data.html);
-        } else {
-          setHtmlContent('');
-          setError('Unexpected response format from browser proxy');
-        }
+      const response = await browserAPI.proxy(targetUrl);
+      if (typeof response.data === 'string') {
+        setHtmlContent(response.data);
+      } else if (response.data?.html) {
+        setHtmlContent(response.data.html);
+      } else {
+        setError('Unexpected response format from browser proxy');
+      }
     } catch (err) {
-        console.error("Browser failed:", err);
-        setError("Failed to load page. " + (err.response?.data?.error || err.response?.data?.detail || err.message));
+      console.error('Browser failed:', err);
+      setError(err.response?.data?.error || err.response?.data?.detail || err.message);
     } finally {
-        setLoading(false);
+      setLoading(false);
     }
   };
 
+  const urlForm = (className, inputClass) => (
+    <form onSubmit={handleSearch} className={className}>
+      <input
+        type="text"
+        className={inputClass}
+        value={inputUrl}
+        onChange={(e) => setInputUrl(e.target.value)}
+        placeholder={t('browser.placeholder')}
+        aria-label={t('browser.placeholder')}
+        autoCapitalize="none"
+        autoCorrect="off"
+        spellCheck={false}
+        enterKeyHint="go"
+      />
+      <button type="submit" className="btn-primary browser-go-btn" disabled={loading}>
+        {loading ? <span className="spinner spinner--inline" aria-hidden="true" /> : <Icon name="globe" size={20} />}
+        <span>{t('browser.go')}</span>
+      </button>
+    </form>
+  );
+
   return (
     <div className="web-browser-container">
-      <div className="browser-toolbar">
-        <form onSubmit={handleSearch} className="url-bar-form">
-          <input
-            type="text"
-            className="browser-url-input"
-            value={inputUrl}
-            onChange={(e) => setInputUrl(e.target.value)}
-            placeholder="Search Google or enter a URL"
-          />
-          <button type="submit" className="browser-go-btn" disabled={loading}>
-            {loading ? '...' : 'Go'}
-          </button>
-        </form>
-      </div>
-      
+      <div className="browser-toolbar">{urlForm('url-bar-form', 'browser-url-input')}</div>
+
       <div className="browser-content">
-        {loading && <div className="browser-loading"></div>}
-        
+        {loading && <div className="browser-loading" role="progressbar" aria-label={t('common.loading')} />}
+
         {error ? (
-             <div className="browser-error" style={{padding: '2rem', textAlign: 'center', color: 'var(--error-color)'}}>
-                <h3>Error loading page</h3>
-                <p>{error}</p>
-            </div>
+          <div className="browser-error" role="alert">
+            <Icon name="alert" size={32} />
+            <h3>{t('browser.error_title')}</h3>
+            <p>{error}</p>
+          </div>
         ) : htmlContent ? (
-          <iframe 
+          <iframe
             srcDoc={htmlContent}
-            className="browser-frame" 
-            title="Browser View"
+            className="browser-frame"
+            title={t('browser.view')}
             sandbox="allow-scripts allow-forms allow-popups"
           />
         ) : (
           <div className="browser-placeholder">
-             <div className="placeholder-content">
-                <h2>Chat Browser</h2>
-                <form onSubmit={handleSearch}>
-                    <input 
-                        type="text" 
-                        value={inputUrl}
-                        onChange={(e) => setInputUrl(e.target.value)}
-                        className="big-search-input"
-                        placeholder="Search Google or type a URL"
-                    />
-                </form>
-             </div>
+            <div className="placeholder-content">
+              <Icon name="globe" size={48} />
+              <h2>{t('browser.title')}</h2>
+              {urlForm('placeholder-form', 'big-search-input')}
+            </div>
           </div>
         )}
       </div>
