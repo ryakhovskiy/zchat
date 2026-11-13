@@ -8,7 +8,7 @@ command_exists() {
 
 # Ensure Go is installed
 if ! command_exists go; then
-	echo "Error: Go is not installed or not in PATH. Please install Go 1.21+."
+	echo "Error: Go is not installed or not in PATH. Please install Go 1.26+."
 	exit 1
 fi
 

@@ -12,7 +12,7 @@ function Test-Command {
 
 # Ensure Go is installed
 if (-not (Test-Command -Name "go")) {
-    Write-Error "Go is not installed or not in PATH. Please install Go 1.21+."
+    Write-Error "Go is not installed or not in PATH. Please install Go 1.26+."
     exit 1
 }
 
