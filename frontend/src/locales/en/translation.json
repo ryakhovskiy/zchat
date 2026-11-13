@@ -54,7 +54,7 @@
     "copied": "Copied",
     "today": "Today",
     "yesterday": "Yesterday",
-    "offline_banner": "You're offline. Messages will send when you're back online.",
+    "offline_banner": "You're offline. Messages can't be sent right now. Try again once you're back online.",
     "reconnecting_banner": "Reconnecting...",
     "message_actions": "Message actions",
     "more_reactions": "More reactions",

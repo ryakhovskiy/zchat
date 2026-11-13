@@ -54,7 +54,7 @@
     "copied": "Kopiert",
     "today": "Heute",
     "yesterday": "Gestern",
-    "offline_banner": "Du bist offline. Nachrichten werden gesendet, sobald du wieder online bist.",
+    "offline_banner": "Du bist offline. Nachrichten können gerade nicht gesendet werden. Versuche es erneut, sobald du wieder online bist.",
     "reconnecting_banner": "Verbindung wird wiederhergestellt...",
     "message_actions": "Nachrichtenaktionen",
     "more_reactions": "Weitere Reaktionen",
