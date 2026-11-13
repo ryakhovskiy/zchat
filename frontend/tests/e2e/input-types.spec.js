@@ -12,7 +12,7 @@ test('message actions follow pointer type independently of viewport width', asyn
   expect(coarse).toBe(testInfo.project.name === 'wide-touch');
   if (coarse) {
     // A quick tap must not open the action sheet; the held touch below must.
-    await message.tap();
+    await message.locator('.message-text').tap();
     await expect(actions(page)).toBeHidden();
   }
   await openActions(page, message);

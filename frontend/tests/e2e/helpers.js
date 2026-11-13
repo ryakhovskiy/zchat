@@ -142,7 +142,7 @@ export async function openActions(page, message) {
       await client.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
       await client.detach();
     }
-  } else await message.click({ button: 'right' });
+  } else await text.click({ button: 'right' });
   await expect(actions(page)).toBeVisible();
 }
 
