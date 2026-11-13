@@ -1,0 +1,120 @@
+import { test, expect } from '@playwright/test';
+import {
+  themes, prepare, login, openConversation, openSettings, selectTheme,
+  capture, assertFits, assertNoOverflow, assertTouchTargets, dismiss,
+} from './helpers.js';
+
+for (const theme of themes) {
+  test(`${theme}: login, register, list, settings, picker and chat`, async ({ page }, testInfo) => {
+    await prepare(page, theme);
+    await page.goto('/');
+    await expect(page.locator('.auth-card')).toBeVisible();
+    await capture(page, testInfo, 'login', page.locator('.auth-card'));
+    await assertTouchTargets(page, '.password-toggle, .auth-card button[type="submit"], .auth-switch button', 'login');
+    await page.getByRole('button', { name: 'Sign Up', exact: true }).click();
+    await capture(page, testInfo, 'register');
+    await page.getByRole('button', { name: 'Sign In', exact: true }).click();
+    await login(page);
+    await capture(page, testInfo, 'conversation-list');
+    await assertTouchTargets(page, '.top-bar button, .new-chat-button, .conversation-item', 'list');
+
+    await openSettings(page);
+    await expect(page.getByRole('radio')).toHaveCount(4);
+    await expect(page.getByRole('radio', { checked: true })).toHaveCount(1);
+    await capture(page, testInfo, 'settings', page.locator('.settings-sheet'));
+    await assertTouchTargets(page, '.settings-sheet button, .settings-sheet [role="radio"]', 'settings');
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('radiogroup', { name: /theme/i })).toBeHidden();
+
+    await page.locator('.new-chat-button').click();
+    await expect(page.locator('.user-list-modal')).toBeVisible();
+    await capture(page, testInfo, 'user-picker', page.locator('.user-list-modal'));
+    await assertTouchTargets(page, '.user-list-modal button, .user-item, .toggle-option', 'user picker');
+    await page.keyboard.press('Escape');
+    await expect(page.locator('.user-list-overlay')).toBeHidden();
+
+    await openConversation(page);
+    await expect(page.locator('.message').first()).toBeVisible();
+    await capture(page, testInfo, 'chat');
+    await assertFits(page.locator('.message-input-container'), 'composer');
+    await assertTouchTargets(page, '.mobile-back-button, .call-button, .emoji-button, .attachment-button, .send-button', 'chat');
+    if (page.viewportSize().width < 768) {
+      expect(await page.locator('.message-input').evaluate(e => parseFloat(getComputedStyle(e).fontSize))).toBeGreaterThanOrEqual(16);
+      await expect(page.locator('.top-bar')).toBeHidden();
+      await expect(page.locator('.sidebar')).toBeHidden();
+      await page.locator('.message-input').focus();
+      await assertFits(page.locator('.message-input'), 'focused composer');
+      await page.locator('.mobile-back-button').click();
+      await expect(page.locator('.conversation-list')).toBeVisible();
+      await expect(page.locator('.message-input')).toBeHidden();
+      await expect(page.locator('.top-bar')).toBeVisible();
+      await openConversation(page);
+    } else {
+      await expect(page.locator('.sidebar')).toBeVisible();
+      const width = (await page.locator('.sidebar').boundingBox()).width;
+      if (page.viewportSize().width < 1024) expect(width).toBeGreaterThanOrEqual(280);
+    }
+    // Exercise textarea growth and shrinking without sending to shared seed data.
+    const input = page.locator('.message-input');
+    const initialHeight = (await input.boundingBox()).height;
+    await input.fill('one\ntwo\nthree\nfour\nfive\nsix\nseven');
+    expect((await input.boundingBox()).height).toBeGreaterThan(initialHeight);
+    expect((await input.boundingBox()).height).toBeLessThanOrEqual(160);
+    await assertFits(page.locator('.message-input-container'), 'grown composer');
+    await assertNoOverflow(page, 'grown composer');
+    await input.fill('');
+  });
+}
+
+test('theme choices persist across reload and update browser chrome', async ({ page }) => {
+  await prepare(page);
+  await page.goto('/');
+  await login(page);
+  const metaColors = new Set();
+  for (const theme of themes) {
+    await openSettings(page);
+    await selectTheme(page, theme);
+    expect(await page.evaluate(() => localStorage.getItem('zchat-theme'))).toBe(theme);
+    const color = await page.locator('meta[name="theme-color"]').getAttribute('content');
+    metaColors.add(color.toLowerCase());
+    const tokenColor = await page.locator('html').evaluate(element => {
+      const probe = document.createElement('div');
+      probe.style.background = getComputedStyle(element).getPropertyValue('--color-header-bg');
+      document.body.append(probe);
+      const rgb = getComputedStyle(probe).backgroundColor;
+      probe.remove();
+      return rgb;
+    });
+    const normalizedMeta = await page.evaluate(value => {
+      const probe = document.createElement('div');
+      probe.style.backgroundColor = value;
+      document.body.append(probe);
+      const rgb = getComputedStyle(probe).backgroundColor;
+      probe.remove();
+      return rgb;
+    }, color);
+    expect(normalizedMeta).toBe(tokenColor);
+    await page.reload();
+    await expect(page.locator('.conversation-list')).toBeVisible();
+    await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
+    await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', color);
+  }
+  expect(metaColors.size).toBe(4);
+  // The radiogroup must support keyboard navigation, not just pointer selection.
+  await openSettings(page);
+  await page.getByRole('radio', { checked: true }).focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(page.getByRole('radio', { name: /^Light/i })).toBeChecked();
+});
+
+for (const mode of ['close', 'scrim', 'escape']) {
+  test(`settings and user picker dismiss with ${mode}`, async ({ page }) => {
+    await prepare(page, 'tech-green');
+    await page.goto('/');
+    await login(page);
+    await openSettings(page);
+    await dismiss(page, page.locator('.settings-overlay'), mode, '.settings-close');
+    await page.locator('.new-chat-button').click();
+    await dismiss(page, page.locator('.user-list-overlay'), mode, '.close-button');
+  });
+}

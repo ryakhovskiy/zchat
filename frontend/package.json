@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "lint": "eslint . --ext js,jsx"
+    "lint": "eslint . --ext js,jsx",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@emoji-mart/data": "^1.2.1",
@@ -22,6 +23,8 @@
     "react-i18next": "^16.5.4"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.11.1",
+    "@playwright/test": "1.65.0",
     "@vitejs/plugin-react": "^4.2.1",
     "eslint": "^8.56.0",
     "eslint-plugin-react": "^7.33.2",
