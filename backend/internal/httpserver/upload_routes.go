@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 
 	"backend/internal/config"
+	"backend/internal/domain"
 	"backend/internal/security"
 )
 
@@ -74,10 +75,15 @@ func categoriseFileType(ext string) string {
 }
 
 // UploadRoutes returns a sub-router mounted at /api/uploads.
-func UploadRoutes(cfg *config.Config, db *sql.DB, tokenSvc *security.TokenService) chi.Router {
+//
+// Uploading requires a valid Bearer token for an existing, active user
+// (AuthMiddleware). Downloads are mounted outside the middleware group so they
+// can also authenticate with a ?token= query parameter; the GET handler
+// validates the token itself.
+func UploadRoutes(cfg *config.Config, db *sql.DB, tokenSvc *security.TokenService, users domain.UserRepository) chi.Router {
 	r := chi.NewRouter()
 
-	r.Post("/", func(w http.ResponseWriter, r *http.Request) {
+	r.With(AuthMiddleware(tokenSvc, users)).Post("/", func(w http.ResponseWriter, r *http.Request) {
 		r.Body = http.MaxBytesReader(w, r.Body, 51<<20) // 50MB + overhead
 		// #nosec G120 -- body is bounded by MaxBytesReader above and the 50MB ParseMultipartForm limit
 		if err := r.ParseMultipartForm(50 << 20); err != nil {

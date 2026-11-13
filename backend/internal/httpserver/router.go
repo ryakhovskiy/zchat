@@ -178,8 +178,9 @@ func NewRouter(cfg *config.Config, db *sql.DB, hub *ws.Hub, tokenSvc *security.T
 
 		})
 
-		// Moved outside of AuthMiddleware group to allow download via ?token= query param
-		r.Mount("/uploads", UploadRoutes(cfg, db, tokenSvc))
+		// Moved outside of AuthMiddleware group to allow download via ?token= query param;
+		// UploadRoutes applies AuthMiddleware to the upload POST itself.
+		r.Mount("/uploads", UploadRoutes(cfg, db, tokenSvc, userRepo))
 	})
 
 	// WebSocket endpoint

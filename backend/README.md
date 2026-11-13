@@ -149,5 +149,6 @@ go mod tidy
 ### Notes
 
 - The backend uses PostgreSQL only. Configure the `POSTGRES_*` variables for your local/dev/prod instance.
+- `POST /api/uploads/` requires an `Authorization: Bearer <token>` header (401 otherwise). Downloads (`GET /api/uploads/{filename}`) accept the token as a Bearer header or `?token=` query parameter.
 - For production, **always** override the default development secrets and configure CORS appropriately for your domain.
 

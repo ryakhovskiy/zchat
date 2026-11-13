@@ -88,12 +88,12 @@ All REST routes live under the `/api` prefix. The WebSocket endpoint is at `/ws`
 | POST | `/api/push/subscribe` | `push_handlers.go` | Save a Web Push subscription |
 | DELETE | `/api/push/unsubscribe` | `push_handlers.go` | Remove a Web Push subscription |
 
-### Upload Routes (mounted outside AuthMiddleware)
-`/api/uploads` is mounted outside the `AuthMiddleware` group (so downloads can use `?token=`).
+### Upload Routes
+`/api/uploads` is mounted outside the shared `AuthMiddleware` group so downloads can use `?token=`; `UploadRoutes` applies `AuthMiddleware` to the upload POST itself.
 
 | Method | Path | Handler | Description |
 |--------|------|---------|-------------|
-| POST | `/api/uploads/` | `upload_routes.go` | File upload. **Currently performs no token or user check** (known gap; clients send a Bearer header but the server does not require it). Request body capped at 51 MiB; the 50 MiB `ParseMultipartForm` value is only the in-memory threshold, and there is no separate per-file size rejection |
+| POST | `/api/uploads/` | `upload_routes.go` | File upload. **Requires a Bearer token** for an existing, active user (same checks as `AuthMiddleware`; missing/invalid token → 401). Request body capped at 51 MiB; the 50 MiB `ParseMultipartForm` value is only the in-memory threshold, and there is no separate per-file size rejection |
 | GET | `/api/uploads/{filename}` | `upload_routes.go` | Download. Validates the token itself (`?token=` param or Bearer header); only checks that the JWT parses, not that the user exists or is a participant |
 
 ### WebSocket
