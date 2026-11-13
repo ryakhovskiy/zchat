@@ -37,6 +37,8 @@ export const ConversationList = ({ onNewChat }) => {
     const last = conversation.last_message;
     if (!last) return t('chat.no_messages');
     const prefix = last.sender_id === user.id ? `${t('chat.you')}: ` : '';
+    // Deleted messages arrive with empty content
+    if (last.is_deleted) return prefix + t('chat.message_deleted', 'Message deleted');
     // textToEmoji leaves URLs (http://, tg://, ...) untouched
     return prefix + textToEmoji(last.content || '');
   };

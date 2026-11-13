@@ -162,7 +162,11 @@ export const MessageBubble = ({
         {replied && (
           <div className="message-replied-to">
             <span className="replied-sender">{replied.sender_username || t('chat.unknown_user', 'Unknown')}</span>
-            <span className="replied-text">{replied.content || t('chat.attachment', 'Attachment')}</span>
+            <span className="replied-text">
+              {replied.is_deleted
+                ? t('chat.message_deleted', 'Message deleted')
+                : replied.content || t('chat.attachment', 'Attachment')}
+            </span>
           </div>
         )}
 
