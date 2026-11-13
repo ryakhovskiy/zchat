@@ -9,7 +9,7 @@ React 18 + Vite web client for the zChat real-time messenger. It ships four them
 npm install
 ```
 
-2. Create the frontend environment file. The Vite dev server has no built-in defaults and reads `frontend/.env` only (not the repository root `.env`); without it API calls go to the wrong path and the WebSocket cannot connect:
+2. Create the frontend environment file. The Vite dev server has no built-in defaults: it reads env files from `frontend/` (such as `.env`) and exported environment variables, never the repository root `.env`. Without `VITE_API_URL` and `VITE_WS_URL` API calls go to the wrong path and the WebSocket cannot connect:
 ```bash
 cp .env.example .env
 ```
