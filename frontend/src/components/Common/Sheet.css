@@ -126,13 +126,18 @@
   border-top: var(--border-width) solid var(--color-border);
 }
 
-/* Phone landscape: little vertical room, let sheets use all of it */
+/* Phone landscape: little vertical room. Use the height, but dock the sheet to the right edge so a
+   strip of scrim stays visible and tappable on the left (and a small gap remains on top). */
 @media (max-height: 480px) {
   .sheet-panel--bottom {
-    max-height: calc(var(--app-h) - var(--safe-top));
+    left: auto;
+    width: min(480px, 100%);
+    max-height: calc(var(--app-h) - var(--safe-top) - var(--space-3));
+    border-right: 0;
+    border-radius: var(--radius-lg) 0 0 0;
   }
   .sheet-panel--bottom.sheet-panel--tall {
-    height: calc(var(--app-h) - var(--safe-top));
+    height: calc(var(--app-h) - var(--safe-top) - var(--space-3));
   }
   .sheet-grabber {
     display: none;
