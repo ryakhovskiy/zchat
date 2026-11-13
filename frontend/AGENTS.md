@@ -69,10 +69,35 @@ All backend interaction centralized in one file:
 - Push notifications via Notification API when not viewing the active conversation
 
 ### Theme System
-- CSS custom properties defined in `src/App.css` (e.g., `--bg-primary`, `--text-primary`, `--accent`)
-- Dark theme (default): navy/teal palette (`#061E29`, `#1D546D`, `#5F9598`)
-- Light theme: blush/lavender palette (`#FFF2F2`, `#A9B5DF`, `#7886C7`)
-- Toggle via `data-theme` attribute on `<html>`, persisted in localStorage
+Four themes, ids `light`, `dark`, `tech-green`, `tech-red`. Themes are **pure token sets**: one `[data-theme="<id>"]` block each in `src/styles/themes.css`, which also holds the theme-independent scales in `:root` (spacing `--space-*`, type `--text-*`, `--tap-size`, `--z-*`, motion, safe-area vars, `--app-h`). Components use tokens only: no hex/`rgb()`/named colours and no `[data-theme=...]` selectors outside `themes.css` (grep to check; exceptions need a one-line comment). A theme's personality comes from tokens: fonts, radii, shadows/glow, bubble styling, letter-spacing.
+
+**Token list** (every theme block defines all of them):
+- Surfaces: `--color-bg`, `--color-surface`, `--color-surface-raised`, `--color-surface-sunken`, `--color-scrim`, `--color-header-bg` (also drives `<meta name="theme-color">`), `--color-header-text`
+- Text: `--color-text`, `--color-text-secondary`, `--color-text-muted`, `--color-on-accent`
+- Accent: `--color-accent` (fills), `--color-accent-hover`, `--color-accent-text` (accent as text/icon/link), `--color-accent-soft`
+- Lines: `--color-border`, `--color-border-strong`, `--color-focus-ring`
+- Status: `--color-success`, `--color-danger`, `--color-danger-soft`, `--color-warning`, `--color-online`, `--color-on-success`, `--color-on-danger`
+- Bubbles: `--bubble-out-bg|text|border|meta`, `--bubble-in-bg|text|border|meta`, `--bubble-radius`, `--bubble-radius-tail`; sender names `--sender-s|l`; avatars `--avatar-s|l|text` (hue comes from the username)
+- Type: `--font-body`, `--font-mono`, `--font-meta` (timestamps, labels, headers), `--meta-letter-spacing`
+- Shape and elevation: `--radius-sm|md|lg|full`, `--shadow-sm|md|lg`, `--shadow-overlay`, `--glow`, `--focus-glow`, `--border-width`
+- emoji-mart (needs raw channels): `--emoji-rgb-bg|text|accent|input`
+
+Rules: `--glow` and `--focus-glow` are `none` in light/dark, so never put them inside a comma-separated `box-shadow` list; use `--shadow-overlay` (elevation + glow already composed per theme) or a standalone `box-shadow: var(--glow)`. Tech Red's `--color-danger` is amber on purpose, so destructive actions differ from the crimson accent; destructive controls always carry an icon and a label. Each theme sets `color-scheme`. System font stacks only.
+
+**Contrast:** all pairs must be WCAG AA (4.5:1 text, 3:1 icons/large). Run `node scripts/check-contrast.mjs` after touching a palette; it parses `themes.css`, asserts all four theme ids are present and checks 130+ pairs (exit code 1 on failure). Add a pair there when you add a new text-on-background combination.
+
+**Switching and persistence:** `ThemeContext` exposes `{ theme, setTheme, themes, colorScheme }`. The Settings sheet (gear, `components/Common/ControlPanel.jsx`) holds the theme radiogroup (live swatches use a scoped `data-theme` so tokens resolve to the previewed theme) and the language segmented control. Stored in localStorage key `zchat-theme`; legacy `hacker` migrates to `tech-green`; unknown values fall back to the OS `prefers-color-scheme` (`light`/`dark`). The OS preference is followed live only until the user picks a theme. After mount `ThemeContext` copies the active `--color-header-bg` into `<meta name="theme-color">`.
+
+**No-flash init script:** `public/theme-init.js`, loaded synchronously and *externally* from `<head>` in `index.html` (not inline, so a CSP without `unsafe-inline` keeps working). It sets `data-theme` before React mounts, migrates `hacker`, and sets the meta colour from a small id-to-colour map. localStorage access is wrapped in try/catch.
+
+**Adding a theme:**
+1. Add a `[data-theme="<id>"]` block to `src/styles/themes.css` defining every token above (copy an existing one).
+2. Add the id to `THEMES` in `src/utils/theme.js` and to `HEADER` (with the header colour) in `public/theme-init.js`.
+3. Add `theme.name_<id with - replaced by _>` to all three `src/locales/*/translation.json` and an icon in `THEME_ICONS` in `ControlPanel.jsx`.
+4. Add the id to `EXPECTED` in `scripts/check-contrast.mjs`, run it, and fix any pair below AA.
+5. Check the screens (auth, list, chat, sheets, call UI) in the new theme at 320, 390, 768 and 1440 px wide.
+
+**Layout:** phone is under 768px (single pane, chat header is the top bar, `data-view="list|chat"` on `.app-layout`), tablet 768-1023px (two panes, ~300px sidebar), desktop 1024px+. Media queries cannot use custom properties, so breakpoints are literals (documented as `--bp-*` in `themes.css`). Use `var(--app-h)` rather than `100vh`; `useAppHeight` keeps it equal to the visual viewport so the composer stays above the on-screen keyboard. Input type is detected with `(pointer: coarse)` (`useCoarsePointer`), never from the width.
 
 ### i18n
 - Languages: English (`en`), German (`de`), Russian (`ru`)
