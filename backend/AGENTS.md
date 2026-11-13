@@ -18,7 +18,7 @@ A Go-based scalable REST API and WebSocket server interacting with a PostgreSQL 
 
 ## Tech Stack & Libraries
 - **Routing:** `github.com/go-chi/chi/v5` handling RESTful API routing, protected by `cors` middleware.
-- **Database:** PostgreSQL accessed directly via `github.com/jackc/pgx/v5` for high-performance operations.
+- **Database:** PostgreSQL via `database/sql` with the `github.com/jackc/pgx/v5/stdlib` driver; repositories take a `*sql.DB` and use hand-written parameterized SQL.
 - **Real-time Engine:** WebSockets managed using `github.com/gorilla/websocket` (see `internal/ws/`).
 - **Security:** JWT (`golang-jwt/jwt/v5`) for auth tokens. Passwords hashed with argon2id and legacy bcrypt hashes verified via `golang.org/x/crypto`. Per-IP rate limiting via `go-chi/httprate`.
 - **Encryption:** AES-256-GCM via SHA256-derived key (`internal/security/encrypt.go`). Legacy Fernet decryption for migration support.
@@ -87,8 +87,14 @@ All REST routes live under the `/api` prefix. The WebSocket endpoint is at `/ws`
 | DELETE | `/api/messages/{messageID}` | `message_handlers.go` | Delete (`delete_type` query param: `for_me`/`for_everyone`) |
 | POST | `/api/push/subscribe` | `push_handlers.go` | Save a Web Push subscription |
 | DELETE | `/api/push/unsubscribe` | `push_handlers.go` | Remove a Web Push subscription |
-| POST | `/api/uploads/` | `upload_routes.go` | File upload (50MB limit) |
-| GET | `/api/uploads/{filename}` | `upload_routes.go` | Download (`?token=` param or Bearer header; mounted outside `AuthMiddleware`, validates the token itself) |
+
+### Upload Routes (mounted outside AuthMiddleware)
+`/api/uploads` is mounted outside the `AuthMiddleware` group (so downloads can use `?token=`).
+
+| Method | Path | Handler | Description |
+|--------|------|---------|-------------|
+| POST | `/api/uploads/` | `upload_routes.go` | File upload. **Currently performs no token or user check** (known gap; clients send a Bearer header but the server does not require it). Request body capped at 51 MiB; the 50 MiB `ParseMultipartForm` value is only the in-memory threshold, and there is no separate per-file size rejection |
+| GET | `/api/uploads/{filename}` | `upload_routes.go` | Download. Validates the token itself (`?token=` param or Bearer header); only checks that the JWT parses, not that the user exists or is a participant |
 
 ### WebSocket
 | Path | Auth | Description |
@@ -172,13 +178,13 @@ Flat JSON structure: `{ "type": "...", ...fields }`. All event types:
 | **JWT** | HMAC-SHA256, configurable TTL (default 24h, remember-me 30d) |
 | **Passwords** | argon2id (m=19 MiB, t=2, p=1; at most 2 hashes computed concurrently). Legacy bcrypt hashes still verify and are re-hashed to argon2id on the next successful login |
 | **Message encryption** | AES-256-GCM with SHA256-derived 32-byte key, base64-encoded ciphertext. Decrypt falls back to Fernet legacy keys, then raw content. Deleted messages are returned with empty `content` (never the stored ciphertext). |
-| **File uploads** | Forbidden extension list (executables/scripts and browser-renderable markup such as `.html`/`.svg`), extension-based categorization, UUID-renamed files, 50MB limit, always served with `Content-Disposition: attachment` |
+| **File uploads** | Forbidden extension list (executables/scripts and browser-renderable markup such as `.html`/`.svg`), extension-based categorization, UUID-renamed files, 51 MiB request-body cap, always served with `Content-Disposition: attachment` |
 | **Rate limiting** | `/api/auth/register` and `/api/auth/login`: 10 requests/minute per client IP (resolved by `RealIP`; trustworthy only because nginx is the sole ingress) |
 | **CORS** | Whitelist by origin, credentials allowed |
 | **WebSocket auth** | Bearer token via `Authorization` header or `Sec-WebSocket-Protocol`, origin check against `CORS_ORIGINS` (requests without an `Origin` header are rejected) |
 
 ## Coding Rules
-- Do NOT use ORMs (like GORM) since the architecture relies on `pgx` native connections.
+- Do NOT use ORMs (like GORM) since the repositories use hand-written SQL on `database/sql` with the `pgx` stdlib driver.
 - Ensure Swagger documentation boundaries are updated when HTTP routes are modified in the `httpserver` layer.
 - Ensure dependency injection: passing repository interfaces matching the `domain` contracts to ease testing.
 - Use sentinel errors from `domain/errors.go` for all error flows. Add new sentinel errors there if needed.
