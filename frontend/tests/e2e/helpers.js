@@ -1,5 +1,7 @@
 import { expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
+import { readFileSync } from 'node:fs';
+import { authFile } from './setup.js';
 
 export const themes = ['light', 'dark', 'tech-green', 'tech-red'];
 export const themeNames = { light: 'Light', dark: 'Dark', 'tech-green': 'Tech Green', 'tech-red': 'Tech Red' };
@@ -12,7 +14,7 @@ export function credentials() {
 
 export async function prepare(page, theme) {
   await page.addInitScript((initialTheme) => {
-    localStorage.setItem('i18nextLng', 'en');
+    if (!localStorage.getItem('i18nextLng')) localStorage.setItem('i18nextLng', 'en');
     if (initialTheme && !sessionStorage.getItem('qa-theme-seeded')) {
       localStorage.setItem('zchat-theme', initialTheme);
       sessionStorage.setItem('qa-theme-seeded', 'true');
@@ -21,22 +23,24 @@ export async function prepare(page, theme) {
 }
 
 export async function login(page) {
-  const { username, password } = credentials();
-  await page.locator('#username').fill(username);
-  await page.locator('#password').fill(password);
-  await page.getByRole('button', { name: 'Sign In', exact: true }).click();
-  await expect(page.locator('.conversation-list')).toBeVisible();
+  credentials();
+  const { access_token: token } = JSON.parse(readFileSync(authFile, 'utf8'));
+  // Reuse one isolated session: the backend allows only 10 auth requests/minute.
+  // Bootstrap still reads /auth/me and establishes a real WebSocket on each page.
+  await page.evaluate(value => sessionStorage.setItem('token', value), token);
+  await page.reload();
+  await expect(page.getByTestId('conversation-list')).toBeVisible();
   await expect(page.locator('.conversation-item').first()).toBeVisible();
 }
 
 export async function openConversation(page, title = credentials().peer) {
-  await page.locator('.conversation-item').filter({ has: page.getByRole('heading', { name: title, exact: true }) }).click();
+  await page.locator('.conversation-item').filter({ has: page.locator('.conversation-title', { hasText: new RegExp(`^${title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`) }) }).click();
   await expect(page.locator('.message-input')).toBeVisible();
 }
 
 export async function openSettings(page) {
   await page.locator('.settings-btn:visible').click();
-  await expect(page.getByRole('radiogroup', { name: /theme/i })).toBeVisible();
+  await expect(page.getByTestId('settings-sheet')).toBeVisible();
 }
 
 export async function selectTheme(page, theme) {
@@ -68,14 +72,20 @@ export async function assertFits(locator, label) {
 
 export async function assertTouchTargets(page, selector, label) {
   if (page.viewportSize().width >= 768) return;
-  const targets = page.locator(selector);
+  const targets = page.locator(selector).and(page.locator(':visible'));
   expect.soft(await targets.count(), `${label}: touch controls present`).toBeGreaterThan(0);
   for (const target of await targets.all()) {
-    if (!await target.isVisible()) continue;
     const box = await target.boundingBox();
     const name = await target.getAttribute('aria-label') || await target.getAttribute('title') || await target.textContent();
     expect.soft(box.width, `${label}: ${name} width`).toBeGreaterThanOrEqual(44);
     expect.soft(box.height, `${label}: ${name} height`).toBeGreaterThanOrEqual(44);
+    const viewport = page.viewportSize();
+    const x = box.x + box.width / 2;
+    const y = box.y + box.height / 2;
+    if (x >= 0 && y >= 0 && x < viewport.width && y < viewport.height) {
+      const hit = await target.evaluate((element, point) => element.contains(document.elementFromPoint(point.x, point.y)), { x, y });
+      expect.soft(hit, `${label}: ${name} is covered by another control`).toBeTruthy();
+    }
   }
 }
 
@@ -94,9 +104,11 @@ export async function dismiss(page, overlay, mode, closeSelector) {
   else {
     // Hit the scrim itself, outside the dialog, including phone landscape.
     const point = await overlay.evaluate(element => {
-      const b = element.getBoundingClientRect();
-      for (const [x, y] of [[b.x + 2, b.y + 2], [b.right - 2, b.y + 2], [b.x + 2, b.bottom - 2]]) {
-        if (document.elementFromPoint(x, y) === element) return { x, y };
+      const scrim = element.querySelector('.sheet-scrim') || element;
+      const b = scrim.getBoundingClientRect();
+      for (const [x, y] of [[b.x + 2, b.y + 2], [b.right - 2, b.y + 2], [b.x + 2, b.bottom - 2], [b.x + 2, b.y + b.height / 2]]) {
+        const hit = document.elementFromPoint(x, y);
+        if (hit === scrim || (element.contains(hit) && hit?.classList.contains('image-modal-stage'))) return { x, y };
       }
       return null;
     });
@@ -107,25 +119,25 @@ export async function dismiss(page, overlay, mode, closeSelector) {
 }
 
 export async function openActions(page, message) {
+  await message.scrollIntoViewIfNeeded();
   if (await page.evaluate(() => matchMedia('(pointer: coarse)').matches)) {
     const box = await message.boundingBox();
     const client = await page.context().newCDPSession(page);
     try {
       await client.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: box.x + box.width / 2, y: box.y + box.height / 2 }] });
       // Keep the real touch held until the application opens its long-press sheet.
-      await expect(page.locator('.message-context-menu')).toBeVisible();
+      await expect(page.getByTestId('message-action-sheet')).toBeVisible();
     } finally {
       await client.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
       await client.detach();
     }
   } else await message.click({ button: 'right' });
-  await expect(page.locator('.message-context-menu')).toBeVisible();
+  await expect(actions(page)).toBeVisible();
 }
 
-export async function apiSession(request) {
-  const { username, password } = credentials();
-  const response = await request.post('/api/auth/login', { data: { username, password } });
-  expect(response.ok(), 'isolated seed login').toBeTruthy();
-  const { access_token: token } = await response.json();
+export const actions = page => page.locator('[data-testid="message-action-sheet"], [data-testid="message-context-menu"]');
+
+export async function apiSession() {
+  const { access_token: token } = JSON.parse(readFileSync(authFile, 'utf8'));
   return { Authorization: `Bearer ${token}` };
 }

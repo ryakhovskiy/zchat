@@ -25,6 +25,14 @@ conversations for mutable regressions; reset/reseed the isolated stack when need
 Seven projects cover 320×640, 360×740, 390×844, 430×932, 740×360, 768×1024,
 1440×900. Each runs Light, Dark, Tech Green and Tech Red. A separate project blocks
 the React entry script to check synchronous theme initialization before mount.
+Two extra projects decouple pointer type from width (wide touch and narrow mouse).
+Global setup authenticates once per run, and each browser context reuses that
+isolated session to stay below the login endpoint's 10 requests/minute/IP limit.
+Subsequent runs validate and reuse the cached session in ignored
+`playwright/.cache/session.json`; the cache stores no password. Delete that file to
+force a fresh login after a stack reset.
+
+The lead excluded WebBrowser because its UI entry point was intentionally removed.
 
 Useful commands:
 

@@ -18,6 +18,7 @@ export default defineConfig({
   retries: 0,
   timeout: 90_000,
   expect: { timeout: 10_000 },
+  globalSetup: './tests/e2e/setup.js',
   reporter: [['list'], ['html', { open: 'never' }], ['json', { outputFile: 'test-results/results.json' }]],
   use: {
     baseURL,
@@ -30,11 +31,13 @@ export default defineConfig({
     launchOptions: { args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream'] },
   },
   projects: [
-    { name: 'theme-init', testMatch: 'theme-init.spec.js', use: { viewport: { width: 390, height: 844 } } },
+    { name: 'theme-init', testMatch: ['theme-init.spec.js', 'theme-contract.spec.js'], use: { viewport: { width: 390, height: 844 } } },
     ...viewports.map(([width, height]) => ({
       name: `${width}x${height}`,
-      testIgnore: 'theme-init.spec.js',
+      testMatch: ['responsive.spec.js', 'regression.spec.js'],
       use: { viewport: { width, height }, isMobile: width < 768, hasTouch: width < 768 },
     })),
+    { name: 'wide-touch', testMatch: 'input-types.spec.js', use: { viewport: { width: 1024, height: 900 }, hasTouch: true } },
+    { name: 'narrow-mouse', testMatch: 'input-types.spec.js', use: { viewport: { width: 390, height: 844 }, hasTouch: false } },
   ],
 });

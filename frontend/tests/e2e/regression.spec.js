@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { test, expect } from '@playwright/test';
 import {
   themes, credentials, prepare, login, openConversation, apiSession,
-  openActions, assertNoOverflow, assertFits, dismiss, capture,
+  openActions, actions, assertNoOverflow, assertFits, dismiss, capture,
 } from './helpers.js';
 
 for (const theme of themes) {
@@ -32,14 +32,14 @@ for (const theme of themes) {
     const sent = page.locator('.message-sent').filter({ has: page.locator('.message-text', { hasText: content }) });
     await expect(sent).toHaveCount(1);
     await openActions(page, sent);
-    await page.locator('.message-context-menu').getByRole('button', { name: /edit/i }).click();
+    await actions(page).getByTestId('action-edit').click();
     const edited = `${content} edited`;
     await input.fill(edited);
     await page.locator('.send-button').click();
     await expect(sent.locator('.message-text')).toHaveText(edited);
     await expect(sent.locator('.message-edited-label')).toBeVisible();
     await openActions(page, sent);
-    await page.locator('.message-context-menu').getByRole('button', { name: /reply/i }).click();
+    await actions(page).getByTestId('action-reply').click();
     await expect(page.locator('.reply-mode-banner')).toContainText(edited);
     const reply = `Reply ${randomUUID()}`;
     await input.fill(reply);
@@ -47,8 +47,10 @@ for (const theme of themes) {
     const replyBubble = page.locator('.message-sent').filter({ has: page.locator('.message-text', { hasText: reply }) });
     await expect(replyBubble.locator('.message-replied-to')).toContainText(edited);
     await openActions(page, sent);
-    await page.locator('.message-context-menu').getByRole('button', { name: /react/i }).click();
-    const picker = page.locator('.reaction-picker-overlay');
+    const coarse = await page.evaluate(() => matchMedia('(pointer: coarse)').matches);
+    if (coarse) await actions(page).getByRole('button', { name: /more reactions/i }).click();
+    else await actions(page).getByTestId('action-react').click();
+    const picker = page.getByTestId('reaction-sheet');
     await expect(picker).toBeVisible();
     await assertFits(picker.locator('em-emoji-picker'), 'reaction picker');
     // Emoji Mart uses shadow DOM, which Playwright CSS and role locators pierce.
@@ -80,13 +82,13 @@ for (const theme of themes) {
 
     // Reload to check durable server state, not only optimistic DOM updates.
     await page.reload();
-    await expect(page.locator('.conversation-list')).toBeVisible();
+    await expect(page.getByTestId('conversation-list')).toBeVisible();
     await openConversation(page, title);
     await expect(sent.locator('.message-text')).toHaveText(edited);
     await expect(sent.locator('.reaction-chip')).toContainText('👍');
     await expect(replyBubble.locator('.message-replied-to')).toContainText(edited);
     await openActions(page, sent);
-    await page.locator('.message-context-menu').getByRole('button', { name: /delete for everyone/i }).click();
+    await actions(page).getByTestId('action-delete-all').click();
     await expect(page.locator('.message-deleted-text')).toBeVisible();
     await expect(page.locator('.message-text').filter({ hasText: new RegExp(`^${edited}$`) })).toHaveCount(0);
     const persisted = await request.get(`/api/conversations/${conversationId}/messages?limit=100`, { headers });
@@ -106,13 +108,31 @@ for (const mode of ['close', 'scrim', 'escape']) {
     await page.locator('.attachment-image').first().click();
     await dismiss(page, page.locator('.image-modal-backdrop'), mode, 'button[title="Close"], button[aria-label="Close"]');
     await page.locator('.emoji-button').click();
-    await expect(page.locator('.emoji-picker')).toBeVisible();
-    await dismiss(page, page.locator('.emoji-picker-overlay'), mode, '.picker-close');
+    if (page.viewportSize().width < 768) {
+      await expect(page.getByTestId('emoji-sheet')).toBeVisible();
+      await dismiss(page, page.getByTestId('emoji-sheet-root'), mode, '[data-testid="sheet-close"]');
+    } else {
+      const popover = page.locator('.emoji-popover');
+      await expect(popover).toBeVisible();
+      if (mode === 'close') await popover.getByRole('button', { name: /close/i }).click();
+      else if (mode === 'escape') await page.keyboard.press('Escape');
+      else await page.locator('.chat-header').click({ position: { x: 2, y: 2 } });
+      await expect(popover).toBeHidden();
+    }
+    const message = page.locator('.message').filter({ has: page.locator('.message-text') }).last();
+    await openActions(page, message);
+    const coarse = await page.evaluate(() => matchMedia('(pointer: coarse)').matches);
+    if (coarse) {
+      await dismiss(page, page.getByTestId('message-action-sheet-root'), mode, '[data-testid="sheet-close"]');
+      await openActions(page, message);
+      await actions(page).getByRole('button', { name: /more reactions/i }).click();
+    } else await actions(page).getByTestId('action-react').click();
+    await dismiss(page, page.getByTestId('reaction-sheet-root'), mode, '[data-testid="sheet-close"]');
   });
 }
 
 for (const theme of themes) {
-  test(`${theme}: call and browser surfaces`, async ({ page }, testInfo) => {
+  test(`${theme}: call surface`, async ({ page }, testInfo) => {
     await prepare(page, theme);
     await page.goto('/');
     await login(page);
@@ -123,9 +143,5 @@ for (const theme of themes) {
     await capture(page, testInfo, 'call', page.locator('.call-card'));
     await page.getByRole('button', { name: /end call|cancel call|close/i }).click();
     await expect(page.locator('.call-overlay')).toBeHidden();
-    if (page.viewportSize().width < 768) await page.locator('.mobile-back-button').click();
-    await page.getByRole('button', { name: /browser/i }).click();
-    await expect(page.locator('.web-browser-container')).toBeVisible();
-    await capture(page, testInfo, 'browser');
   });
 }

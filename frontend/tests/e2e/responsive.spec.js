@@ -19,10 +19,11 @@ for (const theme of themes) {
     await assertTouchTargets(page, '.top-bar button, .new-chat-button, .conversation-item', 'list');
 
     await openSettings(page);
-    await expect(page.getByRole('radio')).toHaveCount(4);
-    await expect(page.getByRole('radio', { checked: true })).toHaveCount(1);
-    await capture(page, testInfo, 'settings', page.locator('.settings-sheet'));
-    await assertTouchTargets(page, '.settings-sheet button, .settings-sheet [role="radio"]', 'settings');
+    const themeGroup = page.getByRole('radiogroup', { name: /theme/i });
+    await expect(themeGroup.getByRole('radio')).toHaveCount(4);
+    await expect(themeGroup.getByRole('radio', { checked: true })).toHaveCount(1);
+    await capture(page, testInfo, 'settings', page.getByTestId('settings-sheet'));
+    await assertTouchTargets(page, '[data-testid="settings-sheet"] button', 'settings');
     await page.keyboard.press('Escape');
     await expect(page.getByRole('radiogroup', { name: /theme/i })).toBeHidden();
 
@@ -31,7 +32,7 @@ for (const theme of themes) {
     await capture(page, testInfo, 'user-picker', page.locator('.user-list-modal'));
     await assertTouchTargets(page, '.user-list-modal button, .user-item, .toggle-option', 'user picker');
     await page.keyboard.press('Escape');
-    await expect(page.locator('.user-list-overlay')).toBeHidden();
+    await expect(page.getByTestId('user-list-root')).toBeHidden();
 
     await openConversation(page);
     await expect(page.locator('.message').first()).toBeVisible();
@@ -45,7 +46,7 @@ for (const theme of themes) {
       await page.locator('.message-input').focus();
       await assertFits(page.locator('.message-input'), 'focused composer');
       await page.locator('.mobile-back-button').click();
-      await expect(page.locator('.conversation-list')).toBeVisible();
+      await expect(page.getByTestId('conversation-list')).toBeVisible();
       await expect(page.locator('.message-input')).toBeHidden();
       await expect(page.locator('.top-bar')).toBeVisible();
       await openConversation(page);
@@ -95,14 +96,14 @@ test('theme choices persist across reload and update browser chrome', async ({ p
     }, color);
     expect(normalizedMeta).toBe(tokenColor);
     await page.reload();
-    await expect(page.locator('.conversation-list')).toBeVisible();
+    await expect(page.getByTestId('conversation-list')).toBeVisible();
     await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
     await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', color);
   }
   expect(metaColors.size).toBe(4);
   // The radiogroup must support keyboard navigation, not just pointer selection.
   await openSettings(page);
-  await page.getByRole('radio', { checked: true }).focus();
+  await page.getByRole('radiogroup', { name: /theme/i }).getByRole('radio', { checked: true }).focus();
   await page.keyboard.press('ArrowRight');
   await expect(page.getByRole('radio', { name: /^Light/i })).toBeChecked();
 });
@@ -113,8 +114,76 @@ for (const mode of ['close', 'scrim', 'escape']) {
     await page.goto('/');
     await login(page);
     await openSettings(page);
-    await dismiss(page, page.locator('.settings-overlay'), mode, '.settings-close');
+    await dismiss(page, page.getByTestId('settings-sheet-root'), mode, '[data-testid="sheet-close"]');
+    await expect(page.getByTestId('settings-button')).toBeFocused();
     await page.locator('.new-chat-button').click();
-    await dismiss(page, page.locator('.user-list-overlay'), mode, '.close-button');
+    await dismiss(page, page.getByTestId('user-list-root'), mode, '[data-testid="sheet-close"]');
+  });
+}
+
+test('settings traps keyboard focus, preserves language-radio focus and saves language', async ({ page }) => {
+  await prepare(page, 'light');
+  await page.goto('/');
+  await login(page);
+  await openSettings(page);
+  const sheet = page.getByTestId('settings-sheet');
+  const close = sheet.getByTestId('sheet-close');
+  await expect(close).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
+  await expect(sheet.getByTestId('logout-button')).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(close).toBeFocused();
+  const language = page.getByTestId('language-option-en');
+  await language.focus();
+  for (const code of ['de', 'ru', 'en']) {
+    await page.keyboard.press('ArrowRight');
+    const selected = page.getByTestId(`language-option-${code}`);
+    await expect(selected).toBeChecked();
+    await expect(selected).toBeFocused();
+    expect(await page.evaluate(() => localStorage.getItem('i18nextLng'))).toMatch(new RegExp(`^${code}`));
+    await page.keyboard.press('Escape');
+    await expect(page.getByTestId('settings-button')).toBeFocused();
+    await page.reload();
+    await expect(page.getByTestId('conversation-list')).toBeVisible();
+    await openSettings(page);
+    await expect(page.getByTestId(`language-option-${code}`)).toBeChecked();
+    await page.getByTestId(`language-option-${code}`).focus();
+  }
+});
+
+test('theme selection survives denied writes during the session and ignores OS changes', async ({ page }) => {
+  await prepare(page);
+  await page.emulateMedia({ colorScheme: 'light' });
+  await page.addInitScript(() => {
+    const original = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (key, value) {
+      if (key === 'zchat-theme') throw new DOMException('Denied', 'SecurityError');
+      return original.call(this, key, value);
+    };
+  });
+  await page.goto('/');
+  await login(page);
+  await openSettings(page);
+  await selectTheme(page, 'tech-red');
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'tech-red');
+  await page.reload();
+  await expect(page.getByTestId('conversation-list')).toBeVisible();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+});
+
+for (const theme of themes) {
+  test(`${theme}: keyboard focus has a visible computed ring`, async ({ page }) => {
+    await prepare(page, theme);
+    await page.goto('/');
+    await page.keyboard.press('Tab');
+    await page.locator('#username').focus();
+    const focus = await page.locator('#username').evaluate(element => {
+      const css = getComputedStyle(element);
+      return { visible: element.matches(':focus-visible'), outline: css.outlineStyle, outlineWidth: parseFloat(css.outlineWidth), shadow: css.boxShadow };
+    });
+    expect(focus.visible).toBeTruthy();
+    expect((focus.outline !== 'none' && focus.outlineWidth > 0) || focus.shadow !== 'none', `computed focus appearance: ${JSON.stringify(focus)}`).toBeTruthy();
   });
 }

@@ -1,6 +1,8 @@
 import { test, expect } from '@playwright/test';
 import { themes } from './helpers.js';
 
+const headerColors = { light: '#ffffff', dark: '#171a21', 'tech-green': '#0a1310', 'tech-red': '#140c0e' };
+
 for (const { stored, scheme, expected } of [
   ...themes.map(theme => ({ stored: theme, scheme: 'light', expected: theme })),
   { stored: 'hacker', scheme: 'light', expected: 'tech-green' },
@@ -34,7 +36,7 @@ for (const { stored, scheme, expected } of [
       const init = page.locator('head script[src*="theme-init"]');
       await expect(init).toHaveCount(1);
       expect(await init.evaluate(element => ({ async: element.async, defer: element.defer, type: element.type }))).toEqual({ async: false, defer: false, type: '' });
-      await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', /^#[\da-f]{6}$/i);
+      await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', headerColors[expected]);
       if (stored === 'hacker') expect(await page.evaluate(() => localStorage.getItem('zchat-theme'))).toBe('tech-green');
     } finally { releaseEntry(); }
     await expect(page.locator('.auth-card')).toBeVisible();
@@ -57,4 +59,28 @@ test('storage denial still boots the OS theme', async ({ page }) => {
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   await expect(page.locator('.auth-card')).toBeVisible();
   expect(errors).toEqual([]);
+});
+
+test('an unchosen default continues following OS changes after mount', async ({ page }) => {
+  await page.emulateMedia({ colorScheme: 'light' });
+  await page.goto('/');
+  await expect(page.locator('.auth-card')).toBeVisible();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', headerColors.dark);
+  await page.emulateMedia({ colorScheme: 'light' });
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+});
+
+test('a persisted selection ignores later OS changes', async ({ page }) => {
+  await page.emulateMedia({ colorScheme: 'light' });
+  await page.addInitScript(() => localStorage.setItem('zchat-theme', 'tech-red'));
+  await page.goto('/');
+  await expect(page.locator('.auth-card')).toBeVisible();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'tech-red');
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'tech-red');
+  await page.emulateMedia({ colorScheme: 'light' });
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'tech-red');
 });
