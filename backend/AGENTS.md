@@ -12,6 +12,7 @@ A Go-based scalable REST API and WebSocket server interacting with a PostgreSQL 
 - **Tests:** `go test ./...` — uses testify. Current test files:
   - `internal/config/config_test.go` — `MAX_USERS` parsing
   - `internal/httpserver/auth_handlers_test.go` — register handler when the user limit is reached
+  - `internal/httpserver/upload_routes_test.go` — upload POST requires auth (401 for missing/invalid/wrong-key token, unknown or inactive user); download accepts `?token=` and Bearer using a stub `database/sql` driver
   - `internal/security/password_test.go` — argon2id hashing/verification, legacy bcrypt verification, `NeedsUpgrade`
   - `internal/service/auth_service_test.go` — `Register` and user-limit handling, using mock `domain.UserRepository`
   - `internal/store/postgres/user_repo_test.go` — user-limit enforcement in `Create`; needs a real PostgreSQL and is skipped unless `ZCHAT_TEST_DATABASE_URL` is set (each run uses its own schema and drops it afterwards)

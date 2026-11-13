@@ -3,11 +3,16 @@ package httpserver
 import (
 	"bytes"
 	"context"
+	"database/sql"
+	"database/sql/driver"
 	"encoding/json"
+	"errors"
+	"io"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -101,12 +106,96 @@ func TestUploadPostRequiresAuth(t *testing.T) {
 	require.Len(t, entries, 1)
 }
 
-func TestUploadDownloadStillUsesTokenParam(t *testing.T) {
-	h, _, _ := newUploadServer(t)
-	// No token: 401 from the GET handler's own check (unchanged behavior).
-	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/x.txt", nil))
-	require.Equal(t, http.StatusUnauthorized, rec.Code)
+// attachmentStub is a minimal database/sql driver: the attachments metadata
+// SELECT returns one row with original_name "report final.txt", and UPDATEs
+// (read_count) are counted.
+type attachmentStub struct{ updates *int }
+
+func (d attachmentStub) Open(string) (driver.Conn, error) { return stubConn(d), nil }
+
+type stubConn struct{ updates *int }
+
+func (c stubConn) Prepare(q string) (driver.Stmt, error) { return stubStmt{c: c, query: q}, nil }
+func (c stubConn) Close() error                          { return nil }
+func (c stubConn) Begin() (driver.Tx, error)             { return nil, errors.New("not supported") }
+
+type stubStmt struct {
+	c     stubConn
+	query string
+}
+
+func (s stubStmt) Close() error  { return nil }
+func (s stubStmt) NumInput() int { return -1 }
+func (s stubStmt) Exec([]driver.Value) (driver.Result, error) {
+	*s.c.updates++
+	return driver.RowsAffected(1), nil
+}
+func (s stubStmt) Query([]driver.Value) (driver.Rows, error) {
+	return &stubRows{}, nil
+}
+
+type stubRows struct{ done bool }
+
+func (r *stubRows) Columns() []string { return []string{"original_name"} }
+func (r *stubRows) Close() error      { return nil }
+func (r *stubRows) Next(dest []driver.Value) error {
+	if r.done {
+		return io.EOF
+	}
+	r.done = true
+	dest[0] = "report final.txt"
+	return nil
+}
+
+func TestUploadDownloadAuth(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "abc.txt"), []byte("file body"), 0o600))
+
+	updates := 0
+	driverName := "attachment-stub-" + t.Name()
+	sql.Register(driverName, attachmentStub{updates: &updates})
+	db, err := sql.Open(driverName, "")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+
+	tokens := security.NewTokenService("test-secret", time.Hour)
+	// A repo with no users: download must not depend on user lookups.
+	h := UploadRoutes(&config.Config{UploadDir: dir}, db, tokens, &uploadUserRepo{})
+	token, err := tokens.CreateForUser("alice")
+	require.NoError(t, err)
+
+	get := func(path, authHeader string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		if authHeader != "" {
+			req.Header.Set("Authorization", authHeader)
+		}
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		return rec
+	}
+
+	t.Run("query token", func(t *testing.T) {
+		rec := get("/abc.txt?token="+token, "")
+		require.Equal(t, http.StatusOK, rec.Code)
+		require.Equal(t, "file body", rec.Body.String())
+		require.Contains(t, rec.Header().Get("Content-Disposition"), "attachment")
+		require.Contains(t, rec.Header().Get("Content-Disposition"), "report final.txt")
+	})
+	t.Run("bearer token", func(t *testing.T) {
+		rec := get("/abc.txt", "Bearer "+token)
+		require.Equal(t, http.StatusOK, rec.Code)
+		require.Equal(t, "file body", rec.Body.String())
+	})
+	require.Equal(t, 2, updates, "read_count updated once per successful download")
+	t.Run("no token", func(t *testing.T) {
+		require.Equal(t, http.StatusUnauthorized, get("/abc.txt", "").Code)
+	})
+	t.Run("invalid query token", func(t *testing.T) {
+		require.Equal(t, http.StatusUnauthorized, get("/abc.txt?token=bogus", "").Code)
+	})
+	t.Run("path traversal rejected", func(t *testing.T) {
+		require.Equal(t, http.StatusNotFound, get("/..%2Fsecret?token="+token, "").Code)
+	})
 }
 
 func readDirNames(dir string) ([]string, error) {
