@@ -74,6 +74,7 @@ The `lite` project covers:
 - Delayed real REST snapshots racing live mutations, a chat switch and logout.
 - Delayed successful write acknowledgements racing a later edit or delete-for-me,
   plus registration completing after another account has already signed in.
+  Send/edit/delete acknowledgements must still update the UI when SSE is down.
 - Axe WCAG A/AA scans of login, list and chat, with full JSON evidence.
 - A cold load requesting only HTML and `app.js`, whose individually gzipped
   bodies at level 9 must total at most 8192 bytes.

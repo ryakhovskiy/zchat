@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { apiSession, credentials, login, messageByID, observeSSE, openConversation,
-  received, send, unique, waitLive } from './helpers.js';
+  received, send, sseFault, unique, waitLive } from './helpers.js';
 
 // Commit a real write on the server, but hold its original acknowledgement until
 // a later operation has been observed in the browser. Match completion by Request
@@ -97,7 +97,9 @@ test('registration completing after a different-account login cannot replace tha
   const held = await holdWrite(page, 'POST', '/api/auth/register');
   try {
     await page.getByTestId('register-submit').click();
-    expect((await held.ready).status).toBe(201);
+    const registered = await held.ready;
+    expect(registered.status).toBe(201);
+    expect(registered.body.user.username).toBe(username);
     await page.getByTestId('show-login').click();
     await page.getByTestId('login-username').fill(existing);
     await page.getByTestId('login-password').fill(password);
@@ -118,5 +120,30 @@ test('registration completing after a different-account login cannot replace tha
       .toEqual({ token: session.access_token, user: { id: session.user.id, username: existing }, local: null });
     await expect(page.getByTestId('conversation-list')).toBeVisible();
     await waitLive(page);
+    await expect(page.getByTestId('error')).toHaveText('');
   } finally { await held.close(); }
+});
+
+test('send, edit and delete acknowledgements still apply while SSE is disconnected', async ({ page }) => {
+  const fault = await sseFault(page);
+  const events = await observeSSE(page);
+  try {
+    await login(page);
+    await openConversation(page);
+    fault.drop();
+    await expect(page.getByTestId('live-status')).toHaveAttribute('data-live', '0');
+    const saved = await send(page, unique('ack-without-SSE'));
+    const edited = unique('edit-without-SSE');
+    page.once('dialog', dialog => dialog.accept(edited));
+    const updated = page.waitForResponse(r => r.request().method() === 'PUT' && new URL(r.url()).pathname === `/api/messages/${saved.id}`);
+    await messageByID(page, saved.id).getByTestId('edit-message').click();
+    expect((await updated).ok()).toBeTruthy();
+    await expect(messageByID(page, saved.id).getByTestId('message-content')).toHaveText(edited);
+    const removed = page.waitForResponse(r => r.request().method() === 'DELETE' && new URL(r.url()).pathname === `/api/messages/${saved.id}`);
+    await messageByID(page, saved.id).getByTestId('delete-message').click();
+    expect((await removed).ok()).toBeTruthy();
+    await expect(messageByID(page, saved.id)).toHaveCount(0);
+    await expect(page.getByTestId('live-status')).toHaveAttribute('data-live', '0');
+    expect(events.some(event => event.message_id === saved.id)).toBe(false);
+  } finally { await fault.close(); }
 });
