@@ -35,7 +35,8 @@ test('register through the form and start a direct chat with a plain select', as
   const registered = page.waitForResponse(r => new URL(r.url()).pathname === '/api/auth/register');
   await page.getByTestId('register-submit').click();
   expect((await registered).ok()).toBeTruthy();
-  await expect(page.getByTestId('conversation-list')).toBeVisible();
+  // A newly registered account has an empty, zero-height <ul>.
+  await expect(page.getByTestId('new-chat-user')).toBeVisible();
   await waitLive(page);
   expect(await page.evaluate(() => !!sessionStorage.getItem('token') && !localStorage.getItem('token'))).toBe(true);
   await expect(page.getByTestId('new-chat-user')).toHaveJSProperty('tagName', 'SELECT');
