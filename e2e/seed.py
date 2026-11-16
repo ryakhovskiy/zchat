@@ -1,16 +1,12 @@
 #!/usr/bin/env python3
-"""API fixtures for the disposable production stack on loopback port 38080."""
+"""API fixtures for the disposable production stack selected by E2E_PROJECT/E2E_PORT."""
 import json
 import subprocess
 import sys
 import time
 import urllib.error
 import urllib.request
-from pathlib import Path
-
-HERE = Path(__file__).resolve().parent
-REPO = HERE.parent
-BASE = 'http://127.0.0.1:38080'
+from settings import BASE, ENV_FILE, FRONTEND, HERE, PORT, PROJECT, STATE
 USERS = ['alice_ui', 'bob_ui', 'carol_ui']
 
 
@@ -18,7 +14,7 @@ def assert_stack_owner():
     """Refuse fixture writes unless Docker owns the expected local listener."""
     try:
         inspected = subprocess.run(
-            ['docker', 'container', 'inspect', 'zchat-e2e-frontend-1'],
+            ['docker', 'container', 'inspect', FRONTEND],
             capture_output=True, text=True, check=False,
         )
     except OSError as exc:
@@ -33,16 +29,16 @@ def assert_stack_owner():
         labels = container.get('Config', {}).get('Labels') or {}
         bindings = container.get('NetworkSettings', {}).get('Ports', {}).get('8080/tcp')
         owned = (
-            container.get('Name') == '/zchat-e2e-frontend-1'
+            container.get('Name') == '/' + FRONTEND
             and container.get('State', {}).get('Running') is True
-            and labels.get('com.docker.compose.project') == 'zchat-e2e'
+            and labels.get('com.docker.compose.project') == PROJECT
             and labels.get('com.docker.compose.service') == 'frontend'
-            and bindings == [{'HostIp': '127.0.0.1', 'HostPort': '38080'}]
+            and bindings == [{'HostIp': '127.0.0.1', 'HostPort': PORT}]
         )
     except (ValueError, TypeError, AttributeError, KeyError) as exc:
         raise RuntimeError('Cannot verify the disposable frontend metadata') from exc
     if not owned:
-        raise RuntimeError('Refusing to seed: 127.0.0.1:38080 must belong to the running zchat-e2e frontend')
+        raise RuntimeError(f'Refusing to seed: {BASE} must belong to the running {PROJECT} frontend')
 
 
 def request(method, path, payload=None, token=None, raw=None, content_type=None):
@@ -61,7 +57,7 @@ def request(method, path, payload=None, token=None, raw=None, content_type=None)
 
 def main():
     assert_stack_owner()
-    values = dict(line.split('=', 1) for line in (HERE / '.env').read_text().splitlines() if '=' in line)
+    values = dict(line.split('=', 1) for line in ENV_FILE.read_text().splitlines() if '=' in line)
     password = values['E2E_PASSWORD']
     for attempt in range(60):
         try:
@@ -84,7 +80,7 @@ def main():
                 return request('POST', '/api/auth/register', payload)
             raise
 
-    alice = authenticate(USERS[0], (HERE / 'seed-result.json').exists())
+    alice = authenticate(USERS[0], (STATE / 'seed-result.json').exists())
     token = alice['access_token']
     users = request('GET', '/api/users/', token=token)
     by_user = {user['username']: user for user in users}
@@ -116,7 +112,7 @@ def main():
     path = f"/api/conversations/{direct['id']}/messages"
     messages = request('GET', path + '?limit=200', token=token) or []
     fixtures = [
-        'Welcome to the UI test chat. Try all four themes and phone sizes.',
+        'Welcome to the lite UI test chat. Test pagination and live text updates.',
         'Long URL: https://example.com/very/long/path/' + 'segment/' * 24 + '?query=' + 'abcdef' * 35,
         'Long word: ' + 'Supercalifragilisticexpialidocious' * 16,
         'Multi-line message:\nFirst line\nSecond line with more text\n\nA new paragraph.\nFinal line.',
@@ -124,7 +120,7 @@ def main():
         'Language check: Hello! Hallo! Привет! こんにちは! مرحبًا!',
         'Code wrapping:\nconst longName = "' + 'a' * 180 + '";\nconsole.log(longName);',
     ]
-    for index in range(len(messages), 59):
+    for index in range(sum(not m.get('file_path') for m in messages), 60):
         sender = alice if (index // 3) % 2 == 0 else bob
         content = fixtures[index] if index < len(fixtures) else f'Message {index + 1:02d}: testing grouped bubbles, scrolling, unread state and timestamps.'
         request('POST', path, {'content': content}, sender['access_token'])
@@ -132,13 +128,13 @@ def main():
     messages = request('GET', path + '?limit=200', token=token) or []
     latest = sorted(messages, key=lambda message: message['id'])[-15:]
     if not any(message.get('file_type') == 'image' for message in latest):
-        picture = REPO / 'frontend/public/icons/icon-192.png'
+        picture = HERE / 'fixtures/image.png'
         boundary = 'zchat-e2e-upload-boundary'
         raw = (f'--{boundary}\r\nContent-Disposition: form-data; name="file"; filename="zchat-e2e.png"\r\nContent-Type: image/png\r\n\r\n'.encode()
                + picture.read_bytes() + f'\r\n--{boundary}--\r\n'.encode())
         upload = request('POST', '/api/uploads/', token=token, raw=raw,
                          content_type='multipart/form-data; boundary=' + boundary)
-        request('POST', path, {'content': 'Seed image: zchat logo, uploaded through the authenticated API.',
+        request('POST', path, {'content': 'Seed image: tiny fixture uploaded through the authenticated API.',
                               'file_path': upload['file_path'], 'file_type': upload['file_type']}, token)
 
     for conv, sender, content in [
@@ -155,7 +151,7 @@ def main():
     final = request('GET', path + '?limit=200', token=token)
     latest = request('GET', path + '?limit=15', token=token)
     images = [message for message in latest if message.get('file_type') == 'image']
-    assert len(final) >= 60, f'Expected at least 60 messages, received {len(final)}'
+    assert sum(not m.get('file_path') for m in final) >= 60, 'Expected at least 60 text messages'
     assert images, 'Missing visible image among the latest 15 messages'
     image_path = '/api/' + images[-1]['file_path'].lstrip('/')
     req = urllib.request.Request(BASE + image_path, headers={'Authorization': 'Bearer ' + token})
@@ -167,7 +163,7 @@ def main():
               'other_conversation_id': other['id'], 'scratch_conversation_id': scratch_group['id'],
               'main_message_count': len(final), 'latest_image_messages': [image['id'] for image in images],
               'authenticated_image_download': True}
-    (HERE / 'seed-result.json').write_text(json.dumps(result, indent=2) + '\n')
+    (STATE / 'seed-result.json').write_text(json.dumps(result, indent=2) + '\n')
     print(json.dumps(result, indent=2))
 
 

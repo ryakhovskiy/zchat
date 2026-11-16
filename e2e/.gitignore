@@ -2,3 +2,4 @@
 seed-result.json
 http-verification.json
 __pycache__/
+.state/

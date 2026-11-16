@@ -3,11 +3,13 @@ set -euo pipefail
 umask 077
 
 e2e_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+export E2E_PROJECT="${E2E_PROJECT:-zchat-e2e}"
+export E2E_PORT="${E2E_PORT:-38080}"
 action="${1:-help}"
 case "$action" in
   up|seed|down|reset|env|verify) ;;
   help|-h|--help)
-    printf '%s\n' 'Usage: bash e2e/run.sh {up|seed|down [--volumes]|reset|env|verify}'
+    printf '%s\n' 'Usage: E2E_PROJECT=zchat-lite-e2e E2E_PORT=38081 bash e2e/run.sh {up|seed|down [--volumes]|reset|env|verify}'
     exit 0
     ;;
   *) printf 'Unknown action: %s\n' "$action" >&2; exit 2 ;;
@@ -22,8 +24,17 @@ elif [[ $# -gt 1 ]]; then
   exit 2
 fi
 
+# Validate the target and select per-project state before any Docker operation.
+e2e_state="$(python3 - "$e2e_dir" <<'PYCONFIG'
+import sys
+sys.path.insert(0, sys.argv[1])
+from settings import STATE
+print(STATE)
+PYCONFIG
+)"
+mkdir -p -- "$e2e_state"
 # Only this ignored file is generated/read; the repository root .env is unused.
-python3 - "$e2e_dir/.env" <<'PY'
+python3 - "$e2e_state/.env" <<'PY'
 import os
 from pathlib import Path
 import secrets
@@ -39,17 +50,20 @@ if not path.exists():
         output.write(''.join(f'{key}={value}\n' for key, value in values.items()))
 PY
 
-compose=(docker compose --project-directory "$e2e_dir" --env-file "$e2e_dir/.env" -p zchat-e2e -f "$e2e_dir/compose.yaml")
+compose=(docker compose --project-directory "$e2e_dir" --env-file "$e2e_state/.env" -p "$E2E_PROJECT" -f "$e2e_dir/compose.yaml")
 
 print_env() {
-  python3 - "$e2e_dir/.env" <<'PY'
+  python3 - "$e2e_state/.env" <<'PY'
 from pathlib import Path
+import os
 import shlex
 import sys
 
 values = dict(line.split('=', 1) for line in Path(sys.argv[1]).read_text().splitlines() if '=' in line)
-client = {'E2E_BASE_URL': 'http://127.0.0.1:38080', 'E2E_USERNAME': 'alice_ui',
-          'E2E_PASSWORD': values['E2E_PASSWORD'], 'E2E_PEER': 'bob_ui', 'E2E_EXPECT_BUNDLE': '1'}
+client = {'E2E_PROJECT': os.environ['E2E_PROJECT'], 'E2E_PORT': os.environ['E2E_PORT'],
+          'E2E_BASE_URL': 'http://127.0.0.1:' + os.environ['E2E_PORT'], 'E2E_USERNAME': 'alice_ui',
+          'E2E_PASSWORD': values['E2E_PASSWORD'], 'E2E_PEER': 'bob_ui',
+          'E2E_PEER_PASSWORD': values['E2E_PASSWORD']}
 for key, value in client.items():
     print(f'export {key}={shlex.quote(value)}')
 PY

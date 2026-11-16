@@ -1,82 +1,87 @@
 # AGENTS.md
 
 ## Project Overview
-zchat is a multi-platform chat application workspace consisting of:
-- **frontend**: A mobile-first React 18 web application built with Vite (`frontend/`).
-- **backend**: A Go 1.26 REST API and WebSocket server with PostgreSQL (`backend/`).
+zchat is a multi-platform chat workspace:
+- **frontend**: A text-only browser client, `frontend/index.html` and `frontend/app.js`, using standard HTML controls and vanilla JavaScript. No framework, bundler or application build step. The two files together must stay within 8192 bytes gzipped at level 9.
+- **backend**: A Go 1.26 REST API, Server-Sent Events (SSE) and WebSocket server with PostgreSQL (`backend/`). WebSocket support remains available for Android and other clients.
 
 ## Monorepo Architecture
-This project utilizes nested `AGENTS.md` files for subproject-specific instructions. Coding agents should respect the nearest `AGENTS.md` file in the directory tree when generating code or executing commands.
-- See `frontend/AGENTS.md` for Web UI tasks.
-- See `backend/AGENTS.md` for API and WebSocket tasks.
+Respect the nearest `AGENTS.md` when changing a subproject:
+- `frontend/AGENTS.md` describes the browser client and its tests.
+- `backend/AGENTS.md` describes the API and real-time contracts.
 
-## Architecture Overview
+```text
+Browser: index.html + app.js ─ REST (/api) + SSE (/api/events) ─┐
+Android / other clients ────── REST (/api) + WS (/ws) ─────────┤
+                                                            Go backend ─ PostgreSQL
+                                                                       └ uploads/
 ```
-Frontend (React) ─┐                      ┌─ PostgreSQL
-                  └─ REST (/api) + WS ──► Go Backend ──►│
-                                        └─ File Storage (uploads/)
-```
-- **Auth**: JWT tokens (HMAC-SHA256) with Bearer header. Frontend stores in localStorage/sessionStorage; Android stores in DataStore.
-- **Message encryption**: AES-256-GCM at rest in PostgreSQL, decrypted on read. Legacy Fernet decryption supported for migration.
-- **Real-time**: WebSocket hub-broadcast pattern. Clients connect to `/ws` with Bearer token auth.
-- **Shared WebSocket event types**: `message`, `message_edited`, `message_deleted`, `messages_read`, `typing`, `user_online`, `user_offline`, `call_offer`, `call_answer`, `ice_candidate`, `call_end`, `call_rejected`, `react_message` (client → server), `reaction_updated` (server → client).
-- **Frontend themes**: `light`, `dark`, `tech-green`, `tech-red`, defined as token sets in `frontend/src/styles/themes.css`. The first visit follows the OS color scheme; preferences use localStorage key `zchat-theme`, with legacy `hacker` migrated to `tech-green`.
-- **Settings and theme initialization**: The Settings gear opens a desktop popover or phone bottom sheet with a theme radiogroup, EN/DE/RU language control and separate logout action. `frontend/public/theme-init.js` runs synchronously from the HTML head before React mounts and updates `theme-color`.
-- **PWA**: `frontend/public/manifest.webmanifest` and `frontend/public/icons/` support standalone installation. `frontend/public/sw.js` handles push notifications; there is no offline cache or offline send queue. The embedded WebBrowser has been removed.
+
+- **Auth**: REST uses HMAC-SHA256 JWTs in the Bearer header. The browser uses sessionStorage, or localStorage when "stay signed in" is selected (`remember_me`). Login and registration are limited to 10 requests per minute per IP.
+- **SSE auth**: `POST /api/events/ticket` with Bearer auth returns a single-use ticket with a 30-second TTL. `GET /api/events?ticket=...` streams only `message`, `message_edited` and `message_deleted`, with `retry: 5000` and a ping every 20 seconds. Never put a JWT in the URL. On failure, the client closes EventSource, backs off, obtains a new ticket and refetches the conversation list and latest message page; there is no replay.
+- **Messages**: REST writes broadcast through the shared hub to WS/SSE subscribers. Payloads are flat `{ "type": "...", ...fields }` JSON; SSE uses the same payload and names the event with its type. Keep Android compatibility.
+- **Encryption**: Messages use AES-256-GCM at rest, decrypted on read. Legacy Fernet decryption remains supported for migration.
+- **Browser scope**: Login/register, conversations with unread counts sorted by latest message, direct-chat creation, paginated messages (`limit=20` plus `before_id`), send/edit/delete text. Server text must use `textContent`. Navigation uses hashes such as `#/c/1`.
+- **Browser exclusions**: Groups, attachments, reactions, presence, receipts, typing, calls, push, themes, i18n and PWA are absent from this client. Backend features for other clients remain available. There is no offline cache or send queue.
 
 ## Network Topology
-| Service     | Dev Port | Docker Compose                                              |
-|-------------|----------|-------------------------------------------------------------|
-| Frontend    | 3000     | nginx container, only published port (`127.0.0.1:${FRONTEND_PORT:-3000}` → 8080); cloudflared tunnels to it |
-| Backend API | 8000     | Not published; frontend nginx proxies `/api` and `/app` over the `web` network |
-| WebSocket   | 8000     | Not published; proxied via `/ws`                            |
-| PostgreSQL  | 5432     | Not published; `db` network (internal, backend only)        |
 
-Dev proxy: frontend Vite config proxies `/api` → `http://localhost:8000` and `/ws` → `ws://localhost:8000`.
+| Service | Container port | Published access |
+|---------|----------------|------------------|
+| Static frontend/nginx | 8080 | Only published service: `${FRONTEND_BIND:-127.0.0.1}:${FRONTEND_PORT:-3000}` |
+| REST API and SSE | 8000 | Internal `web` network; nginx proxies `/api/`, with an exact unbuffered `/api/events` location |
+| WebSocket | 8000 | nginx proxies `/ws` |
+| App downloads | 8000 | nginx proxies `/app/` |
+| PostgreSQL | 5432 | Internal `db` network, backend only; unpublished |
+
+The static client uses same-origin `/api` URLs. There is no Vite development proxy and no `VITE_*` configuration. Serving the HTML with a plain file server alone does not proxy API requests.
+
+### Workspace and data isolation
+- The `zchat` stack on `127.0.0.1:3000` contains real accounts, messages and uploads. Never test against it, rebuild/stop it or touch `postgres-data` without explicit authorization.
+- The original disposable `zchat-e2e` stack on `127.0.0.1:38080` belongs to the original-client QA run. Leave it untouched during lite work.
+- Lite integration uses **`E2E_PROJECT=zchat-lite-e2e E2E_PORT=38081`**, from `/home/kr/projects/zchat-lite`, on branch **`feature/lite-sse-client`**. Never switch this checkout to `main`, push or open a PR during worker tasks. QA owns this stack's lifecycle; coordinate rebuilds with QA.
+- If running separate development servers, reserve frontend worktree web/API 3001/8001, backend worktree 3002/8002, and lite integration 3003/8003. Set backend `HTTP_PORT` and include the frontend origin in `CORS_ORIGINS`; arrange a same-origin reverse proxy for the static client. Each backend needs its own disposable PostgreSQL. Host port 5432 is already occupied; never assume it is a test database.
 
 ## Environment Setup
-1. Copy `.env.example` to `.env` at the project root.
-2. **Required variables** (backend will fail to start without these):
-   - `JWT_SECRET` — secret key for JWT signing
-   - `ENCRYPTION_KEY` — message encryption key (hashed to 32 bytes for AES-256-GCM)
-3. **Database variables**: `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` (backend defaults: `postgres`/`postgres`/`zchat`; Compose reads these from `.env`).
-4. **Optional** (have sensible defaults):
-   - `CORS_ORIGINS` — comma-separated allowed origins (default: `http://localhost:3000,http://localhost:5173`)
-   - `ACCESS_TOKEN_EXPIRE_MINUTES` — JWT TTL (default: 1440 = 24h)
-   - `REMEMBER_ME_TOKEN_EXPIRE_DAYS` — extended session TTL (default: 30)
-   - `MAX_MESSAGES_PER_CONVERSATION` — message pruning limit (default: 1000)
-   - `MAX_USERS` — registration limit (default: 10); must be a positive integer, registration returns 403 when reached
-   - `WS_PING_INTERVAL_SEC` — WebSocket ping interval in seconds (default: 30)
-   - `WS_PONG_TIMEOUT_SEC` — WebSocket pong timeout in seconds (default: 60)
-   - `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` — Web Push is enabled when both are set; `VITE_VAPID_PUBLIC_KEY` is an optional frontend build-time key
-   - `DEBUG` — backend debug mode and Swagger `/docs` availability (default: true for direct execution, false in Compose)
-   - `APP_NAME`, `APP_ENV` — backend application metadata (defaults: `zChat Go API`, `development`)
-   - `UPLOAD_DIR` — backend upload directory (default: `uploads`; fixed to `/app/uploads` in Compose)
-   - `ENCRYPTION_KEY_LEGACY` — comma-separated legacy Fernet keys (default: empty)
-   - `FRONTEND_PORT`, `FRONTEND_BIND` — published frontend port/bind address in Docker Compose (default: `3000`, `127.0.0.1`)
-   - `EXTRA_CA_FILE` — root CA passed as a build secret for Docker builds behind TLS-intercepting proxies (e.g. Zscaler)
-5. **Local frontend variables**: Copy `frontend/.env.example` to `frontend/.env` for direct backend URLs (`VITE_API_URL=http://localhost:8000/api`, `VITE_WS_URL=ws://localhost:8000/ws`), or set `VITE_API_URL=/api` and `VITE_WS_URL=/ws` in that file or the process environment to use the Vite dev proxy. Local Vite loads environment files from `frontend/`, not the root `.env`; the frontend helper scripts do not create this file. The `/api` and `/ws` defaults are provided only by Dockerfile/Compose image builds.
+1. Copy root `.env.example` to `.env` for root Compose. Never print or commit `.env` files or real secrets. The E2E helper generates its own credentials and never reads root `.env`.
+2. Required backend settings:
+   - `JWT_SECRET` — JWT signing secret.
+   - `ENCRYPTION_KEY` — hashed to 32 bytes for message encryption.
+3. Database: `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` (direct-backend defaults: localhost/5432/postgres/postgres/zchat). Compose supplies host `postgres`, port 5432, and the root `.env` credentials.
+4. Optional settings:
+   - `CORS_ORIGINS` — comma-separated browser origins, including the public frontend URL (backend default: `http://localhost:3000,http://localhost:5173`).
+   - `ACCESS_TOKEN_EXPIRE_MINUTES` — JWT TTL, default 1440.
+   - `REMEMBER_ME_TOKEN_EXPIRE_DAYS` — extended session TTL, default 30.
+   - `MAX_MESSAGES_PER_CONVERSATION` — pruning limit, default 1000.
+   - `MAX_USERS` — positive registration limit, default 10; registration returns 403 at the limit.
+   - `HTTP_HOST`, `HTTP_PORT` — direct backend listener (Compose fixes these to `0.0.0.0:8000`).
+   - `WS_PING_INTERVAL_SEC`, `WS_PONG_TIMEOUT_SEC` — defaults 30 and 60.
+   - `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` — optional backend push keys for other clients; the lite browser does not use push.
+   - `DEBUG` — direct backend defaults to true, Compose defaults to false; enables Swagger `/docs`.
+   - `APP_NAME`, `APP_ENV` — defaults `zChat Go API`, `development`.
+   - `UPLOAD_DIR` — default `uploads`, fixed to `/app/uploads` in Compose.
+   - `ENCRYPTION_KEY_LEGACY` — comma-separated legacy Fernet keys, default empty.
+   - `FRONTEND_PORT`, `FRONTEND_BIND` — root Compose frontend listener, defaults 3000/127.0.0.1.
+   - `EXTRA_CA_FILE` — optional build-secret root CA for backend dependency downloads behind a TLS-intercepting proxy. Static frontend images install no dependencies.
 
-`WS_PING_INTERVAL_SEC`, `WS_PONG_TIMEOUT_SEC`, `APP_NAME`, `APP_ENV` and `ENCRYPTION_KEY_LEGACY` are direct backend environment settings; the root Compose file does not forward them.
+`WS_PING_INTERVAL_SEC`, `WS_PONG_TIMEOUT_SEC`, `APP_NAME`, `APP_ENV` and `ENCRYPTION_KEY_LEGACY` are direct backend settings; root Compose does not forward them. The browser needs no `.env` or build arguments.
 
-## General Setup & Execution
-- **Docker (full stack):** `docker compose up -d --build`. Images are multi-stage and minimal: backend = static Go binary on distroless (non-root), frontend = built SPA on `nginx-unprivileged:alpine-slim` (container config: `frontend/docker/nginx.conf`; `frontend/nginx.conf` is a separate host-nginx config).
-- **Frontend local dev:** Prepare `frontend/.env` or export the two `VITE_*` variables above, then `cd frontend && npm install && npm run dev` (or use `./start.ps1` / `bash ./start.sh` from `frontend/` with the same environment).
-- **Backend local dev:** Export the backend environment variables before `cd backend && go run cmd/server/main.go`; the backend does not load the root `.env` itself. Alternatively use `./start.ps1` / `bash ./start.sh` from `backend/`, which supply development-only default secrets when unset.
-- **Shell Scripts**: `start.ps1` (Windows) and `start.sh` (Bash) are available in both `frontend/` and `backend/`.
-
-## Deployment
-Container deployment uses `docker-compose.yml` and `frontend/docker/nginx.conf`, with TLS terminated upstream. Set `CORS_ORIGINS` to include the public frontend URL.
+## General Setup and Deployment
+- **Full stack**: Root `docker-compose.yml` is the real-data deployment configuration; its deployment command is `docker compose up -d --build`. Agents must use the isolated E2E stack for verification instead. Backend is a static Go binary on distroless, non-root. Frontend directly copies two files onto pinned `nginx-unprivileged:alpine-slim`, non-root on 8080.
+- **Backend local dev**: Export process environment before `cd backend && go run cmd/server/main.go`. Backend does not load root `.env`. `backend/start.sh` and `start.ps1` provide development-only default secrets when unset.
+- **Static serving**: `frontend/docker/nginx.conf` serves `/`, `/index.html` and `/app.js` with ETag and `Cache-Control: no-cache`; all other static paths return 404. HTML, JS and JSON use gzip above 256 bytes. SSE is neither gzipped nor buffered, has a one-hour proxy read timeout and disables access logging to protect tickets. Location-level proxy header overrides must repeat all client-IP/scheme headers. Keep security headers at server level so all locations inherit them.
+- TLS terminates upstream (for example cloudflared). Set `CORS_ORIGINS` for the public frontend URL. `/api/`, `/ws` and `/app/` remain proxied. `frontend/nginx.conf` is a separate legacy host-nginx configuration, not used by the container.
 
 ## Testing
-- **Backend:** `cd backend && go test ./...` — tests cover `internal/config`, `httpserver`, `security`, `service` and `store/postgres`. The PostgreSQL integration test skips unless `ZCHAT_TEST_DATABASE_URL` points to a disposable database; it creates and drops its own schema.
-- **Frontend:** `cd frontend && npm run test:e2e` — Playwright and axe tests in `frontend/tests/e2e/` cover four themes, seven viewports, theme bootstrap, sign-in, keyboard/focus, pointer input, composer races and message regressions. From the repo root, use `bash e2e/run.sh up` and `bash e2e/run.sh seed` to build and seed the disposable production stack (Docker Compose and Python 3 required). It uses project `zchat-e2e`, separate named volumes and only `127.0.0.1:38080`; it never loads the root `.env`. Run `eval "$(bash e2e/run.sh env)"` before entering `frontend/` to export the generated test credentials, peer and URL, including `E2E_EXPECT_BUNDLE=1` for production bundle checks. The seed includes Alice/Bob/Carol, the fixture-only `alice_ui_qa` peer, direct/group/scratch conversations, 60 messages and an accessible image among the latest 15 messages. `bash e2e/run.sh down` retains test volumes; `reset` deletes only this project's test volumes, rebuilds and reseeds. Optional `EXTRA_CA_FILE` is passed through for proxy CA builds. Never target a stack containing real data. See `frontend/tests/e2e/README.md` for browser prerequisites and reports. `cd frontend && node scripts/check-contrast.mjs` separately checks semantic token contrast.
+- **Backend**: `cd backend && go test ./...`. PostgreSQL integration skips unless `ZCHAT_TEST_DATABASE_URL` points at a disposable database; tests create/drop their own schema. Run `gofmt -l .` and `go vet ./...` for backend changes.
+- **Lite stack**: Docker Compose and Python 3 are required. From the repo root, first `export E2E_PROJECT=zchat-lite-e2e E2E_PORT=38081`, then `bash e2e/run.sh up`, `bash e2e/run.sh seed`, and `bash e2e/run.sh verify`. Do not build until the frontend/backend integration merges are confirmed. `up` rebuilds; coordinate with QA before any lifecycle action. `down` retains volumes; `reset` deletes only the selected project's test volumes and rebuilds/reseeds.
+- **Target selection**: E2E tools default to project `zchat-e2e`, port 38080 for compatibility. Lite workers must always set the explicit lite target above. Image tags, network/volume names and container ownership checks follow `E2E_PROJECT`; port bindings and CORS follow `E2E_PORT`. Real-data project `zchat` and port 3000 are rejected.
+- **State**: Default E2E state stays in ignored `e2e/.env`; other projects use ignored `e2e/.state/<project>/`. Generated credentials, seed results and verification reports are isolated by project. `eval "$(bash e2e/run.sh env)"` exports the selected project/port, base URL, Alice/Bob usernames and passwords. It never reads root `.env`.
+- **Fixtures**: Alice/Bob/Carol plus fixture-only `alice_ui_qa`; Alice/Bob direct chat has at least 60 text messages and a tiny PNG upload among the latest 15 messages. The PNG lives in `e2e/fixtures/`, independent of client assets. The fixture-only peer initially has no direct chat with Alice. Group/scratch and authenticated upload fixtures remain for API regression tests. The E2E user cap is 50.
+- **HTTP checks**: `verify` checks source equality for both files, gzip and the 8 KiB budget, ETag/304/no-cache, security headers, 404s, compressed JSON, backend network health, container/image/volume ownership, single-use SSE tickets, immediate uncompressed frames and pings beyond 60 seconds. It requires seeded credentials and takes about 80 seconds.
+- **Browser tests**: Follow `frontend/tests/e2e/README.md` for Playwright setup and invocation. Lite coverage includes auth, direct chat, live messages, edit/delete, pagination/reconnect, accessibility, payload budget and a throttled 50 kbps/500 ms run. QA also verifies WS/SSE interoperability. Browser testing dependencies are separate from the static application runtime.
 
-## Code Conventions (Global)
-- Follow standard formatting and linting rules specific to each language (`gofmt`/`golangci-lint` for Go, ESLint for JS, `ktlint` for Kotlin).
-- Ensure cross-platform compatibility where applicable (Windows PowerShell vs Bash).
-- All REST endpoints live under the `/api` prefix.
-- WebSocket events use a flat `{ "type": "...", ...fields }` JSON structure — keep this consistent across backend, frontend, and Android.
-
-## Known Discrepancies
-- **Frontend lockfile**: `frontend/package-lock.json` is gitignored. The Dockerfile uses `npm ci` when a local lockfile is present and `npm install` otherwise, so clean checkouts still lack locked dependency reproducibility.
+## Code Conventions
+- Use `gofmt` and applicable language linting; preserve cross-platform compatibility for scripts.
+- REST lives under `/api`; shared real-time payloads stay flat and compatible across browser/backend/Android.
+- Stage only your own files in shared checkouts. Never discard other workers' changes.
