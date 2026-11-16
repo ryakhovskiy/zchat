@@ -42,8 +42,9 @@ Fixtures are Alice/Bob/Carol and `<E2E_USERNAME>_qa`, an Alice/Bob direct chat
 with at least 60 text messages plus a tiny uploaded PNG, and additional chats for
 navigation. Bob uses the exported peer password (defaults to Alice's password
 when `E2E_PEER_PASSWORD` is absent). Registration needs spare account capacity;
-each complete run creates one unique account through the form and starts a direct
-chat from that account. Reseed/reset only the lite project when its user cap is
+each complete run creates two unique accounts through the forms (normal registration
+and the pending-registration race) and starts a direct chat from the first account.
+Reseed/reset only the lite project when its user cap is
 reached. Tests use unique message content and never depend on message IDs or order
 left by earlier runs.
 
@@ -71,6 +72,8 @@ The `lite` project covers:
   produce a native EventSource error. Chromium's offline emulation alone does
   not reliably disconnect a stream that is already open.
 - Delayed real REST snapshots racing live mutations, a chat switch and logout.
+- Delayed successful write acknowledgements racing a later edit or delete-for-me,
+  plus registration completing after another account has already signed in.
 - Axe WCAG A/AA scans of login, list and chat, with full JSON evidence.
 - A cold load requesting only HTML and `app.js`, whose individually gzipped
   bodies at level 9 must total at most 8192 bytes.

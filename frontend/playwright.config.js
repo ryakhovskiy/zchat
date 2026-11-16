@@ -27,7 +27,7 @@ export default {
     trace: 'retain-on-failure',
   },
   projects: [
-    { name: 'lite', testMatch: ['lite.spec.js', 'uploads.spec.js'], use: { viewport: { width: 390, height: 844 } } },
+    { name: 'lite', testMatch: ['lite.spec.js', 'races.spec.js', 'uploads.spec.js'], use: { viewport: { width: 390, height: 844 } } },
     { name: 'slow-network', testMatch: 'slow-network.spec.js', use: { viewport: { width: 390, height: 844 } } },
   ],
 };
