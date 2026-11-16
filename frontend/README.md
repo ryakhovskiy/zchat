@@ -1,55 +1,34 @@
-# zChat Application Frontend
+# zChat frontend (lite client)
 
-React 18 + Vite web client for the zChat real-time messenger. It ships four themes (Light, Dark, Tech Green, Tech Red), a mobile-first layout, and a web app manifest so it can be installed to the home screen. Agent and contributor conventions live in [AGENTS.md](AGENTS.md).
+A minimal chat client for very slow connections: one HTML file and one JavaScript file, about 6.5 KB gzipped together. No framework, no build step, no dependencies. Live updates use Server-Sent Events. Agent and contributor conventions live in [AGENTS.md](AGENTS.md).
 
-## Setup
+## What it does
+Sign in or register, see your conversations with unread counts, read and load older messages, send text, edit your own messages, delete a message for yourself or for everyone, and start a direct chat with any user. Messages from other people appear live.
 
-1. Install dependencies:
+Not included: groups (you can read existing ones), files and images, reactions, presence, read receipts, typing indicators, calls, push notifications, themes, translations and offline support. The Android app keeps using the WebSocket API.
+
+## Files
+- `index.html` - all views, a few lines of inline CSS, system fonts, light/dark from the OS
+- `app.js` - the client
+- `dev-proxy.mjs` - optional dev server (Node, no dependencies)
+
+The size budget is 8 KB gzipped for `index.html` + `app.js` together and nothing else is loaded:
 ```bash
-npm install
+echo $(( $(gzip -9 < index.html | wc -c) + $(gzip -9 < app.js | wc -c) ))
 ```
 
-2. Create the frontend environment file. The Vite dev server has no built-in defaults: it reads env files from `frontend/` (such as `.env`) and exported environment variables, never the repository root `.env`. Without `VITE_API_URL` and `VITE_WS_URL` API calls go to the wrong path and the WebSocket cannot connect:
+## Run it locally
+1. Start the backend on port 8001 (see `backend/AGENTS.md` for the environment it needs).
+2. From this folder:
 ```bash
-cp .env.example .env
+PORT=3001 API_PORT=8001 node dev-proxy.mjs
 ```
-The example points at a backend on port 8000: `VITE_API_URL=http://localhost:8000/api`, `VITE_WS_URL=ws://localhost:8000/ws` (`VITE_VAPID_PUBLIC_KEY` is optional, for Web Push). Setting them to `/api` and `/ws` instead sends requests through the Vite proxy below.
+3. Open http://localhost:3001.
 
-3. Start the development server (the backend must be running on port 8000):
-```bash
-npm run dev
-```
+The proxy serves the two files and forwards `/api` (including the event stream) to the backend, so the page and the API share one origin. With Docker, `docker compose up -d --build` from the repository root serves the same files through nginx on port 3000.
 
-The app is served at http://localhost:3000. For relative URLs, Vite proxies `/api`, `/ws` and `/app` to `http://localhost:8000`. `./start.sh` and `./start.ps1` only run `npm install` and `npm run dev`; they do not create `.env`.
+## How live updates work
+After signing in the client asks `POST /api/events/ticket` for a single-use ticket and opens `EventSource('/api/events?ticket=...')`. The server pushes `message`, `message_edited` and `message_deleted` events. If the stream drops, the client waits (1 s, 2 s, 4 s, up to 30 s), gets a new ticket, reconnects and reloads the conversation list and the open chat, because the server does not replay missed events. The "live" / "offline" indicator in the header shows the state.
 
-`/api` and `/ws` are the defaults of the Docker build (`VITE_API_URL`, `VITE_WS_URL` build args); they do not apply to `npm run dev`.
-
-## Available Scripts
-
-- `npm run dev` - Run the development server
-- `npm run build` - Build for production into `dist/`
-- `npm run preview` - Preview the production build
-- `npm run lint` - Lint with ESLint
-- `npm run test:e2e` - Run the Playwright browser tests (needs an isolated test stack; see `tests/e2e/README.md`)
-- `node scripts/check-contrast.mjs` - Check WCAG AA contrast of every theme token pair
-
-## Project Structure
-
-- `index.html`, `public/` - HTML entry, no-flash theme init script (`theme-init.js`), web app manifest and icons, push service worker
-- `src/components/` - React components
-  - `Auth/` - Login and registration
-  - `Chat/` - Conversation list, chat window, composer, message actions, call overlay
-  - `Common/` - Settings sheet, bottom sheet/popover primitive, icons, avatars, image viewer
-  - `UserList/` - New conversation picker
-- `src/contexts/` - React contexts (auth, chat, call, theme)
-- `src/hooks/` - Shared hooks (media queries, viewport height, connection status, message gestures)
-- `src/services/` - REST/WebSocket client and push registration
-- `src/styles/` - Theme tokens (`themes.css`) and shared base styles (`base.css`)
-- `src/utils/` - Utility functions
-- `src/locales/` - English, German and Russian translations
-- `scripts/` - Developer scripts (contrast checker)
-- `tests/e2e/` - Playwright browser tests
-
-## Themes
-
-Themes are token sets in `src/styles/themes.css` (`light`, `dark`, `tech-green`, `tech-red`), chosen from the Settings sheet (gear icon) and stored in `localStorage` under `zchat-theme`. See the Theme System section of [AGENTS.md](AGENTS.md) for the token list and how to add a theme.
+## Tests
+Playwright and axe tests are in `tests/` (maintained by QA) and run against a disposable stack. See `tests/e2e/README.md`.
