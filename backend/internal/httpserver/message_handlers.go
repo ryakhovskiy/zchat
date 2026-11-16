@@ -248,6 +248,7 @@ type Broadcaster interface {
 func broadcastMessageParticipants(ctx context.Context, msgSvc *service.MessageService, broadcaster Broadcaster, conversationID int64, payload any) {
 	ids, err := msgSvc.GetParticipantIDs(ctx, conversationID)
 	if err != nil {
+		// #nosec G706 -- conversationID is an int64 formatted with %d; no untrusted text is logged.
 		log.Printf("http: get broadcast participants for conversation %d failed", conversationID)
 		return
 	}
