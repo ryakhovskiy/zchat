@@ -77,6 +77,15 @@ def check_stream(token):
         assert response.readline().strip() == b'retry: 5000', 'Missing initial SSE retry'
         initial_delay = time.monotonic() - started
         assert initial_delay < 5, f'SSE initial frame buffered for {initial_delay:.1f}s'
+        # Test single-use while the ticket is still within its 30-second TTL.
+        # Read only headers: a broken implementation may open another SSE stream.
+        try:
+            with urllib.request.urlopen(BASE + path, timeout=5) as reused:
+                reused_status = reused.status
+        except urllib.error.HTTPError as reused:
+            reused_status = reused.code
+            reused.close()
+        assert reused_status == 401, ('Reused live ticket must be rejected', reused_status)
         pings = []
         previous = started
         while len(pings) < 4:
@@ -89,10 +98,8 @@ def check_stream(token):
                 pings.append(round(now - started, 2))
                 previous = now
         assert pings[-1] >= 75, pings
-    status, _, _ = fetch(path)
-    assert status == 401, ('Reused ticket must be rejected', status)
     return {'sse_initial_delay_seconds': round(initial_delay, 3),
-            'ping_seconds': pings, 'compressed': False, 'reused_ticket_status': status}
+            'ping_seconds': pings, 'compressed': False, 'reused_ticket_status': reused_status}
 
 
 def check():
