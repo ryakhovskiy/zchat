@@ -65,8 +65,11 @@ The `lite` project covers:
 - Twenty-message pagination with `before_id`, oldest-first order and no duplicate
   IDs, plus REST/SSE field normalization after reload.
 - Unread counts, conversation ordering and REST mark-read.
-- An actual offline/online stream drop; a fresh ticket, list/latest refetch and
+- A real socket drop through a temporary loopback SSE proxy; a fresh ticket, list/latest refetch and
   recovery of missed sends, edits and deletions, followed by another live message.
+  The proxy forwards only the real lite SSE endpoint and closes its sockets to
+  produce a native EventSource error. Chromium's offline emulation alone does
+  not reliably disconnect a stream that is already open.
 - Delayed real REST snapshots racing live mutations, a chat switch and logout.
 - Axe WCAG A/AA scans of login, list and chat, with full JSON evidence.
 - A cold load requesting only HTML and `app.js`, whose individually gzipped
@@ -78,7 +81,8 @@ The `lite` project covers:
 The `slow-network` project applies CDP to the browser **before cold navigation**:
 50,000 bits/s (6,250 bytes/s) upload/download, 500 ms latency, cache disabled.
 It completes real form login, opens the seeded chat, sends and receives a live
-message. Only the fixture API sender uses the unthrottled request context.
+message. Fixture discovery and the API sender use the unthrottled request context;
+the client's own list/messages requests remain throttled.
 The test records its exact network profile and elapsed time. The timeout is
 180 seconds; this certifies the emulated Chromium link, not a physical device.
 

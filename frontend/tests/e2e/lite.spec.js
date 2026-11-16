@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { gzipSync } from 'node:zlib';
 import { apiSession, apiMessage, axe, credentials, fixtureSession, formLogin, login,
   messageByID, messages, observeSSE, openConversation, pairedPages, received, send,
-  unique, waitLive } from './helpers.js';
+  sseFault, unique, waitLive } from './helpers.js';
 
 test('login form sends remember_me, persists in the selected storage and logs out', async ({ browser }) => {
   for (const remember of [false, true]) {
@@ -39,6 +39,7 @@ test('register through the form and start a direct chat with a plain select', as
   await waitLive(page);
   expect(await page.evaluate(() => !!sessionStorage.getItem('token') && !localStorage.getItem('token'))).toBe(true);
   await expect(page.getByTestId('new-chat-user')).toHaveJSProperty('tagName', 'SELECT');
+  await page.getByTestId('new-chat-user').focus();
   await page.getByTestId('new-chat-user').selectOption({ label: credentials().peer });
   const created = page.waitForResponse(r => new URL(r.url()).pathname === '/api/conversations/' && r.request().method() === 'POST');
   await page.getByTestId('start-chat').click();
@@ -154,15 +155,16 @@ test('list updates unread count and ordering, then marks an opened chat read', a
 
 test('an interrupted SSE stream mints a fresh ticket and resyncs missed messages, edits and deletes', async ({ page, request }) => {
   const urls = [];
-  page.on('request', req => urls.push(new URL(req.url())));
-  await login(page);
-  const id = await openConversation(page);
-  const editable = await apiMessage(request, id, unique('edit-before-drop'));
-  const deletable = await apiMessage(request, id, unique('delete-before-drop'));
-  await expect(messageByID(page, deletable.id)).toBeVisible();
-  const before = urls.length;
-  await page.context().setOffline(true);
+  const fault = await sseFault(page);
   try {
+    page.on('request', req => urls.push(new URL(req.url())));
+    await login(page);
+    const id = await openConversation(page);
+    const editable = await apiMessage(request, id, unique('edit-before-drop'));
+    const deletable = await apiMessage(request, id, unique('delete-before-drop'));
+    await expect(messageByID(page, deletable.id)).toBeVisible();
+    const before = urls.length;
+    fault.drop();
     await expect(page.getByTestId('live-status')).toHaveAttribute('data-live', '0');
     const editedText = unique('edited-while-offline');
     const headers = await apiSession();
@@ -170,7 +172,7 @@ test('an interrupted SSE stream mints a fresh ticket and resyncs missed messages
     expect((await request.delete(`/api/messages/${deletable.id}?delete_type=for_everyone`, { headers })).ok()).toBeTruthy();
     const missed = await apiMessage(request, id, unique('missed-while-offline'), true);
     await expect(messageByID(page, missed.id)).toHaveCount(0);
-    await page.context().setOffline(false);
+    fault.resume();
     await waitLive(page);
     await expect(messageByID(page, missed.id).getByTestId('message-content')).toHaveText(missed.content);
     await expect(messageByID(page, missed.id)).toHaveCount(1);
@@ -186,19 +188,20 @@ test('an interrupted SSE stream mints a fresh ticket and resyncs missed messages
     expect(new Set(tickets).size).toBe(tickets.length);
     const live = await apiMessage(request, id, unique('after-resync'), true);
     await expect(messageByID(page, live.id).getByTestId('message-content')).toHaveText(live.content);
-  } finally { await page.context().setOffline(false); }
+  } finally { await fault.close(); }
 });
 
 // Delay an actual REST snapshot, rather than inventing a mock message shape.
 async function holdLatest(page, id) {
-  let arrived, release;
+  let arrived, release, intercepted;
   const ready = new Promise(resolve => { arrived = resolve; });
   const gate = new Promise(resolve => { release = resolve; });
   const delivered = page.waitForEvent('requestfinished', {
-    predicate: req => req.method() === 'GET' && new URL(req.url()).pathname === `/api/conversations/${id}/messages`,
+    predicate: req => req === intercepted,
   });
   const pattern = `**/api/conversations/${id}/messages?*`;
   await page.route(pattern, async route => {
+    intercepted = route.request();
     const snapshot = await route.fetch();
     arrived();
     await gate;
@@ -246,7 +249,7 @@ test('a delayed previous chat response cannot replace the current chat or reopen
   const marker = await apiMessage(request, firstID, unique('previous-chat'));
   await expect(messageByID(page, marker.id)).toBeVisible();
   await page.getByTestId('back-to-list').click();
-  const other = page.getByTestId('conversation-list').getByRole('link').filter({ hasNotText: credentials().peer }).first();
+  const other = page.getByTestId('conversation-list').locator(`a:not([href="#/c/${firstID}"])`).first();
   const otherHref = await other.getAttribute('href');
   const held = await holdLatest(page, firstID);
   try {

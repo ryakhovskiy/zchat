@@ -1,6 +1,7 @@
 import { expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { readFile, writeFile } from 'node:fs/promises';
+import http from 'node:http';
 import { authFile } from './setup.js';
 
 export function credentials() {
@@ -68,8 +69,13 @@ export async function formLogin(page, remember = false) {
   await waitLive(page);
 }
 
-export async function openConversation(page, title = credentials().peer) {
-  await page.getByTestId('conversation-list').getByRole('link', { name: title, exact: true }).click();
+export async function openConversation(page, peer = credentials().peer) {
+  const token = await page.evaluate(() => sessionStorage.getItem('token') || localStorage.getItem('token'));
+  const response = await page.request.get('/api/conversations/', { headers: { Authorization: `Bearer ${token}` } });
+  expect(response.ok()).toBeTruthy();
+  const conversation = (await response.json()).find(c => !c.is_group && c.participants.some(p => p.username === peer));
+  expect(conversation, `direct fixture with ${peer}`).toBeTruthy();
+  await page.getByTestId(`conversation-${conversation.id}`).getByRole('link').click();
   await expect(page.getByTestId('message-input')).toBeVisible();
   await expect(page).toHaveURL(/#\/c\/\d+$/);
   await waitLive(page);
@@ -129,6 +135,60 @@ export async function observeSSE(page) {
 export async function received(events, type, id) {
   await expect.poll(() => events.some(event => event.type === type && event.message_id === id),
     { message: `SSE ${type} for message ${id}` }).toBe(true);
+}
+
+// Chromium offline emulation leaves existing EventSource sockets alive. Forward
+// only the real SSE request through a disposable loopback socket we can sever.
+export async function sseFault(page) {
+  const origin = process.env.E2E_BASE_URL;
+  const sockets = new Set(), upstreams = new Set();
+  let paused = false;
+  const server = http.createServer((req, res) => {
+    const url = new URL(req.url, origin);
+    if (url.origin !== origin || url.pathname !== '/api/events') {
+      res.writeHead(404);
+      return res.end();
+    }
+    if (paused) return res.destroy();
+    const upstream = http.get(url, {
+      headers: { Accept: 'text/event-stream', 'Accept-Encoding': 'identity' },
+    }, incoming => {
+      res.writeHead(incoming.statusCode, { ...incoming.headers, 'access-control-allow-origin': origin });
+      incoming.on('error', () => res.destroy());
+      incoming.pipe(res);
+    });
+    upstreams.add(upstream);
+    upstream.on('close', () => upstreams.delete(upstream));
+    upstream.on('error', () => res.destroy());
+    res.on('close', () => upstream.destroy());
+  });
+  server.on('connection', socket => {
+    sockets.add(socket);
+    socket.on('close', () => sockets.delete(socket));
+  });
+  await new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', resolve);
+  });
+  const pattern = '**/api/events?*';
+  const forward = route => {
+    const url = new URL(route.request().url());
+    return route.continue({ url: `http://127.0.0.1:${server.address().port}${url.pathname}${url.search}` });
+  };
+  await page.route(pattern, forward);
+  const sever = () => {
+    for (const upstream of upstreams) upstream.destroy();
+    for (const socket of sockets) socket.destroy();
+  };
+  return {
+    drop() { paused = true; sever(); },
+    resume() { paused = false; },
+    async close() {
+      await page.unroute(pattern, forward);
+      sever();
+      await new Promise(resolve => server.close(resolve));
+    },
+  };
 }
 
 export async function axe(page, testInfo, view) {

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { apiMessage, formLogin, messageByID, openConversation, send, unique } from './helpers.js';
+import { apiMessage, formLogin, messageByID, observeSSE, openConversation, received, send, unique } from './helpers.js';
 
 test('50 kbps / 500 ms: cold login, open, send and receive live', async ({ page, request }, testInfo) => {
   test.setTimeout(180_000);
@@ -11,10 +11,12 @@ test('50 kbps / 500 ms: cold login, open, send and receive live', async ({ page,
   await cdp.send('Network.setCacheDisabled', { cacheDisabled: true });
   await cdp.send('Network.emulateNetworkConditions', profile);
   try {
+    const events = await observeSSE(page);
     await formLogin(page);
     const id = await openConversation(page);
     const sent = await send(page, unique('slow-outbound'));
     const inbound = await apiMessage(request, id, unique('slow-inbound'), true);
+    await received(events, 'message', inbound.id);
     await expect(messageByID(page, inbound.id).getByTestId('message-content')).toHaveText(inbound.content, { timeout: 45_000 });
     await expect(messageByID(page, sent.id)).toHaveCount(1);
     await testInfo.attach('slow-network', { contentType: 'application/json',
