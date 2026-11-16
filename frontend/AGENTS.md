@@ -15,7 +15,7 @@ It replaced the React/Vite app. Not supported (by design): groups (existing grou
 | `tests/`, `playwright.config.js` | Owned by qa (Playwright + axe against a disposable stack) |
 
 ## Hard constraints
-- **Budget:** `index.html` + `app.js` must be at most **8192 bytes gzipped combined**, with no other assets. Check: `cd frontend && echo $(( $(gzip -9 < index.html | wc -c) + $(gzip -9 < app.js | wc -c) ))`. Currently about 6.5 KB.
+- **Budget:** `index.html` + `app.js` must be at most **8192 bytes gzipped combined**, with no other assets. Check: `cd frontend && echo $(( $(gzip -9 < index.html | wc -c) + $(gzip -9 < app.js | wc -c) ))`. Currently about 7.0 KB.
 - **Standard controls only:** `form`, `input`, `select`, `button`, `textarea`, `ul`, plus plain `a` for navigation. No CSS file, no web fonts, no images, no icons. `color-scheme: light dark` follows the OS.
 - **`textContent` only.** Server text (usernames, messages, titles) is never put into `innerHTML`. The JWT lives in web storage, so XSS would leak it. `Option` objects, `textContent` and `dataset` are the only ways text enters the DOM.
 - **CSP-clean:** no inline scripts and no inline handlers (`onclick=` attributes). The nginx CSP allows `script-src 'self'` and inline styles only. Handlers are assigned from `app.js`.

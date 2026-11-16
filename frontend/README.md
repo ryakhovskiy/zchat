@@ -1,6 +1,6 @@
 # zChat frontend (lite client)
 
-A minimal chat client for very slow connections: one HTML file and one JavaScript file, about 6.5 KB gzipped together. No framework, no build step, no dependencies. Live updates use Server-Sent Events. Agent and contributor conventions live in [AGENTS.md](AGENTS.md).
+A minimal chat client for very slow connections: one HTML file and one JavaScript file, about 7.0 KB gzipped together. No framework, no build step, no dependencies. Live updates use Server-Sent Events. Agent and contributor conventions live in [AGENTS.md](AGENTS.md).
 
 ## What it does
 Sign in or register, see your conversations with unread counts, read and load older messages, send text, edit your own messages, delete a message for yourself or for everyone, and start a direct chat with any user. Messages from other people appear live.
