@@ -10,9 +10,8 @@ It replaced the React/Vite app. Not supported (by design): groups (existing grou
 |------|---------|
 | `index.html` | Markup for all views, inline `<style>`, `<noscript>` note, `<link rel="icon" href="data:,">`. No inline scripts, no inline event handlers |
 | `app.js` | The whole client (state, REST, SSE, rendering) |
-| `dev-proxy.mjs` | Dev only, no dependencies, not part of the image. Serves the two files and proxies `/api` to a local backend |
-| `Dockerfile`, `docker/nginx.conf`, `nginx.conf` | Owned by deployment (the image only copies `index.html` and `app.js`) |
-| `tests/`, `playwright.config.js` | Owned by qa (Playwright + axe against a disposable stack) |
+| `Dockerfile`, `docker/nginx.conf`, `nginx.conf` | Container and nginx configuration (the image only copies `index.html` and `app.js`) |
+| `tests/`, `playwright.config.js` | Playwright + axe against a disposable stack |
 
 ## Hard constraints
 - **Budget:** `index.html` + `app.js` must be at most **8192 bytes gzipped combined**, with no other assets. Check: `cd frontend && echo $(( $(gzip -9 < index.html | wc -c) + $(gzip -9 < app.js | wc -c) ))`. Currently about 7.0 KB.
@@ -20,7 +19,7 @@ It replaced the React/Vite app. Not supported (by design): groups (existing grou
 - **`textContent` only.** Server text (usernames, messages, titles) is never put into `innerHTML`. The JWT lives in web storage, so XSS would leak it. `Option` objects, `textContent` and `dataset` are the only ways text enters the DOM.
 - **CSP-clean:** no inline scripts and no inline handlers (`onclick=` attributes). The nginx CSP allows `script-src 'self'` and inline styles only. Handlers are assigned from `app.js`.
 - **No new dependencies, no build step.** Every byte ships to a slow link; justify additions against the budget.
-- Do not change backend contracts. If the API does not fit, ask `zchat-backend`.
+- Do not change backend contracts. Coordinate API changes with the backend team.
 
 ## Behaviour
 - **Views** are `hidden` sections switched by `location.hash`: signed out `#/login` (default) or `#/register`; signed in `#/` (conversation list plus new-chat picker) or `#/c/<id>` (chat). The browser back button works and nginx needs no routing.
@@ -38,7 +37,7 @@ It replaced the React/Vite app. Not supported (by design): groups (existing grou
 5. **Races:** every message change (SSE frame or local REST result) is an event applied by `apply()` and kept in a short log. A REST response may predate events that arrived while it was in flight, so each load re-applies the events logged since it started (`since(n)`). Loads also drop their result if the session (`gen`) or the open chat (`cur`) changed meanwhile. Preserve both guards when touching `load*` functions.
 6. **Acknowledgements are not events:** the REST result of my own send, edit or delete goes through `ack(e, n)`, which drops it if any event about the same message id arrived after the request started (`n = seq` taken just before the call). Otherwise a late acknowledgement could revert a newer edit or resurrect a message deleted in the meantime. Never call `ev()` directly with a REST result.
 
-## Testing selectors (contract with qa)
+## Testing selectors
 All are `data-testid` values unless noted. Do not rename; add new ones instead.
 - Auth: `login-form`, `login-username`, `login-password`, `remember-me`, `login-submit`, `show-register`; `register-form`, `register-username`, `register-email`, `register-password`, `register-submit`, `show-login`. `error` (role `alert`) shows any failure; `live-status` (role `status`) has `data-live` `0|1`; `logout`.
 - List: `conversation-list`, rows `conversation-<id>` (with `data-unread`) containing `conversation-title` (an `<a href="#/c/<id>">`), `unread-count` (only when above 0) and `conversation-preview`; `new-chat-form`, `new-chat-user`, `start-chat`.
@@ -46,11 +45,7 @@ All are `data-testid` values unless noted. Do not rename; add new ones instead.
 - Enter sends on fine-pointer devices (Shift+Enter inserts a newline). On touch devices use the Send button.
 
 ## Local development
-No install step. Run a backend (see `backend/AGENTS.md`; frontend worktree ports are web 3001, api 8001) and then, from `frontend/`:
-```
-PORT=3001 API_PORT=8001 node dev-proxy.mjs
-```
-Open http://localhost:3001. The backend's `CORS_ORIGINS` is irrelevant because the page and `/api` share one origin through the proxy. Docker: `docker compose up -d --build` serves the same two files through nginx (see root `AGENTS.md`).
+There is no dev server and no install step: the client is two static files. To try a change, rebuild the frontend image and run it through Docker with a backend, or use the disposable E2E stack (`bash e2e/run.sh up`; see `tests/e2e/README.md`). Never use the real-data stack on port 3000 for development or tests.
 
 ## Testing
-Browser tests live in `tests/` (qa) and run against the disposable stack, never the real-data one: see `tests/e2e/README.md`. Quick manual checklist after a change: sign in as two users in two browsers, send/edit/delete both ways, kill the connection (offline in devtools) and confirm `live-status` returns to `live` and missed messages appear, check the gzip budget above.
+Browser tests live in `tests/` and run against the disposable stack, never the real-data one: see `tests/e2e/README.md`. Quick manual checklist after a change: sign in as two users in two browsers, send/edit/delete both ways, kill the connection (offline in devtools) and confirm `live-status` returns to `live` and missed messages appear, check the gzip budget above.

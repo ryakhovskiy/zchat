@@ -10,7 +10,6 @@ Not included: groups (you can read existing ones), files and images, reactions, 
 ## Files
 - `index.html` - all views, a few lines of inline CSS, system fonts, light/dark from the OS
 - `app.js` - the client
-- `dev-proxy.mjs` - optional dev server (Node, no dependencies)
 
 The size budget is 8 KB gzipped for `index.html` + `app.js` together and nothing else is loaded:
 ```bash
@@ -18,17 +17,10 @@ echo $(( $(gzip -9 < index.html | wc -c) + $(gzip -9 < app.js | wc -c) ))
 ```
 
 ## Run it locally
-1. Start the backend on port 8001 (see `backend/AGENTS.md` for the environment it needs).
-2. From this folder:
-```bash
-PORT=3001 API_PORT=8001 node dev-proxy.mjs
-```
-3. Open http://localhost:3001.
-
-The proxy serves the two files and forwards `/api` (including the event stream) to the backend, so the page and the API share one origin. With Docker, `docker compose up -d --build` from the repository root serves the same files through nginx on port 3000.
+There is no dev server and no install step: the client is two static files. To try a change, rebuild the frontend image and run it through Docker with a backend, or use the disposable E2E stack (`bash e2e/run.sh up` from the repository root; see [the E2E README](tests/e2e/README.md)). Never use the real-data stack on port 3000 for development or tests.
 
 ## How live updates work
 After signing in the client asks `POST /api/events/ticket` for a single-use ticket and opens `EventSource('/api/events?ticket=...')`. The server pushes `message`, `message_edited` and `message_deleted` events. If the stream drops, the client waits (1 s, 2 s, 4 s, up to 30 s), gets a new ticket, reconnects and reloads the conversation list and the open chat, because the server does not replay missed events. The "live" / "offline" indicator in the header shows the state.
 
 ## Tests
-Playwright and axe tests are in `tests/` (maintained by QA) and run against a disposable stack. See `tests/e2e/README.md`.
+Playwright and axe tests are in `tests/` and run against a disposable stack. See `tests/e2e/README.md`.
