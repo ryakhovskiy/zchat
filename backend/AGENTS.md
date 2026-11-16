@@ -1,7 +1,7 @@
 # AGENTS.md
 
 ## Project: zchat backend
-A Go-based scalable REST API and WebSocket server interacting with a PostgreSQL database.
+A Go-based REST API, WebSocket and Server-Sent Events server interacting with a PostgreSQL database. The Lite web client uses REST writes and SSE updates; Android continues to use WebSockets.
 
 ## Setup & Dev Scripts
 - **Go Version:** Go 1.26.
@@ -13,6 +13,12 @@ A Go-based scalable REST API and WebSocket server interacting with a PostgreSQL 
   - `internal/config/config_test.go` — `MAX_USERS` parsing
   - `internal/httpserver/auth_handlers_test.go` — register handler when the user limit is reached
   - `internal/httpserver/upload_routes_test.go` — upload POST requires auth (401 for missing/invalid/wrong-key token, unknown or inactive user); download accepts `?token=` and Bearer using a stub `database/sql` driver
+  - `internal/httpserver/event_tickets_test.go` — 30-second expiry, issuer binding, pruning, reuse and concurrent single-use consumption
+  - `internal/httpserver/event_handlers_test.go` — ticket authentication, invalid owners, SSE headers/framing/filtering, ping, disconnect/write/flush/queue cleanup and real-server write-deadline clearing
+  - `internal/httpserver/events_router_test.go` — actual router ticket/SSE routes with a stub SQL driver; only the stream is exempt from chi's 60-second timeout
+  - `internal/httpserver/message_handlers_test.go` — REST event payloads and recipients, private deletes, mutation failures and safe handling of failed/empty participant lookups
+  - `internal/httpserver/events_ws_test.go` — real WS/SSE interoperability, WS payloads/auth/subprotocols/Ping, and mixed-transport presence
+  - `internal/ws/hub_test.go` — opaque subscriber keys, targeting, slow consumers and shared attach/detach presence
   - `internal/security/password_test.go` — argon2id hashing/verification, legacy bcrypt verification, `NeedsUpgrade`
   - `internal/service/auth_service_test.go` — `Register` and user-limit handling, using mock `domain.UserRepository`
   - `internal/store/postgres/user_repo_test.go` — user-limit enforcement in `Create`; needs a real PostgreSQL and is skipped unless `ZCHAT_TEST_DATABASE_URL` is set (each run uses its own schema and drops it afterwards)
@@ -20,7 +26,7 @@ A Go-based scalable REST API and WebSocket server interacting with a PostgreSQL 
 ## Tech Stack & Libraries
 - **Routing:** `github.com/go-chi/chi/v5` handling RESTful API routing, protected by `cors` middleware.
 - **Database:** PostgreSQL via `database/sql` with the `github.com/jackc/pgx/v5/stdlib` driver; repositories take a `*sql.DB` and use hand-written parameterized SQL.
-- **Real-time Engine:** WebSockets managed using `github.com/gorilla/websocket` (see `internal/ws/`).
+- **Real-time Engine:** WebSockets managed using `github.com/gorilla/websocket` and SSE using `net/http`. Both subscribe to the same hub with opaque comparable connection keys and the shared `ws.Attach` lifecycle (`internal/ws/`).
 - **Security:** JWT (`golang-jwt/jwt/v5`) for auth tokens. Passwords hashed with argon2id and legacy bcrypt hashes verified via `golang.org/x/crypto`. Per-IP rate limiting via `go-chi/httprate`.
 - **Encryption:** AES-256-GCM via SHA256-derived key (`internal/security/encrypt.go`). Legacy Fernet decryption for migration support.
 - **Other utilities:** `google/uuid` for ID generation, `SherClockHolmes/webpush-go` for Web Push notifications, `swaggo/http-swagger` for API documentation.
@@ -74,6 +80,7 @@ All REST routes live under the `/api` prefix. The WebSocket endpoint is at `/ws`
 | Method | Path | Handler | Description |
 |--------|------|---------|-------------|
 | POST | `/api/auth/logout` | `auth_handlers.go` | Logout |
+| POST | `/api/events/ticket` | `event_handlers.go` | Mint a single-use 30-second SSE ticket (`200 {"ticket":"<opaque>","expires_in":30}`); response is `Cache-Control: no-store` |
 | GET | `/api/auth/me` | `auth_handlers.go` | Current user info |
 | GET | `/api/users/` | `user_handlers.go` | List all users |
 | GET | `/api/users/online` | `user_handlers.go` | List online users |
@@ -104,8 +111,18 @@ All REST routes live under the `/api` prefix. The WebSocket endpoint is at `/ws`
 
 **Keep-alive & online-status TTL**: The server sends WebSocket **Ping** control frames every `WS_PING_INTERVAL_SEC` seconds. Clients must respond with a Pong (browsers and OkHttp do this automatically). Connections that fail to respond within `WS_PONG_TIMEOUT_SEC` are closed and the user is marked offline. On server startup, all `is_online` flags are reset to `false` to clear stale state from unclean shutdowns. A user is only broadcast as `user_offline` when **all** of their connections close (supports multiple tabs/devices per user).
 
+### Server-Sent Events
+
+`GET /api/events?ticket=<opaque>` consumes a ticket minted with Bearer authentication at `POST /api/events/ticket`. Tickets live in memory for 30 seconds, have one atomic consumption, and always resolve to the stored issuing user (username and ID). Query parameters cannot supply a different identity or JWT. The server rechecks the user exists and is active when consuming; missing, unknown, expired or reused tickets, and inactive/missing/replaced owners, return 401. Restarting the backend invalidates outstanding tickets. A ticket authenticates stream establishment; it is not a reusable JWT or a replay cursor.
+
+The response has `Content-Type: text/event-stream`, `Cache-Control: no-cache` and `X-Accel-Buffering: no`. It starts with `retry: 5000` followed by a blank line, emits `: ping` comments every 20 seconds, and forwards only `message`, `message_edited`, and `message_deleted`. Each frame contains `event: <type>` and one compact `data: <JSON>` line, including `type`. The stream is outside `Timeout(60s)` and clears the server write deadline with `http.NewResponseController`; ordinary routes retain their deadlines. Disconnects, write/flush errors and closed/full subscriber queues share the WS detach cleanup. WS and SSE both count towards presence: each attach broadcasts online, and the final detach broadcasts offline.
+
+REST send/edit/delete handlers receive a `Broadcaster` and emit the exact WS payloads (shared builders in `ws/message_events.go`), including `message_id` and `timestamp` rather than REST DTO `id` and `created_at`. Participants including the sender receive sends, edits and delete-for-everyone; delete-for-me reaches only the actor. Failed/empty participant lookups never fall back to hub broadcast-all. The HTTP response DTOs remain unchanged.
+
+There are no event IDs or replay. Clients must close EventSource on error, back off, mint a fresh ticket and reconnect, then refetch the conversation list and the open conversation's latest page. De-duplicate echoes by `message_id`. Always pass `limit=20` for message pages (omitting it defaults to 1000); add `before_id=<oldest id>` to load older messages. Responses are oldest-first. Mark read with `POST /api/conversations/{conversationID}/read` to update unread counts.
+
 ### Middleware Stack (order)
-`RequestID` → `RealIP` → `Logger` → `Recoverer` → `Timeout(60s)` → `CORS` → `AuthMiddleware` (protected routes only). The auth routes additionally use an `httprate` limiter and `no-store` headers.
+`RequestID` → `RealIP` → `Logger` → `Recoverer` → `CORS` → `Timeout(60s)` (all routes except `GET /api/events`) → `AuthMiddleware` (protected routes only). The auth routes additionally use an `httprate` limiter and `no-store` headers. SSE authenticates its ticket directly, without Bearer middleware.
 
 ## WebSocket Protocol
 Flat JSON structure: `{ "type": "...", ...fields }`. All event types:
@@ -183,6 +200,7 @@ Flat JSON structure: `{ "type": "...", ...fields }`. All event types:
 | **Rate limiting** | `/api/auth/register` and `/api/auth/login`: 10 requests/minute per client IP (resolved by `RealIP`; trustworthy only because nginx is the sole ingress) |
 | **CORS** | Whitelist by origin, credentials allowed |
 | **WebSocket auth** | Bearer token via `Authorization` header or `Sec-WebSocket-Protocol`, origin check against `CORS_ORIGINS` (requests without an `Origin` header are rejected) |
+| **SSE auth** | Single-use, cryptographically random, in-memory ticket minted by an active Bearer user; 30-second TTL and owner existence/active/ID check on consumption |
 
 ## Coding Rules
 - Do NOT use ORMs (like GORM) since the repositories use hand-written SQL on `database/sql` with the `pgx` stdlib driver.

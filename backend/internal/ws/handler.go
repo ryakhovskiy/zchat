@@ -418,6 +418,7 @@ func MakeHandler(
 				}
 
 			default:
+				// #nosec G706 -- %q quotes and escapes untrusted event types before logging.
 				log.Printf("ws: unknown event type %q from user %d", msgType, user.ID)
 			}
 		}

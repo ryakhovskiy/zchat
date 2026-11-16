@@ -1,4 +1,142 @@
 basePath: /api
+definitions:
+  domain.Attachment:
+    properties:
+      created_at:
+        type: string
+      file_path:
+        type: string
+      file_size:
+        type: integer
+      file_type:
+        type: string
+      id:
+        type: integer
+      message_id:
+        type: integer
+      mime_type:
+        type: string
+      original_name:
+        type: string
+      read_count:
+        type: integer
+    type: object
+  domain.ReactionSummary:
+    properties:
+      count:
+        type: integer
+      emoji:
+        type: string
+      user_ids:
+        items:
+          type: integer
+        type: array
+    type: object
+  domain.User:
+    properties:
+      created_at:
+        type: string
+      email:
+        type: string
+      id:
+        type: integer
+      is_active:
+        type: boolean
+      is_online:
+        type: boolean
+      last_seen:
+        type: string
+      username:
+        type: string
+    type: object
+  httpserver.eventTicketResponse:
+    properties:
+      expires_in:
+        type: integer
+      ticket:
+        type: string
+    type: object
+  httpserver.loginRequest:
+    properties:
+      password:
+        type: string
+      remember_me:
+        type: boolean
+      username:
+        type: string
+    type: object
+  httpserver.messageCreateRequest:
+    properties:
+      attachments:
+        items:
+          $ref: '#/definitions/domain.Attachment'
+        type: array
+      content:
+        type: string
+      file_path:
+        type: string
+      file_type:
+        type: string
+      reply_to_id:
+        type: integer
+    type: object
+  httpserver.messageEditRequest:
+    properties:
+      content:
+        type: string
+    type: object
+  httpserver.registerRequest:
+    properties:
+      email:
+        type: string
+      password:
+        type: string
+      username:
+        type: string
+    type: object
+  httpserver.tokenResponse:
+    properties:
+      access_token:
+        type: string
+      token_type:
+        type: string
+      user: {}
+    type: object
+  service.MessageResponse:
+    properties:
+      attachments:
+        items:
+          $ref: '#/definitions/domain.Attachment'
+        type: array
+      content:
+        type: string
+      conversation_id:
+        type: integer
+      created_at:
+        type: string
+      file_path:
+        type: string
+      file_type:
+        type: string
+      id:
+        type: integer
+      is_deleted:
+        type: boolean
+      is_edited:
+        type: boolean
+      is_read:
+        type: boolean
+      reactions:
+        items:
+          $ref: '#/definitions/domain.ReactionSummary'
+        type: array
+      reply_to_id:
+        type: integer
+      sender_id:
+        type: integer
+      sender_username:
+        type: string
+    type: object
 host: localhost:8000
 info:
   contact:
@@ -12,11 +150,301 @@ info:
   termsOfService: http://swagger.io/terms/
   title: zChat Go API
   version: "1.0"
-paths: {}
+paths:
+  /auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Login with username and password
+      parameters:
+      - description: Login input
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/httpserver.loginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/httpserver.tokenResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Login
+      tags:
+      - auth
+  /auth/logout:
+    post:
+      description: Logout user
+      responses:
+        "204":
+          description: No Content
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Logout
+      tags:
+      - auth
+  /auth/me:
+    get:
+      description: Get currently logged in user details
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domain.User'
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get Current User
+      tags:
+      - auth
+  /auth/register:
+    post:
+      consumes:
+      - application/json
+      description: Register a new user and return an access token. Registration is
+        forbidden when the total user count reaches MAX_USERS (default 10).
+      parameters:
+      - description: Register input
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/httpserver.registerRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/httpserver.tokenResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Maximum number of users reached
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Register a new user
+      tags:
+      - auth
+  /conversations/{conversationID}/messages:
+    post:
+      consumes:
+      - application/json
+      description: Creates a message and broadcasts a WebSocket-shaped message event
+        to all participants, including the sender, on WS and SSE.
+      parameters:
+      - description: Conversation ID
+        in: path
+        name: conversationID
+        required: true
+        type: integer
+      - description: Message
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/httpserver.messageCreateRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/service.MessageResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Send a message
+      tags:
+      - messages
+  /events:
+    get:
+      description: 'Consumes a single-use ticket and rechecks its issuing user. Starts
+        with retry: 5000, pings every 20 seconds, and emits message/message_edited/message_deleted
+        with the WebSocket JSON payload (including type). No replay or event IDs.'
+      parameters:
+      - description: Single-use ticket from POST /events/ticket
+        in: query
+        name: ticket
+        required: true
+        type: string
+      produces:
+      - text/event-stream
+      responses:
+        "200":
+          description: Server-sent events
+          headers:
+            Cache-Control:
+              description: no-cache
+              type: string
+            X-Accel-Buffering:
+              description: "no"
+              type: string
+          schema:
+            type: string
+        "401":
+          description: Missing, expired, used ticket or inactive/missing user
+          schema:
+            type: string
+      summary: Subscribe to message events
+      tags:
+      - events
+  /events/ticket:
+    post:
+      description: Ticket is bound to the issuing user, held in memory, and expires
+        after 30 seconds.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/httpserver.eventTicketResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Mint a single-use event stream ticket
+      tags:
+      - events
+  /messages/{messageID}:
+    delete:
+      description: Broadcasts message_deleted with message_id, conversation_id and
+        delete_type. for_me targets only the actor; for_everyone targets all participants
+        on WS and SSE.
+      parameters:
+      - description: Message ID
+        in: path
+        name: messageID
+        required: true
+        type: integer
+      - default: for_me
+        description: Deletion scope
+        enum:
+        - for_me
+        - for_everyone
+        in: query
+        name: delete_type
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/service.MessageResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Delete a message
+      tags:
+      - messages
+    put:
+      consumes:
+      - application/json
+      description: Broadcasts message_edited with message_id, conversation_id, content
+        and is_edited to all participants on WS and SSE.
+      parameters:
+      - description: Message ID
+        in: path
+        name: messageID
+        required: true
+        type: integer
+      - description: New content
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/httpserver.messageEditRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/service.MessageResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Edit an own message
+      tags:
+      - messages
 securityDefinitions:
   BearerAuth:
     in: header
     name: Authorization
     type: apiKey
 swagger: "2.0"
-
