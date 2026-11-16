@@ -33,7 +33,6 @@ func NewRouter(cfg *config.Config, db *sql.DB, hub *ws.Hub, tokenSvc *security.T
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
-	r.Use(middleware.Timeout(60 * time.Second))
 
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   cfg.CORSOrigins,
@@ -70,123 +69,132 @@ func NewRouter(cfg *config.Config, db *sql.DB, hub *ws.Hub, tokenSvc *security.T
 		pushSvc = service.NewPushService(pushSubRepo, cfg.VAPIDPrivateKey, cfg.VAPIDPublicKey)
 	}
 
-	// Static endpoints
-	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"message":"zChat Go Application API","version":"1.0.0","docs":"/docs"}`))
-	})
+	events := &eventHandlers{tickets: newEventTicketStore(), users: userRepo, hub: hub, pingInterval: eventPingInterval}
+	// The stream alone is exempt from the regular request timeout.
+	r.Get("/api/events", events.stream)
+	r.Group(func(r chi.Router) {
+		r.Use(middleware.Timeout(60 * time.Second))
 
-	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"status":"healthy"}`))
-	})
+		// Static endpoints
+		r.Get("/", func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"message":"zChat Go Application API","version":"1.0.0","docs":"/docs"}`))
+		})
 
-	r.Get("/robots.txt", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/plain")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("User-agent: *\nDisallow: /"))
-	})
+		r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"status":"healthy"}`))
+		})
 
-	// Swagger documentation — exposes the full API surface, so keep it out of
-	// production. It is only reachable in prod via a direct backend-port hit
-	// anyway (nginx doesn't proxy /docs); gating on Debug closes it for good.
-	if cfg.Debug {
-		r.Get("/docs/*", httpSwagger.Handler(
-			httpSwagger.URL("/docs/doc.json"),
-		))
-	}
+		r.Get("/robots.txt", func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "text/plain")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("User-agent: *\nDisallow: /"))
+		})
 
-	// Static app downloads (APK, etc.). Wrapped to refuse directory-listing
-	// requests (any path ending in "/") so the contents of app/ aren't
-	// enumerable -- http.FileServer lists directories by default when no
-	// index.html is present (SECURITY_HARDENING.md item 11).
-	appFS := http.StripPrefix("/app/", http.FileServer(http.Dir("app")))
-	r.Handle("/app/*", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasSuffix(r.URL.Path, "/") {
-			http.NotFound(w, r)
-			return
+		// Swagger documentation — exposes the full API surface, so keep it out of
+		// production. It is only reachable in prod via a direct backend-port hit
+		// anyway (nginx doesn't proxy /docs); gating on Debug closes it for good.
+		if cfg.Debug {
+			r.Get("/docs/*", httpSwagger.Handler(
+				httpSwagger.URL("/docs/doc.json"),
+			))
 		}
-		appFS.ServeHTTP(w, r)
-	}))
 
-	// API routes
-	r.Route("/api", func(r chi.Router) {
-		// Auth routes (no auth required)
-		r.Route("/auth", func(r chi.Router) {
-			// Rate-limit unauthenticated auth endpoints. Each login/register
-			// triggers an argon2id derivation that allocates 19-64 MiB; without a
-			// per-IP cap this is both a credential-brute-force and a
-			// memory-exhaustion DoS vector.
-			//
-			// Keyed off r.RemoteAddr, which middleware.RealIP (installed above)
-			// resolves from True-Client-IP/X-Real-IP/X-Forwarded-For, all of which
-			// the frontend nginx overwrites (frontend/docker/nginx.conf). That is
-			// only trustworthy because nginx is the sole ingress and the backend
-			// port is not published (docker-compose.yml) -- otherwise
-			// the header, and thus the key, is client-forgeable. An explicit key
-			// func (rather than the deprecated LimitByIP) states that trust model.
-			r.Use(httprate.LimitBy(10, time.Minute, keyByResolvedIP))
-			// Responses carry a JWT -- must not be cached anywhere.
-			r.Use(noCacheHeaders)
-			r.Post("/register", handleRegister(authSvc, userSvc))
-			r.Post("/login", handleLogin(authSvc))
-		})
+		// Static app downloads (APK, etc.). Wrapped to refuse directory-listing
+		// requests (any path ending in "/") so the contents of app/ aren't
+		// enumerable -- http.FileServer lists directories by default when no
+		// index.html is present (SECURITY_HARDENING.md item 11).
+		appFS := http.StripPrefix("/app/", http.FileServer(http.Dir("app")))
+		r.Handle("/app/*", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if strings.HasSuffix(r.URL.Path, "/") {
+				http.NotFound(w, r)
+				return
+			}
+			appFS.ServeHTTP(w, r)
+		}))
 
-		// Public VAPID key endpoint (no auth required)
-		r.Get("/push/vapid-key", handleVAPIDKey(cfg.VAPIDPublicKey))
-
-		// Authenticated routes
-		r.Group(func(r chi.Router) {
-			r.Use(AuthMiddleware(tokenSvc, userRepo))
-
-			// Authenticated auth endpoints — return/invalidate session state, so
-			// keep them out of caches too.
-			r.Group(func(r chi.Router) {
+		// API routes
+		r.Route("/api", func(r chi.Router) {
+			// Auth routes (no auth required)
+			r.Route("/auth", func(r chi.Router) {
+				// Rate-limit unauthenticated auth endpoints. Each login/register
+				// triggers an argon2id derivation that allocates 19-64 MiB; without a
+				// per-IP cap this is both a credential-brute-force and a
+				// memory-exhaustion DoS vector.
+				//
+				// Keyed off r.RemoteAddr, which middleware.RealIP (installed above)
+				// resolves from True-Client-IP/X-Real-IP/X-Forwarded-For, all of which
+				// the frontend nginx overwrites (frontend/docker/nginx.conf). That is
+				// only trustworthy because nginx is the sole ingress and the backend
+				// port is not published (docker-compose.yml) -- otherwise
+				// the header, and thus the key, is client-forgeable. An explicit key
+				// func (rather than the deprecated LimitByIP) states that trust model.
+				r.Use(httprate.LimitBy(10, time.Minute, keyByResolvedIP))
+				// Responses carry a JWT -- must not be cached anywhere.
 				r.Use(noCacheHeaders)
-				r.Post("/auth/logout", handleLogout(authSvc))
-				r.Get("/auth/me", handleMe())
+				r.Post("/register", handleRegister(authSvc, userSvc))
+				r.Post("/login", handleLogin(authSvc))
 			})
 
-			// Users
-			r.Route("/users", func(r chi.Router) {
-				r.Get("/", handleListUsers(userSvc))
-				r.Get("/online", handleListOnlineUsers(userSvc))
-				r.Get("/{userID}", handleGetUser(userSvc))
+			// Public VAPID key endpoint (no auth required)
+			r.Get("/push/vapid-key", handleVAPIDKey(cfg.VAPIDPublicKey))
+
+			// Authenticated routes
+			r.Group(func(r chi.Router) {
+				r.Use(AuthMiddleware(tokenSvc, userRepo))
+
+				// Authenticated auth endpoints — return/invalidate session state, so
+				// keep them out of caches too.
+				r.Group(func(r chi.Router) {
+					r.Use(noCacheHeaders)
+					r.Post("/auth/logout", handleLogout(authSvc))
+					r.Get("/auth/me", handleMe())
+				})
+
+				r.Post("/events/ticket", events.ticket)
+
+				// Users
+				r.Route("/users", func(r chi.Router) {
+					r.Get("/", handleListUsers(userSvc))
+					r.Get("/online", handleListOnlineUsers(userSvc))
+					r.Get("/{userID}", handleGetUser(userSvc))
+				})
+
+				// Conversations and messages
+				r.Route("/conversations", func(r chi.Router) {
+					r.Post("/", handleCreateConversation(convSvc))
+					r.Get("/", handleListConversations(convSvc))
+					r.Get("/{conversationID}", handleGetConversation(convSvc))
+					r.Post("/{conversationID}/read", handleMarkConversationRead(convSvc))
+					r.Get("/{conversationID}/messages", handleListMessages(msgSvc))
+					r.Post("/{conversationID}/messages", handleCreateMessage(msgSvc, hub))
+				})
+
+				// Message edit / delete
+				r.Route("/messages", func(r chi.Router) {
+					r.Put("/{messageID}", handleEditMessage(msgSvc, hub))
+					r.Delete("/{messageID}", handleDeleteMessage(msgSvc, hub))
+				})
+
+				// Push notification subscription management
+				r.Post("/push/subscribe", handlePushSubscribe(pushSubRepo))
+				r.Delete("/push/unsubscribe", handlePushUnsubscribe(pushSubRepo))
 			})
 
-			// Conversations and messages
-			r.Route("/conversations", func(r chi.Router) {
-				r.Post("/", handleCreateConversation(convSvc))
-				r.Get("/", handleListConversations(convSvc))
-				r.Get("/{conversationID}", handleGetConversation(convSvc))
-				r.Post("/{conversationID}/read", handleMarkConversationRead(convSvc))
-				r.Get("/{conversationID}/messages", handleListMessages(msgSvc))
-				r.Post("/{conversationID}/messages", handleCreateMessage(msgSvc))
-			})
-
-			// Message edit / delete
-			r.Route("/messages", func(r chi.Router) {
-				r.Put("/{messageID}", handleEditMessage(msgSvc))
-				r.Delete("/{messageID}", handleDeleteMessage(msgSvc))
-			})
-
-			// Push notification subscription management
-			r.Post("/push/subscribe", handlePushSubscribe(pushSubRepo))
-			r.Delete("/push/unsubscribe", handlePushUnsubscribe(pushSubRepo))
-
+			// Moved outside of AuthMiddleware group to allow download via ?token= query param;
+			// UploadRoutes applies AuthMiddleware to the upload POST itself.
+			r.Mount("/uploads", UploadRoutes(cfg, db, tokenSvc, userRepo))
 		})
 
-		// Moved outside of AuthMiddleware group to allow download via ?token= query param;
-		// UploadRoutes applies AuthMiddleware to the upload POST itself.
-		r.Mount("/uploads", UploadRoutes(cfg, db, tokenSvc, userRepo))
-	})
+		// WebSocket endpoint
+		pingInterval := time.Duration(cfg.WSPingIntervalSec) * time.Second
+		pongTimeout := time.Duration(cfg.WSPongTimeoutSec) * time.Second
+		r.Get("/ws", ws.MakeHandler(hub, tokenSvc, userRepo, convRepo, msgSvc, encryptor, pushSvc, cfg.CORSOrigins, pingInterval, pongTimeout))
 
-	// WebSocket endpoint
-	pingInterval := time.Duration(cfg.WSPingIntervalSec) * time.Second
-	pongTimeout := time.Duration(cfg.WSPongTimeoutSec) * time.Second
-	r.Get("/ws", ws.MakeHandler(hub, tokenSvc, userRepo, convRepo, msgSvc, encryptor, pushSvc, cfg.CORSOrigins, pingInterval, pongTimeout))
+	})
 
 	return r
 }
