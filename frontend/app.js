@@ -5,6 +5,7 @@ const $ = id => document.getElementById(id);
 
 let tok, me, view, cur;          // token, {id,username}, visible view, open conversation id
 let gen = 0;                     // session generation: async results from an older session are dropped
+let att = 0;                     // auth attempt: bumped on every new sign-in/register submit, auth-view switch and session change
 let convs = [], msgs = [], more = false, ready = false, synced = false, older = false;
 let log = [], seq = 0;           // recent live events, replayed over REST responses that raced them
 let es, lg = 0, timer, retry = 0, liveOn = false;
@@ -60,7 +61,7 @@ function enter(r, remember) {
 }
 
 function signOut() {
-  ++gen; ++lg; clearTimeout(timer);
+  ++gen; ++att; ++lg; clearTimeout(timer);
   if (es) es.close();
   es = null; setLive(false);
   for (const s of [localStorage, sessionStorage]) {
@@ -77,7 +78,7 @@ function boot() {
   tok = get('token');
   try { me = JSON.parse(get('user')); } catch { me = null; }
   if (tok && !(me && me.id)) return signOut();
-  ++gen;
+  ++gen; ++att;
   if (tok) {
     live();
     if (!/^#\/c\/\d+$/.test(location.hash)) location.replace('#/');
@@ -96,6 +97,7 @@ function route() {
   const changed = v != view || c != cur;
   view = v;
   if (!changed) return;
+  if (!tok) ++att;   // switching login/register abandons a pending attempt
   $('err').textContent = '';
   $(v).querySelector('h2').focus();
   if (c != cur) {
@@ -197,6 +199,13 @@ function ev(e) {
 
 // Re-apply events that happened while a REST request was in flight (its response may predate them).
 const since = n => log.filter(e => e.n > n).forEach(apply);
+
+// Result of my own REST write (send/edit/delete). If a newer event about the same message arrived while the
+// request was in flight (another tab, a later edit, a delete), the late acknowledgement is stale: drop it.
+const ack = (e, n) => {
+  const id = e.m ? e.m.id : e.id;
+  if (!log.some(x => x.n > n && (x.m ? x.m.id : x.id) == id)) ev(e);
+};
 
 function ingest(d) {
   if (d.type == 'message') ev({ t: 'message', m: norm(d) });
@@ -304,34 +313,38 @@ function wake() {
 }
 
 // ---- wiring ----
-function form(id, fn) {
+// fn(form, ok): ok() is false once this submit was superseded (new auth attempt, view switch, session change).
+// Auth forms start a new attempt on submit; a superseded attempt must not report errors or sign anyone in.
+function form(id, fn, auth) {
   const f = $(id);
   f.onsubmit = async e => {
     e.preventDefault();
     if (f.dataset.busy) return;
     f.dataset.busy = 1;
     $('err').textContent = '';
-    try { await fn(f); } catch (x) { fail(x); } finally { delete f.dataset.busy; }
+    const a = auth ? ++att : att, ok = () => a == att;
+    try { await fn(f, ok); } catch (x) { if (ok()) fail(x); } finally { delete f.dataset.busy; }
   };
 }
 
 const cred = f => ({ username: f.username.value.trim(), password: f.password.value });
 
-form('lf', async f => {
+form('lf', async (f, ok) => {
   const remember = f.remember.checked;
   const r = await api('/auth/login', { m: 'POST', b: { ...cred(f), remember_me: remember } });
+  if (!ok()) return;
   f.password.value = '';
   enter(r, remember);
-});
+}, 1);
 
-form('rf', async f => {
+form('rf', async (f, ok) => {
   const b = cred(f);
   b.email = f.email.value.trim() || null;
-  await api('/auth/register', { m: 'POST', b });
-  const r = await api('/auth/login', { m: 'POST', b: { ...cred(f), remember_me: false } });
+  const r = await api('/auth/register', { m: 'POST', b });   // 201 already carries the session (token + user)
+  if (!ok()) return;
   f.password.value = '';
   enter(r, false);
-});
+}, 1);
 
 form('nf', async f => {
   const id = +f.user.value;
@@ -346,9 +359,9 @@ form('nf', async f => {
 form('cf', async f => {
   const c = cur, t = f.text.value.trim();
   if (!t) return;
-  const g = gen, r = await api(`/conversations/${c}/messages`, { m: 'POST', b: { content: t } });
+  const g = gen, n = seq, r = await api(`/conversations/${c}/messages`, { m: 'POST', b: { content: t } });
   if (g != gen) return;
-  ev({ t: 'message', m: norm(r) });
+  ack({ t: 'message', m: norm(r) }, n);
   if (cur == c && f.text.value.trim() == t) f.text.value = '';
 });
 
@@ -370,12 +383,13 @@ async function act(k, m) {
   if (k == 'edit-message') {
     const t = prompt('Edit message', m.text);
     if (t == null || !t.trim() || t.trim() == m.text) return;
-    const r = await api('/messages/' + m.id, { m: 'PUT', b: { content: t.trim() } });
-    if (g == gen) ev({ t: 'edit', id: m.id, text: r.content });
+    const n = seq, r = await api('/messages/' + m.id, { m: 'PUT', b: { content: t.trim() } });
+    if (g == gen) ack({ t: 'edit', id: m.id, text: r.content }, n);
   } else {
     const all = k == 'delete-everyone', type = all ? 'for_everyone' : 'for_me';
+    const n = seq;
     await api(`/messages/${m.id}?delete_type=${type}`, { m: 'DELETE' });
-    if (g == gen) ev({ t: 'del', id: m.id, type });
+    if (g == gen) ack({ t: 'del', id: m.id, type }, n);
   }
 }
 
