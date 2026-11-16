@@ -1,0 +1,12 @@
+{
+  "name": "zchat-lite-tests",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:e2e": "playwright test --config ../playwright.config.js"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "4.11.1",
+    "@playwright/test": "1.65.0"
+  }
+}

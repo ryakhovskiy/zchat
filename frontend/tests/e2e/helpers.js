@@ -1,154 +1,138 @@
 import { expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
-import { readFileSync } from 'node:fs';
+import { readFile, writeFile } from 'node:fs/promises';
 import { authFile } from './setup.js';
-
-export const themes = ['light', 'dark', 'tech-green', 'tech-red'];
-export const themeNames = { light: 'Light', dark: 'Dark', 'tech-green': 'Tech Green', 'tech-red': 'Tech Red' };
 
 export function credentials() {
   const { E2E_USERNAME: username, E2E_PASSWORD: password, E2E_PEER: peer } = process.env;
-  if (!username || !password || !peer) throw new Error('Set E2E_USERNAME, E2E_PASSWORD and E2E_PEER from the isolated stack seed.');
-  return { username, password, peer };
+  if (!username || !password || !peer) throw new Error('Export credentials using the lite e2e/run.sh env action.');
+  return { username, password, peer, peerPassword: process.env.E2E_PEER_PASSWORD || password };
 }
 
-export async function prepare(page, theme) {
-  await page.addInitScript((initialTheme) => {
-    if (!localStorage.getItem('i18nextLng')) localStorage.setItem('i18nextLng', 'en');
-    if (initialTheme && !sessionStorage.getItem('qa-theme-seeded')) {
-      localStorage.setItem('zchat-theme', initialTheme);
-      sessionStorage.setItem('qa-theme-seeded', 'true');
+export const unique = label => `lite-${label}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+export const messages = page => page.getByTestId('message-list').locator(':scope > li');
+export const messageByID = (page, id) => page.getByTestId(`message-${id}`);
+
+export async function apiSession() {
+  const { access_token } = JSON.parse(await readFile(authFile, 'utf8'));
+  return { Authorization: `Bearer ${access_token}` };
+}
+
+export async function fixtureSession(request, peer = false) {
+  if (!peer) return JSON.parse(await readFile(authFile, 'utf8'));
+  const { peer: username, peerPassword: password } = credentials();
+  const cache = new URL('../../playwright/.cache/peer.json', import.meta.url);
+  const baseURL = process.env.E2E_BASE_URL;
+  try {
+    const saved = JSON.parse(await readFile(cache, 'utf8'));
+    if (saved.baseURL === baseURL && saved.username === username) {
+      const me = await request.get('/api/auth/me', { headers: { Authorization: `Bearer ${saved.session.access_token}` } });
+      if (me.ok()) return saved.session;
     }
-  }, theme);
+  } catch { /* First run or stack reset: authenticate the peer once. */ }
+  const response = await request.post('/api/auth/login', { data: { username, password } });
+  expect(response.ok(), `peer fixture login HTTP ${response.status()}`).toBeTruthy();
+  const session = await response.json();
+  await writeFile(cache, JSON.stringify({ baseURL, username, session }), { mode: 0o600 });
+  return session;
 }
 
-export async function login(page) {
-  credentials();
-  const { access_token: token } = JSON.parse(readFileSync(authFile, 'utf8'));
-  // Reuse one isolated session: the backend allows only 10 auth requests/minute.
-  // Bootstrap still reads /auth/me and establishes a real WebSocket on each page.
-  await page.evaluate(value => sessionStorage.setItem('token', value), token);
+export async function waitLive(page) {
+  await expect(page.getByTestId('live-status')).toHaveAttribute('data-live', '1');
+}
+
+export async function login(page, session) {
+  session ||= JSON.parse(await readFile(authFile, 'utf8'));
+  await page.goto('/');
+  await page.evaluate(value => {
+    localStorage.clear();
+    sessionStorage.clear();
+    sessionStorage.setItem('token', value.access_token);
+    sessionStorage.setItem('user', JSON.stringify(value.user));
+  }, session);
   await page.reload();
   await expect(page.getByTestId('conversation-list')).toBeVisible();
-  await expect(page.locator('.conversation-item').first()).toBeVisible();
+  await waitLive(page);
+}
+
+export async function formLogin(page, remember = false) {
+  const { username, password } = credentials();
+  await page.goto('/');
+  await page.getByTestId('login-username').fill(username);
+  await page.getByTestId('login-password').fill(password);
+  await page.getByTestId('remember-me').setChecked(remember);
+  const sent = page.waitForRequest(req => new URL(req.url()).pathname === '/api/auth/login' && req.method() === 'POST');
+  await page.getByTestId('login-submit').click();
+  expect((await sent).postDataJSON()).toMatchObject({ username, remember_me: remember });
+  await expect(page.getByTestId('conversation-list')).toBeVisible();
+  await waitLive(page);
 }
 
 export async function openConversation(page, title = credentials().peer) {
-  await page.locator('.conversation-item').filter({ has: page.locator('.conversation-title', { hasText: new RegExp(`^${title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`) }) }).click();
-  await expect(page.locator('.message-input')).toBeVisible();
+  await page.getByTestId('conversation-list').getByRole('link', { name: title, exact: true }).click();
+  await expect(page.getByTestId('message-input')).toBeVisible();
+  await expect(page).toHaveURL(/#\/c\/\d+$/);
+  await waitLive(page);
+  return Number(new URL(page.url()).hash.split('/').at(-1));
 }
 
-export async function openSettings(page) {
-  await page.locator('.settings-btn:visible').click();
-  await expect(page.getByTestId('settings-sheet')).toBeVisible();
+export async function send(page, text) {
+  await page.getByTestId('message-input').fill(text);
+  const response = page.waitForResponse(r => /\/api\/conversations\/\d+\/messages$/.test(new URL(r.url()).pathname) && r.request().method() === 'POST');
+  await page.getByTestId('send-message').click();
+  const result = await response;
+  expect(result.ok(), `send HTTP ${result.status()}`).toBeTruthy();
+  const saved = await result.json();
+  await expect(messageByID(page, saved.id).getByTestId('message-content')).toHaveText(text);
+  return saved;
 }
 
-export async function selectTheme(page, theme) {
-  const choice = page.getByRole('radio', { name: new RegExp(`^${themeNames[theme]}`, 'i') });
-  await choice.click();
-  await expect(choice).toBeChecked();
-  await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
+export async function apiMessage(request, conversationID, content, peer = false) {
+  const session = await fixtureSession(request, peer);
+  const response = await request.post(`/api/conversations/${conversationID}/messages`, {
+    headers: { Authorization: `Bearer ${session.access_token}` }, data: { content },
+  });
+  expect(response.ok(), `fixture send HTTP ${response.status()}`).toBeTruthy();
+  return response.json();
 }
 
-export async function assertNoOverflow(page, label) {
-  const dimensions = await page.evaluate(() => ({
-    viewport: document.documentElement.clientWidth,
-    html: document.documentElement.scrollWidth,
-    body: document.body.scrollWidth,
-  }));
-  expect.soft(dimensions.html, `${label}: document width ${JSON.stringify(dimensions)}`).toBeLessThanOrEqual(dimensions.viewport + 1);
-  expect.soft(dimensions.body, `${label}: body width`).toBeLessThanOrEqual(dimensions.viewport + 1);
-}
-
-export async function assertFits(locator, label) {
-  await expect(locator, label).toBeVisible();
-  const bounds = await locator.boundingBox();
-  const viewport = locator.page().viewportSize();
-  expect.soft(bounds.x, `${label}: left`).toBeGreaterThanOrEqual(-1);
-  expect.soft(bounds.y, `${label}: top`).toBeGreaterThanOrEqual(-1);
-  expect.soft(bounds.x + bounds.width, `${label}: right`).toBeLessThanOrEqual(viewport.width + 1);
-  expect.soft(bounds.y + bounds.height, `${label}: bottom`).toBeLessThanOrEqual(viewport.height + 1);
-}
-
-export async function assertTouchTargets(page, selector, label) {
-  if (page.viewportSize().width >= 768) return;
-  const targets = page.locator(selector).and(page.locator(':visible'));
-  expect.soft(await targets.count(), `${label}: touch controls present`).toBeGreaterThan(0);
-  for (const target of await targets.all()) {
-    // Scrollable sheets may contain rows below their clipped body viewport.
-    // Check each control after bringing it into view, just as a user would.
-    await target.scrollIntoViewIfNeeded();
-    const box = await target.boundingBox();
-    const name = await target.getAttribute('aria-label') || await target.getAttribute('title') || await target.textContent();
-    expect.soft(box.width, `${label}: ${name} width`).toBeGreaterThanOrEqual(44);
-    expect.soft(box.height, `${label}: ${name} height`).toBeGreaterThanOrEqual(44);
-    const viewport = page.viewportSize();
-    const x = box.x + box.width / 2;
-    const y = box.y + box.height / 2;
-    if (x >= 0 && y >= 0 && x < viewport.width && y < viewport.height) {
-      const hit = await target.evaluate((element, point) => element.contains(document.elementFromPoint(point.x, point.y)), { x, y });
-      expect.soft(hit, `${label}: ${name} is covered by another control`).toBeTruthy();
-    }
+export async function pairedPages(browser, request) {
+  const aliceContext = await browser.newContext({ baseURL: process.env.E2E_BASE_URL });
+  const bobContext = await browser.newContext({ baseURL: process.env.E2E_BASE_URL });
+  try {
+    const alice = await aliceContext.newPage();
+    const bob = await bobContext.newPage();
+    const aliceEvents = await observeSSE(alice);
+    const bobEvents = await observeSSE(bob);
+    await login(alice);
+    await login(bob, await fixtureSession(request, true));
+    const id = await openConversation(alice);
+    expect(await openConversation(bob, credentials().username)).toBe(id);
+    return { alice, bob, aliceEvents, bobEvents, id,
+      close: () => Promise.all([aliceContext.close(), bobContext.close()]) };
+  } catch (error) {
+    await Promise.all([aliceContext.close(), bobContext.close()]);
+    throw error;
   }
 }
 
-export async function capture(page, testInfo, name, scope) {
-  await assertNoOverflow(page, name);
-  const results = await new AxeBuilder({ page }).withRules(['color-contrast']).analyze();
-  await testInfo.attach(`${name}-contrast`, { body: JSON.stringify({ violations: results.violations, incomplete: results.incomplete, passes: results.passes }, null, 2), contentType: 'application/json' });
-  expect.soft(results.violations.map(v => ({ id: v.id, nodes: v.nodes.map(n => ({ target: n.target, summary: n.failureSummary })) })), `${name}: WCAG AA text contrast`).toEqual([]);
-  if (scope) await assertFits(scope, name);
-  const path = testInfo.outputPath(`${name}.png`);
-  await page.screenshot({ path, animations: 'disabled' });
-  await testInfo.attach(name, { path, contentType: 'image/png' });
+export async function observeSSE(page) {
+  const cdp = await page.context().newCDPSession(page);
+  const events = [];
+  cdp.on('Network.eventSourceMessageReceived', event => {
+    events.push({ type: event.eventName, ...JSON.parse(event.data) });
+  });
+  await cdp.send('Network.enable');
+  return events;
 }
 
-export async function dismiss(page, overlay, mode, closeSelector) {
-  if ((await overlay.getAttribute('class'))?.includes('sheet-root')) {
-    await expect(overlay).not.toHaveClass(/sheet-root--arming/);
-  }
-  if (mode === 'escape') await page.keyboard.press('Escape');
-  else if (mode === 'close') await overlay.locator(closeSelector).click();
-  else {
-    // Hit the scrim itself, outside the dialog, including phone landscape.
-    const point = await overlay.evaluate(element => {
-      const scrim = element.querySelector('.sheet-scrim') || element;
-      const b = scrim.getBoundingClientRect();
-      for (const [x, y] of [[b.x + 2, b.y + 2], [b.right - 2, b.y + 2], [b.x + 2, b.bottom - 2], [b.x + 2, b.y + b.height / 2]]) {
-        const hit = document.elementFromPoint(x, y);
-        if (hit === scrim || (element.contains(hit) && hit?.classList.contains('image-modal-stage'))) return { x, y };
-      }
-      return null;
-    });
-    expect(point, 'the overlay exposes a tappable scrim').not.toBeNull();
-    await page.mouse.click(point.x, point.y);
-  }
-  await expect(overlay).toBeHidden();
+export async function received(events, type, id) {
+  await expect.poll(() => events.some(event => event.type === type && event.message_id === id),
+    { message: `SSE ${type} for message ${id}` }).toBe(true);
 }
 
-export async function openActions(page, message) {
-  const text = message.locator('.message-text');
-  await text.scrollIntoViewIfNeeded();
-  // Wait for anchoring/focus restoration to settle before choosing touch coordinates.
-  await text.click({ trial: true });
-  if (await page.evaluate(() => matchMedia('(pointer: coarse)').matches)) {
-    const box = await text.boundingBox();
-    const client = await page.context().newCDPSession(page);
-    try {
-      await client.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: box.x + box.width / 2, y: box.y + box.height / 2 }] });
-      // Keep the real touch held until the application opens its long-press sheet.
-      await expect(page.getByTestId('message-action-sheet')).toBeVisible();
-    } finally {
-      await client.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-      await client.detach();
-    }
-  } else await text.click({ button: 'right' });
-  await expect(actions(page)).toBeVisible();
-}
-
-export const actions = page => page.locator('[data-testid="message-action-sheet"], [data-testid="message-context-menu"]');
-
-export async function apiSession() {
-  const { access_token: token } = JSON.parse(readFileSync(authFile, 'utf8'));
-  return { Authorization: `Bearer ${token}` };
+export async function axe(page, testInfo, view) {
+  const result = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
+  await testInfo.attach(`axe-${view}`, { contentType: 'application/json', body: JSON.stringify(result, null, 2) });
+  expect(result.violations.map(({ id, nodes }) => ({ id, nodes: nodes.map(n => ({ target: n.target, summary: n.failureSummary })) })), `${view}: axe violations`).toEqual([]);
 }
