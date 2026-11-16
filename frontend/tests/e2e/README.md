@@ -1,9 +1,11 @@
-# Lite browser acceptance tests
+# Browser acceptance tests
 
-The suite targets only Compose project `zchat-lite-e2e` at
-`http://127.0.0.1:38081`. The config requires that exact URL, project and port;
-it starts no server. Port 3000 contains real data. The existing `zchat-e2e`
-stack on 38080 is also off limits.
+The suite requires Compose project `zchat-lite-e2e` at
+`http://127.0.0.1:38081`. The config enforces that exact URL, project and port;
+it starts no server. These `E2E_PROJECT`/`E2E_PORT` overrides run a second
+disposable instance alongside the helper's default `zchat-e2e` stack on port
+38080; both serve the same static client. Never target the real-data stack on
+port 3000 for development or tests.
 
 The production client needs no Node tooling. Test dependencies live separately
 in `frontend/tests/package.json`: Playwright 1.65.0 and axe 4.11.1. From this repo:
@@ -16,10 +18,7 @@ npx playwright install chromium
 # sudo npx playwright install-deps chromium
 ```
 
-Chromium uses `channel: chromium`. On the QA host the browser is already cached.
-Do not start the stack until the lead confirms the frontend/backend merges landed.
-QA owns its lifecycle; coordinate builds, reset and teardown with deployment.
-From the repository root:
+Chromium uses `channel: chromium`. From the repository root:
 
 ```sh
 export E2E_PROJECT=zchat-lite-e2e E2E_PORT=38081
@@ -33,8 +32,10 @@ npm run test:e2e
 
 `run.sh env` exports the exact base URL, project, port, `E2E_USERNAME`,
 `E2E_PASSWORD`, `E2E_PEER` and `E2E_PEER_PASSWORD`. Never assume a fixed password.
-The lite project's generated secrets and results live under ignored
-`e2e/.state/zchat-lite-e2e/`; the root `.env` is unused. Set `EXTRA_CA_FILE` before
+The selected project's generated secrets and results live under ignored
+`e2e/.state/zchat-lite-e2e/`. More generally, custom projects use
+`e2e/.state/<project>/`; the default `zchat-e2e` uses `e2e/.env` and stores
+reports in `e2e/`. The root `.env` is unused. Set `EXTRA_CA_FILE` before
 building if a TLS proxy requires a trusted CA bundle. HTTP verification takes
 about 80 seconds to check that SSE survives multiple keepalive pings.
 
@@ -44,7 +45,7 @@ navigation. Bob uses the exported peer password (defaults to Alice's password
 when `E2E_PEER_PASSWORD` is absent). Registration needs spare account capacity;
 each complete run creates two unique accounts through the forms (normal registration
 and the pending-registration race) and starts a direct chat from the first account.
-Reseed/reset only the lite project when its user cap is
+Reseed/reset only the selected disposable project when its user cap is
 reached. Tests use unique message content and never depend on message IDs or order
 left by earlier runs.
 
@@ -68,7 +69,7 @@ The `lite` project covers:
 - Unread counts, conversation ordering and REST mark-read.
 - A real socket drop through a temporary loopback SSE proxy; a fresh ticket, list/latest refetch and
   recovery of missed sends, edits and deletions, followed by another live message.
-  The proxy forwards only the real lite SSE endpoint and closes its sockets to
+  The proxy forwards only the selected stack's SSE endpoint and closes its sockets to
   produce a native EventSource error. Chromium's offline emulation alone does
   not reliably disconnect a stream that is already open.
 - Delayed real REST snapshots racing live mutations, a chat switch and logout.
@@ -108,5 +109,5 @@ evidence. A collected test is not a passing browser test.
 
 From the repository root with the same exported project/port, `bash e2e/run.sh
 down` retains volumes. `down --volumes` deletes this project's fixtures; `reset`
-rebuilds and reseeds them. Never unset the project/port and invoke these commands:
-the helper retains legacy defaults for the other checkout.
+rebuilds and reseeds them. Keep the project/port selection consistent with the stack under test:
+omitting the overrides selects the default `zchat-e2e` project on port 38080.
