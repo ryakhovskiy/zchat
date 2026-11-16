@@ -10,13 +10,17 @@ import (
 	"backend/internal/ws"
 )
 
-const eventPingInterval = 20 * time.Second
+const (
+	eventPingInterval = 20 * time.Second
+	eventWriteTimeout = 10 * time.Second
+)
 
 type eventHandlers struct {
 	tickets      *eventTicketStore
 	users        domain.UserRepository
 	hub          *ws.Hub
 	pingInterval time.Duration
+	writeTimeout time.Duration
 }
 
 type eventTicketResponse struct {
@@ -82,10 +86,7 @@ func (h *eventHandlers) stream(w http.ResponseWriter, r *http.Request) {
 	send := make(chan []byte, 256)
 	detach := ws.Attach(h.hub, h.users, user, send, send)
 	defer detach()
-	if _, err := fmt.Fprint(w, "retry: 5000\n\n"); err != nil {
-		return
-	}
-	if err := controller.Flush(); err != nil {
+	if err := h.writeFrame(w, controller, "retry: 5000\n\n"); err != nil {
 		return
 	}
 	ticker := time.NewTicker(h.pingInterval)
@@ -95,7 +96,7 @@ func (h *eventHandlers) stream(w http.ResponseWriter, r *http.Request) {
 		case <-r.Context().Done():
 			return
 		case <-ticker.C:
-			if _, err := fmt.Fprint(w, ": ping\n\n"); err != nil {
+			if err := h.writeFrame(w, controller, ": ping\n\n"); err != nil {
 				return
 			}
 		case data, open := <-send:
@@ -110,15 +111,28 @@ func (h *eventHandlers) stream(w http.ResponseWriter, r *http.Request) {
 			}
 			switch event.Type {
 			case "message", "message_edited", "message_deleted":
-				if _, err := fmt.Fprintf(w, "event: %s\ndata: %s\n\n", event.Type, data); err != nil {
+				if err := h.writeFrame(w, controller, fmt.Sprintf("event: %s\ndata: %s\n\n", event.Type, data)); err != nil {
 					return
 				}
 			default:
 				continue
 			}
 		}
-		if err := controller.Flush(); err != nil {
-			return
-		}
 	}
+}
+
+// writeFrame bounds a complete write+flush so a stalled peer cannot retain its
+// handler after hub eviction. Clear the deadline between frames: idle waits
+// (including the 20-second ping interval) must outlive this shorter write limit.
+func (h *eventHandlers) writeFrame(w http.ResponseWriter, controller *http.ResponseController, frame string) error {
+	if err := controller.SetWriteDeadline(time.Now().Add(h.writeTimeout)); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprint(w, frame); err != nil {
+		return err
+	}
+	if err := controller.Flush(); err != nil {
+		return err
+	}
+	return controller.SetWriteDeadline(time.Time{})
 }

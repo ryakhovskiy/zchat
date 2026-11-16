@@ -69,7 +69,7 @@ func NewRouter(cfg *config.Config, db *sql.DB, hub *ws.Hub, tokenSvc *security.T
 		pushSvc = service.NewPushService(pushSubRepo, cfg.VAPIDPrivateKey, cfg.VAPIDPublicKey)
 	}
 
-	events := &eventHandlers{tickets: newEventTicketStore(), users: userRepo, hub: hub, pingInterval: eventPingInterval}
+	events := &eventHandlers{tickets: newEventTicketStore(), users: userRepo, hub: hub, pingInterval: eventPingInterval, writeTimeout: eventWriteTimeout}
 	// The stream alone is exempt from the regular request timeout.
 	r.Get("/api/events", events.stream)
 	r.Group(func(r chi.Router) {

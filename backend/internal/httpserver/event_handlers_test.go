@@ -2,10 +2,12 @@ package httpserver
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -62,7 +64,7 @@ func newEventHandlersForTest() (*eventHandlers, *security.TokenService) {
 	hub := ws.NewHub(time.Hour, time.Hour)
 	go hub.Run()
 	return &eventHandlers{
-		tickets: newEventTicketStore(), hub: hub, pingInterval: eventPingInterval,
+		tickets: newEventTicketStore(), hub: hub, pingInterval: eventPingInterval, writeTimeout: eventWriteTimeout,
 		users: &eventUserRepo{
 			users: map[string]*domain.User{
 				"alice":    {ID: 1, Username: "alice", IsActive: true},
@@ -213,15 +215,16 @@ func TestEventStreamFramesFilterBindingAndDisconnect(t *testing.T) {
 // clearing. Pings after the original write deadline must still reach the client.
 func TestEventStreamClearsServerWriteDeadline(t *testing.T) {
 	h, tokens := newEventHandlersForTest()
-	h.pingInterval = 25 * time.Millisecond
+	h.pingInterval = 250 * time.Millisecond
+	h.writeTimeout = 100 * time.Millisecond // idle waits must clear this shorter deadline
 	srv := httptest.NewUnstartedServer(eventRoutes(h, tokens))
-	srv.Config.WriteTimeout = 40 * time.Millisecond
+	srv.Config.WriteTimeout = 300 * time.Millisecond
 	srv.Start()
 	defer srv.Close()
 	ticket := h.tickets.issue(&domain.User{ID: 1, Username: "alice"})
 	resp, reader := openEventStream(t, srv.Client(), srv.URL+"/api/events?ticket="+ticket)
 	require.Equal(t, "retry: 5000\n", readEventFrame(t, reader))
-	for range 4 {
+	for range 3 {
 		require.Equal(t, ": ping\n", readEventFrame(t, reader))
 	}
 	require.NoError(t, resp.Body.Close())
@@ -260,42 +263,86 @@ func TestEventStreamDetachesOnWriteAndFlushFailure(t *testing.T) {
 	}
 }
 
-type blockedStreamWriter struct {
-	failingStreamWriter
-	ready, release chan struct{}
-	once           sync.Once
+// pipeStreamWriter exercises genuinely blocked net.Conn I/O: net.Pipe has no
+// kernel buffer, and SetWriteDeadline interrupts the blocked operation itself.
+// In flush mode it models a buffered writer; in write mode it writes directly.
+type pipeStreamWriter struct {
+	conn      net.Conn
+	header    http.Header
+	buffer    bytes.Buffer
+	flushMode bool
+	frames    int
+	blocked   chan struct{}
 }
 
-func (w *blockedStreamWriter) Write(p []byte) (int, error) {
-	w.once.Do(func() { close(w.ready); <-w.release })
-	return len(p), nil
+func (w *pipeStreamWriter) Header() http.Header { return w.header }
+func (w *pipeStreamWriter) WriteHeader(int)     {}
+func (w *pipeStreamWriter) SetWriteDeadline(deadline time.Time) error {
+	return w.conn.SetWriteDeadline(deadline)
+}
+func (w *pipeStreamWriter) Write(p []byte) (int, error) {
+	if w.flushMode {
+		return w.buffer.Write(p)
+	}
+	w.frames++
+	if w.frames == 2 {
+		close(w.blocked)
+	}
+	return w.conn.Write(p)
+}
+func (w *pipeStreamWriter) FlushError() error {
+	if !w.flushMode {
+		return nil
+	}
+	w.frames++
+	if w.frames == 2 {
+		close(w.blocked)
+	}
+	_, err := w.conn.Write(w.buffer.Bytes())
+	w.buffer.Reset()
+	return err
 }
 
-func TestEventStreamDetachesWhenHubClosesSlowSubscriber(t *testing.T) {
-	h, _ := newEventHandlersForTest()
-	ticket := h.tickets.issue(&domain.User{ID: 1, Username: "alice"})
-	w := &blockedStreamWriter{
-		failingStreamWriter: failingStreamWriter{header: make(http.Header)},
-		ready:               make(chan struct{}), release: make(chan struct{}),
+func TestEventStreamTimesOutBlockedTransportAndDetaches(t *testing.T) {
+	for _, mode := range []string{"write", "flush"} {
+		t.Run(mode, func(t *testing.T) {
+			h, _ := newEventHandlersForTest()
+			h.writeTimeout = 200 * time.Millisecond
+			h.pingInterval = time.Hour
+			ticket := h.tickets.issue(&domain.User{ID: 1, Username: "alice"})
+			serverConn, clientConn := net.Pipe()
+			defer serverConn.Close()
+			defer clientConn.Close()
+			w := &pipeStreamWriter{conn: serverConn, header: make(http.Header), flushMode: mode == "flush", blocked: make(chan struct{})}
+			done := make(chan struct{})
+			go func() {
+				h.stream(w, httptest.NewRequest(http.MethodGet, "/api/events?ticket="+ticket, nil))
+				close(done)
+			}()
+			require.NoError(t, clientConn.SetReadDeadline(time.Now().Add(time.Second)))
+			require.Equal(t, "retry: 5000\n", readEventFrame(t, bufio.NewReader(clientConn)))
+			// The client stops reading entirely after the initial frame.
+			h.hub.BroadcastToUsers([]int64{1}, map[string]any{"type": "message"})
+			select {
+			case <-w.blocked:
+			case <-time.After(time.Second):
+				t.Fatal("transport write did not start")
+			}
+			for range 258 {
+				h.hub.BroadcastToUsers([]int64{1}, map[string]any{"type": "message"})
+			}
+			require.False(t, h.hub.IsOnline(1), "the hub evicts the full subscriber queue")
+			// No release signal or peer close: only the transport write deadline
+			// can interrupt the write/flush and execute deferred detach.
+			select {
+			case <-done:
+			case <-time.After(time.Second):
+				t.Fatal("blocked transport did not time out and detach")
+			}
+			repo := h.users.(*eventUserRepo)
+			repo.mu.Lock()
+			defer repo.mu.Unlock()
+			require.False(t, repo.statuses[1], "the final detach must mark the user offline")
+		})
 	}
-	done := make(chan struct{})
-	go func() {
-		h.stream(w, httptest.NewRequest(http.MethodGet, "/api/events?ticket="+ticket, nil))
-		close(done)
-	}()
-	<-w.ready
-	for range 258 {
-		h.hub.BroadcastToUsers([]int64{1}, map[string]any{"type": "message"})
-	}
-	require.False(t, h.hub.IsOnline(1), "the hub evicts a subscriber with a full queue")
-	close(w.release)
-	select {
-	case <-done:
-	case <-time.After(time.Second):
-		t.Fatal("stream did not exit after its queue closed")
-	}
-	repo := h.users.(*eventUserRepo)
-	repo.mu.Lock()
-	defer repo.mu.Unlock()
-	require.False(t, repo.statuses[1], "shared detach updates the final offline status")
 }
