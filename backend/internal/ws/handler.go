@@ -181,30 +181,8 @@ func MakeHandler(
 			return nil
 		})
 
-		if err := users.SetOnlineStatus(context.Background(), user.ID, true); err != nil {
-			log.Printf("ws: set online for %d: %v", user.ID, err)
-		}
-		hub.Register(user.ID, conn, send)
-		defer func() {
-			hub.Unregister(user.ID, conn)
-			// Only mark user offline in DB and broadcast if they have no remaining connections.
-			if !hub.IsOnline(user.ID) {
-				if err := users.SetOnlineStatus(context.Background(), user.ID, false); err != nil {
-					// #nosec G706 -- user.ID is an integer, not attacker-controlled text
-					log.Printf("ws: set offline for %d: %v", user.ID, err)
-				}
-				hub.BroadcastAll(map[string]any{
-					"type":     "user_offline",
-					"user_id":  user.ID,
-					"username": user.Username,
-				})
-			}
-		}()
-		hub.BroadcastAll(map[string]any{
-			"type":     "user_online",
-			"user_id":  user.ID,
-			"username": user.Username,
-		})
+		detach := Attach(hub, users, user, conn, send)
+		defer detach()
 
 		for {
 			var payload map[string]any
@@ -262,20 +240,7 @@ func MakeHandler(
 					log.Printf("ws: get participants: %v", err)
 					continue
 				}
-				hub.BroadcastToUsers(participantIDs, map[string]any{
-					"type":            "message",
-					"conversation_id": resp.ConversationID,
-					"message_id":      resp.ID,
-					"content":         resp.Content,
-					"sender_id":       resp.SenderID,
-					"sender_username": resp.SenderUsername,
-					"timestamp":       resp.CreatedAt,
-					"file_path":       resp.FilePath,
-					"file_type":       resp.FileType,
-					"is_deleted":      resp.IsDeleted,
-					"is_read":         false,
-					"reply_to_id":     resp.ReplyToID,
-				})
+				hub.BroadcastToUsers(participantIDs, MessageEvent(resp))
 
 				// Push notifications to offline participants
 				if pushSvc != nil {
@@ -365,13 +330,7 @@ func MakeHandler(
 				if resp != nil {
 					broadcastContent = resp.Content
 				}
-				hub.BroadcastToUsers(participantIDs, map[string]any{
-					"type":            "message_edited",
-					"message_id":      updated.ID,
-					"conversation_id": updated.ConversationID,
-					"content":         broadcastContent,
-					"is_edited":       true,
-				})
+				hub.BroadcastToUsers(participantIDs, MessageEditedEvent(updated.ID, updated.ConversationID, broadcastContent))
 
 			// ── delete message ───────────────────────────────────────────────
 			case "delete_message":
@@ -391,19 +350,9 @@ func MakeHandler(
 				}
 				if deleteType == "for_everyone" {
 					participantIDs, _ := msgSvc.GetParticipantIDs(ctx, result.ConversationID)
-					hub.BroadcastToUsers(participantIDs, map[string]any{
-						"type":            "message_deleted",
-						"message_id":      int64(msgIDf),
-						"conversation_id": result.ConversationID,
-						"delete_type":     "for_everyone",
-					})
+					hub.BroadcastToUsers(participantIDs, MessageDeletedEvent(int64(msgIDf), result.ConversationID, "for_everyone"))
 				} else {
-					hub.BroadcastToUsers([]int64{user.ID}, map[string]any{
-						"type":            "message_deleted",
-						"message_id":      int64(msgIDf),
-						"conversation_id": result.ConversationID,
-						"delete_type":     "for_me",
-					})
+					hub.BroadcastToUsers([]int64{user.ID}, MessageDeletedEvent(int64(msgIDf), result.ConversationID, "for_me"))
 				}
 
 			// ── react to message ─────────────────────────────────────────────
@@ -469,6 +418,7 @@ func MakeHandler(
 				}
 
 			default:
+				// #nosec G706 -- %q quotes and escapes untrusted event types before logging.
 				log.Printf("ws: unknown event type %q from user %d", msgType, user.ID)
 			}
 		}

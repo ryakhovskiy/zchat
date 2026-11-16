@@ -1,8 +1,10 @@
 package httpserver
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 	"strconv"
 
@@ -10,6 +12,7 @@ import (
 
 	"backend/internal/domain"
 	"backend/internal/service"
+	"backend/internal/ws"
 )
 
 type messageCreateRequest struct {
@@ -24,7 +27,19 @@ type messageEditRequest struct {
 	Content string `json:"content"`
 }
 
-func handleCreateMessage(msgSvc *service.MessageService) http.HandlerFunc {
+// @Summary Send a message
+// @Description Creates a message and broadcasts a WebSocket-shaped message event to all participants, including the sender, on WS and SSE.
+// @Tags messages
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param conversationID path int true "Conversation ID"
+// @Param input body messageCreateRequest true "Message"
+// @Success 201 {object} service.MessageResponse
+// @Failure 400 {object} map[string]string
+// @Failure 401 {string} string "Unauthorized"
+// @Router /conversations/{conversationID}/messages [post]
+func handleCreateMessage(msgSvc *service.MessageService, broadcaster Broadcaster) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		currentUser := CurrentUser(r)
 		if currentUser == nil {
@@ -61,6 +76,7 @@ func handleCreateMessage(msgSvc *service.MessageService) http.HandlerFunc {
 			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 			return
 		}
+		broadcastMessageParticipants(r.Context(), msgSvc, broadcaster, resp.ConversationID, ws.MessageEvent(resp))
 		writeJSON(w, http.StatusCreated, resp)
 	}
 }
@@ -113,7 +129,20 @@ func handleListMessages(msgSvc *service.MessageService) http.HandlerFunc {
 	}
 }
 
-func handleEditMessage(msgSvc *service.MessageService) http.HandlerFunc {
+// @Summary Edit an own message
+// @Description Broadcasts message_edited with message_id, conversation_id, content and is_edited to all participants on WS and SSE.
+// @Tags messages
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param messageID path int true "Message ID"
+// @Param input body messageEditRequest true "New content"
+// @Success 200 {object} service.MessageResponse
+// @Failure 400 {object} map[string]string
+// @Failure 401 {string} string "Unauthorized"
+// @Failure 403 {object} map[string]string
+// @Router /messages/{messageID} [put]
+func handleEditMessage(msgSvc *service.MessageService, broadcaster Broadcaster) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		currentUser := CurrentUser(r)
 		if currentUser == nil {
@@ -150,11 +179,24 @@ func handleEditMessage(msgSvc *service.MessageService) http.HandlerFunc {
 			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 			return
 		}
+		broadcastMessageParticipants(r.Context(), msgSvc, broadcaster, resp.ConversationID, ws.MessageEditedEvent(resp.ID, resp.ConversationID, resp.Content))
 		writeJSON(w, http.StatusOK, resp)
 	}
 }
 
-func handleDeleteMessage(msgSvc *service.MessageService) http.HandlerFunc {
+// @Summary Delete a message
+// @Description Broadcasts message_deleted with message_id, conversation_id and delete_type. for_me targets only the actor; for_everyone targets all participants on WS and SSE.
+// @Tags messages
+// @Produce json
+// @Security BearerAuth
+// @Param messageID path int true "Message ID"
+// @Param delete_type query string false "Deletion scope" Enums(for_me, for_everyone) default(for_me)
+// @Success 200 {object} service.MessageResponse
+// @Failure 400 {object} map[string]string
+// @Failure 401 {string} string "Unauthorized"
+// @Failure 403 {object} map[string]string
+// @Router /messages/{messageID} [delete]
+func handleDeleteMessage(msgSvc *service.MessageService, broadcaster Broadcaster) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		currentUser := CurrentUser(r)
 		if currentUser == nil {
@@ -188,6 +230,31 @@ func handleDeleteMessage(msgSvc *service.MessageService) http.HandlerFunc {
 			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 			return
 		}
+		event := ws.MessageDeletedEvent(msg.ID, msg.ConversationID, deleteType)
+		if deleteType == "for_everyone" {
+			broadcastMessageParticipants(r.Context(), msgSvc, broadcaster, msg.ConversationID, event)
+		} else {
+			broadcaster.BroadcastToUsers([]int64{currentUser.ID}, event)
+		}
 		writeJSON(w, http.StatusOK, resp)
+	}
+}
+
+// Broadcaster delivers events to every active transport for the given users.
+type Broadcaster interface {
+	BroadcastToUsers([]int64, any)
+}
+
+func broadcastMessageParticipants(ctx context.Context, msgSvc *service.MessageService, broadcaster Broadcaster, conversationID int64, payload any) {
+	ids, err := msgSvc.GetParticipantIDs(ctx, conversationID)
+	if err != nil {
+		// #nosec G706 -- conversationID is an int64 formatted with %d; no untrusted text is logged.
+		log.Printf("http: get broadcast participants for conversation %d failed", conversationID)
+		return
+	}
+	// nil means broadcast-all to the hub. A failed or empty participant lookup
+	// must never expose a private conversation to unrelated users.
+	if len(ids) > 0 {
+		broadcaster.BroadcastToUsers(ids, payload)
 	}
 }

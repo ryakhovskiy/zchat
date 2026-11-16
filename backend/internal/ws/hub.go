@@ -21,11 +21,11 @@ const (
 // All socket I/O is delegated to per-connection writePump goroutines so the
 // Run loop is never blocked by a slow or unresponsive client.
 type Hub struct {
-	// clients: userID → set of connections.
-	clients map[int64]map[*websocket.Conn]bool
+	// clients: userID → set of opaque, unique, comparable connection keys.
+	clients map[int64]map[any]bool
 
-	// sendChans: per-connection outbound channel drained by writePump.
-	sendChans map[*websocket.Conn]chan []byte
+	// sendChans: per-connection outbound channel drained by its transport.
+	sendChans map[any]chan []byte
 
 	broadcast     chan broadcastMessage
 	register      chan registerRequest
@@ -43,13 +43,13 @@ type isOnlineRequest struct {
 
 type registerRequest struct {
 	userID int64
-	conn   *websocket.Conn
+	conn   any
 	send   chan []byte
 }
 
 type unregisterRequest struct {
 	userID int64
-	conn   *websocket.Conn
+	conn   any
 }
 
 type broadcastMessage struct {
@@ -59,8 +59,8 @@ type broadcastMessage struct {
 
 func NewHub(pingInterval, pongTimeout time.Duration) *Hub {
 	return &Hub{
-		clients:       make(map[int64]map[*websocket.Conn]bool),
-		sendChans:     make(map[*websocket.Conn]chan []byte),
+		clients:       make(map[int64]map[any]bool),
+		sendChans:     make(map[any]chan []byte),
 		broadcast:     make(chan broadcastMessage),
 		register:      make(chan registerRequest),
 		unregister:    make(chan unregisterRequest),
@@ -75,7 +75,7 @@ func (h *Hub) Run() {
 		select {
 		case req := <-h.register:
 			if h.clients[req.userID] == nil {
-				h.clients[req.userID] = make(map[*websocket.Conn]bool)
+				h.clients[req.userID] = make(map[any]bool)
 			}
 			h.clients[req.userID][req.conn] = true
 			h.sendChans[req.conn] = req.send
@@ -118,7 +118,7 @@ func (h *Hub) Run() {
 
 // enqueue puts data on the connection's send channel without blocking.
 // Returns false if the channel is full — the connection should be closed.
-func (h *Hub) enqueue(userID int64, conn *websocket.Conn, data []byte) bool {
+func (h *Hub) enqueue(userID int64, conn any, data []byte) bool {
 	ch, ok := h.sendChans[conn]
 	if !ok {
 		return false
@@ -135,7 +135,7 @@ func (h *Hub) enqueue(userID int64, conn *websocket.Conn, data []byte) bool {
 // removeConn closes the connection's send channel (which causes writePump to
 // exit and close the socket) and cleans up all Hub tracking state.
 // Safe to call even if the connection is already removed.
-func (h *Hub) removeConn(userID int64, conn *websocket.Conn) {
+func (h *Hub) removeConn(userID int64, conn any) {
 	if conns, ok := h.clients[userID]; ok {
 		if _, exists := conns[conn]; exists {
 			delete(conns, conn)
@@ -160,13 +160,13 @@ func (h *Hub) IsOnline(userID int64) bool {
 
 // Register adds a connection for the given user.
 // send is the buffered channel the writePump goroutine reads from; it must be
-// created by the caller before calling Register.
-func (h *Hub) Register(userID int64, conn *websocket.Conn, send chan []byte) {
+// created by the caller before calling Register. conn must be unique and comparable.
+func (h *Hub) Register(userID int64, conn any, send chan []byte) {
 	h.register <- registerRequest{userID: userID, conn: conn, send: send}
 }
 
 // Unregister removes a connection for the given user.
-func (h *Hub) Unregister(userID int64, conn *websocket.Conn) {
+func (h *Hub) Unregister(userID int64, conn any) {
 	h.unregister <- unregisterRequest{userID: userID, conn: conn}
 }
 
