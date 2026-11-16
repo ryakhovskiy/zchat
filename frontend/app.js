@@ -45,7 +45,8 @@ const norm = m => ({
 });
 const nc = c => ({
   id: c.id, unread: c.unread_count || 0, last: c.last_message ? norm(c.last_message) : null,
-  title: c.name || c.participants.filter(p => p.id != me.id).map(p => p.username).join(', ') || me.username,
+  // Same as the old client: groups show their name, direct chats show the other person (even if the row has a name).
+  title: c.is_group ? c.name || 'Group chat' : (c.participants.find(p => p.id != me.id) || me).username,
   ts: Date.parse((c.last_message || c).created_at),
 });
 
@@ -67,7 +68,7 @@ function signOut() {
   }
   tok = me = view = cur = null;
   convs = []; msgs = []; log = []; ready = synced = more = false; retry = 0;
-  $('ml').replaceChildren(); $('cl').replaceChildren();
+  $('ml').replaceChildren(); $('cl').replaceChildren(); $('nf').user.length = 1;
   location.replace('#/login');
   route();
 }
@@ -215,12 +216,12 @@ async function loadList() {
   paint();
 }
 
+// Append-only, so a dropdown the user has open is never rebuilt under them.
 async function loadUsers() {
   const g = gen, u = await api('/users/');
   if (g != gen) return;
-  const s = $('nf').user, v = s.value;
-  s.replaceChildren(new Option('Start a chat with...', ''), ...u.filter(x => x.id != me.id).map(x => new Option(x.username, x.id)));
-  s.value = v;
+  const s = $('nf').user, have = new Set([...s.options].map(o => o.value));
+  for (const x of u) if (x.id != me.id && !have.has(String(x.id))) s.add(new Option(x.username, x.id));
 }
 
 async function loadLatest() {
@@ -378,6 +379,8 @@ async function act(k, m) {
   }
 }
 
+// Users who registered after sign-in show up as soon as the picker is used.
+$('nf').user.onfocus = () => loadUsers().catch(fail);
 $('more').onclick = () => loadOlder().catch(fail);
 $('sr').onclick = () => { location.hash = '#/register'; };
 $('sl').onclick = () => { location.hash = '#/login'; };
