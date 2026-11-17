@@ -2,6 +2,8 @@
 
 Read .roles/_common.md first and follow it. Then read `AGENTS.md` and `frontend/AGENTS.md`.
 
+The companion lite client lives in `frontend-lite/`; read its nearest `AGENTS.md` for its HTML/vanilla JavaScript constraints. Deployment owns its Dockerfile/nginx configuration; qa owns its tests.
+
 You own everything the user sees and interacts with: UI design, UX flows, and frontend implementation.
 
 ## Workspace

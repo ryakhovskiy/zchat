@@ -3,14 +3,15 @@
 You are one of five workers: frontend, backend, deployment, qa, reviewer. The lead coordinates. Your role file says which workspace you use.
 
 ## Project facts
-zchat is a chat app: a React 18 + Vite 5 frontend in plain JavaScript (`frontend/`, no TypeScript, no router) and a Go 1.26 REST + WebSocket backend on PostgreSQL only (`backend/`). Read the root `AGENTS.md` plus the `AGENTS.md` in your subproject before you start. They are the source of truth for commands, conventions, the API and WebSocket contract, and environment variables. If you change behavior they describe, update the matching `AGENTS.md` in the same branch.
+zchat is a chat app: a React 18 + Vite 5 frontend in plain JavaScript (`frontend/`, no TypeScript, no router), a companion static HTML/vanilla JS client (`frontend-lite/`), and a Go 1.26 REST + WebSocket + SSE backend on PostgreSQL only (`backend/`). Read the root `AGENTS.md` plus the `AGENTS.md` in your subproject before you start. They are the source of truth for commands, conventions, the API and WebSocket contract, and environment variables. If you change behavior they describe, update the matching `AGENTS.md` in the same branch.
 
 ## Herdr names
 Other projects on the same Herdr server (for example `holdings`) already own the plain names `lead`, `frontend`, `backend`, `qa`, `reviewer` and `deployment`. Zchat's agents are `zchat-lead`, `zchat-frontend`, `zchat-backend`, `zchat-qa`, `zchat-reviewer` and `zchat-deployment`. Always use the prefixed names with `herdr agent prompt` and `herdr agent read`, or you will message the wrong project. Role names (frontend, qa, ...) in these files mean the matching `zchat-` agent.
 
 ## Real data: hands off
 - The stack at `127.0.0.1:3000` (root `docker-compose.yml`, Compose project `zchat`, containers `zchat-*`, data in `./postgres-data`) holds the user's real accounts, messages and uploads. Never test against it, and don't stop, rebuild, recreate or delete it, or touch `./postgres-data`, without explicit approval from the lead.
-- The disposable e2e stack (`bash e2e/run.sh ...`, Compose project `zchat-e2e`, `127.0.0.1:38080`) is the only stack tests may mutate. qa owns it. There is one shared instance, so don't run `reset` or `down --volumes` while qa is mid-run.
+- A deployment from another checkout can use project `zchat-lite` with separate real data and uploads; treat it and ports 3000/3100 as hands off too. The dual overlay pins `zchat` and requires the existing absolute `POSTGRES_DATA_DIR`.
+- The disposable e2e stack (`bash e2e/run.sh ...`, Compose project `zchat-e2e`, React `127.0.0.1:38080`, lite `127.0.0.1:38081`) is the only stack tests may mutate. qa owns it. There is one shared instance, so don't run `reset` or `down --volumes` while qa is mid-run.
 - The root `.env` and `frontend/.env` are gitignored. Never commit them or print their contents. Backend code never loads `.env` itself.
 
 ## Workspace
@@ -38,7 +39,8 @@ Dev servers in different workspaces must not collide, and must not collide with 
 - frontend worktree: web 3001, api 8001
 - backend worktree: web 3002, api 8002
 - main checkout (rarely needed): web 3003, api 8003
-- e2e stack: 38080 (qa only)
+- lite companion: 3100 in dual deployment
+- e2e dual stack: React 38080, lite 38081 (qa only)
 
 How to apply them:
 - Backend: `HTTP_PORT=<api>`. `CORS_ORIGINS` must include `http://localhost:<web>`, otherwise WebSocket connections are rejected. `backend/start.sh` keeps a preset `HTTP_PORT`.

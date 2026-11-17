@@ -35,3 +35,5 @@ Send the lead a summary (tests added, pass/fail counts, bugs filed with severity
 
 ## Out of scope
 Fixing bugs, feature development, deployment config, code-style review (reviewer owns it).
+
+The dual disposable stack serves React on 38080 and lite on 38081. Lite browser coverage and interop specs live in `frontend-lite/tests/`; use `E2E_LITE_URL` for lite and `E2E_BASE_URL` for React.
