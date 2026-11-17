@@ -244,6 +244,11 @@ def check_react(base):
 
 
 def check_containers():
+    # Runtime safety gates must remain active under PYTHONOPTIMIZE.
+    def require_owned(condition, detail):
+        if not condition:
+            raise RuntimeError('Refusing shared-account writes: ' + detail)
+
     # Verify BOTH published listeners before any shared-account fixture writes.
     names = [f'{PROJECT}-{service}-1' for service in
              ('frontend', 'frontend-lite', 'backend', 'postgres')]
@@ -254,23 +259,27 @@ def check_containers():
         name = container['Name'].lstrip('/')
         labels = container['Config']['Labels']
         service = labels['com.docker.compose.service']
-        assert labels['com.docker.compose.project'] == PROJECT
-        assert name == f'{PROJECT}-{service}-1' and name in names
-        assert container['State']['Running'], name
+        require_owned(labels['com.docker.compose.project'] == PROJECT, 'Unexpected Compose project')
+        require_owned(name == f'{PROJECT}-{service}-1' and name in names, 'Unexpected container identity')
+        require_owned(container['State']['Running'], name + ' is not running')
         volumes = [m['Name'] for m in container['Mounts'] if m['Type'] == 'volume']
-        assert all(volume.startswith(PROJECT + '_') for volume in volumes), volumes
-        assert all(m['Type'] != 'bind' for m in container['Mounts']), 'E2E must not bind host data'
+        require_owned(all(volume.startswith(PROJECT + '_') for volume in volumes),
+                      'Unowned volume in ' + name)
+        require_owned(all(m['Type'] != 'bind' for m in container['Mounts']),
+                      'E2E must not bind host data')
         if service in ('frontend', 'frontend-lite'):
             port = PORT if service == 'frontend' else LITE_PORT
-            assert container['NetworkSettings']['Ports']['8080/tcp'] == [
-                {'HostIp': '127.0.0.1', 'HostPort': port}], 'Unexpected frontend listener'
+            require_owned(container['NetworkSettings']['Ports']['8080/tcp'] == [
+                {'HostIp': '127.0.0.1', 'HostPort': port}], 'Unexpected frontend listener')
         if service in ('frontend', 'frontend-lite', 'backend'):
             image = subprocess.run(['docker', 'image', 'inspect', f'{PROJECT}-{service}:local'],
                                    capture_output=True, check=True)
-            assert container['Image'] == json.loads(image.stdout)[0]['Id'], 'Container uses stale image'
-            assert container['Config']['User'] not in ('', '0', 'root'), 'Container must run non-root'
+            require_owned(container['Image'] == json.loads(image.stdout)[0]['Id'],
+                          'Container uses stale image')
+            require_owned(container['Config']['User'] not in ('', '0', 'root'),
+                          'Container must run non-root')
         metadata[name] = {'container_id': container['Id'], 'image_id': container['Image'], 'volumes': volumes}
-    assert set(metadata) == set(names)
+    require_owned(set(metadata) == set(names), 'Missing or duplicate container metadata')
     return metadata
 
 
