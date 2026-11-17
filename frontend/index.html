@@ -1,80 +1,21 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="color-scheme" content="light dark">
-<title>zchat</title>
-<link rel="icon" href="data:,">
-<style>
-body{font:1rem system-ui,sans-serif;max-width:40rem;margin:0 auto;padding:.5rem}
-ul{list-style:none;padding:0}li{margin:.4rem 0;overflow-wrap:anywhere}
-label{display:block;margin:.5rem 0}
-input:not([type=checkbox]),select,textarea{display:block;width:100%;box-sizing:border-box;font:inherit}
-button,input:not([type=checkbox]),select,textarea{min-height:2.75rem}
-li button{min-height:0}
-@media(pointer:coarse){li button{min-height:2.75rem}}
-#cf{position:sticky;bottom:0;background:Canvas}
-h2:focus{outline:0}
-</style>
-</head>
-<body>
-<header>
-<h1>zchat</h1>
-<p id="bar" hidden>
-<span id="me"></span>
-<span id="live" role="status" data-testid="live-status" data-live="0">offline</span>
-<button id="out" type="button" data-testid="logout">Log out</button>
-</p>
-</header>
-<main>
-<noscript><p>zchat needs JavaScript, and live updates need it too.</p></noscript>
-<p id="err" role="alert" data-testid="error"></p>
-
-<section id="login" hidden>
-<h2 tabindex="-1">Sign in</h2>
-<form id="lf" data-testid="login-form">
-<label>Username <input name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required data-testid="login-username"></label>
-<label>Password <input name="password" type="password" autocomplete="current-password" required data-testid="login-password"></label>
-<label><input name="remember" type="checkbox" data-testid="remember-me"> Stay signed in</label>
-<button type="submit" data-testid="login-submit">Sign in</button>
-<button type="button" id="sr" data-testid="show-register">Create an account</button>
-</form>
-</section>
-
-<section id="register" hidden>
-<h2 tabindex="-1">Register</h2>
-<form id="rf" data-testid="register-form">
-<label>Username <input name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required data-testid="register-username"></label>
-<label>Email (optional) <input name="email" type="email" autocomplete="email" data-testid="register-email"></label>
-<label>Password <input name="password" type="password" autocomplete="new-password" required aria-describedby="pwh" data-testid="register-password"></label>
-<p id="pwh">Username: lowercase letters, digits, _ or -. Password: at least 10 characters with upper and lower case, a digit and a symbol.</p>
-<button type="submit" data-testid="register-submit">Register</button>
-<button type="button" id="sl" data-testid="show-login">Back to sign in</button>
-</form>
-</section>
-
-<section id="list" hidden>
-<h2 tabindex="-1">Chats</h2>
-<form id="nf" data-testid="new-chat-form">
-<select name="user" required aria-label="Start a chat with" data-testid="new-chat-user"><option value="">Start a chat with...</option></select>
-<button type="submit" data-testid="start-chat">Start chat</button>
-</form>
-<p id="none" hidden>No conversations yet.</p>
-<ul id="cl" aria-label="Conversations" data-testid="conversation-list"></ul>
-</section>
-
-<section id="chat" hidden>
-<p><a href="#/" data-testid="back-to-list">Back to chats</a></p>
-<h2 id="ct" tabindex="-1" data-testid="chat-title">Chat</h2>
-<button id="more" type="button" hidden data-testid="load-older">Load older messages</button>
-<ul id="ml" aria-label="Messages" data-testid="message-list"></ul>
-<form id="cf" data-testid="composer">
-<textarea name="text" rows="2" maxlength="5000" aria-label="Message" data-testid="message-input"></textarea>
-<button type="submit" data-testid="send-message">Send</button>
-</form>
-</section>
-</main>
-<script src="app.js" defer></script>
-</body>
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" href="/assets/images/zchat.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#171a21" />
+    <meta name="color-scheme" content="light dark" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+    <title>zChat - Real-time Messaging</title>
+    <script src="/theme-init.js"></script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
 </html>

@@ -1,0 +1,87 @@
+.user-list-modal .segmented {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-bottom: var(--space-4);
+}
+
+.user-list-heading {
+  margin-bottom: var(--space-2);
+  font-family: var(--font-meta);
+  font-size: var(--text-xs);
+  letter-spacing: var(--meta-letter-spacing);
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+}
+
+.user-list-count {
+  text-transform: none;
+}
+
+.user-list-empty {
+  padding: var(--space-6) 0;
+  text-align: center;
+  color: var(--color-text-secondary);
+}
+
+.users-grid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.user-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: 60px;
+  padding: var(--space-2) var(--space-3);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+  text-align: left;
+  transition: background-color var(--motion-fast), border-color var(--motion-fast);
+}
+
+.user-item:hover {
+  background: var(--color-accent-soft);
+}
+
+.user-item.selected {
+  background: var(--color-accent-soft);
+  border-color: var(--color-accent-text);
+  box-shadow: var(--glow);
+}
+
+.user-info {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.user-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.user-item .user-status.online {
+  color: var(--color-success);
+}
+
+.checkbox {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+}
+
+.checkbox--checked {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: var(--color-on-accent);
+}
