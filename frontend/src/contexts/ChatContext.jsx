@@ -1,0 +1,492 @@
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import { useAuth } from './AuthContext';
+import { conversationsAPI, usersAPI } from '../services/api';
+
+const ChatContext = createContext(null);
+
+export const useChat = () => {
+  const context = useContext(ChatContext);
+  if (!context) {
+    throw new Error('useChat must be used within ChatProvider');
+  }
+  return context;
+};
+
+export const ChatProvider = ({ children }) => {
+  const { wsClient, user } = useAuth();
+  const [conversations, setConversations] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [onlineUsers, setOnlineUsers] = useState([]);
+  const [selectedConversation, setSelectedConversation] = useState(null);
+  const [messages, setMessages] = useState({});
+  const [loading, setLoading] = useState(false);
+  const [unreadCounts, setUnreadCounts] = useState({});
+  const [hasMoreMessages, setHasMoreMessages] = useState({});
+  const PAGE_SIZE = 15;
+
+  const appendMessageToState = (messageData) => {
+    if (!messageData?.conversation_id || !messageData?.id) {
+      return;
+    }
+
+    setMessages((prev) => {
+      const conversationId = messageData.conversation_id;
+      const existingMessages = prev[conversationId] || [];
+
+      if (existingMessages.some((message) => message.id === messageData.id)) {
+        return prev;
+      }
+
+      return {
+        ...prev,
+        [conversationId]: [...existingMessages, messageData],
+      };
+    });
+
+    setConversations((prev) =>
+      prev.map((conversation) =>
+        conversation.id === messageData.conversation_id
+          ? {
+              ...conversation,
+              updated_at: messageData.created_at,
+              last_message: {
+                content: messageData.content,
+                sender_id: messageData.sender_id,
+              },
+            }
+          : conversation
+      )
+    );
+  };
+
+  const normalizeConversation = (conversation) => {
+    if (!conversation) {
+      return null;
+    }
+
+    return {
+      ...conversation,
+      id: conversation.id ?? conversation.ID,
+      name: conversation.name ?? conversation.Name,
+      is_group: conversation.is_group ?? conversation.IsGroup,
+      created_at: conversation.created_at ?? conversation.CreatedAt,
+      updated_at: conversation.updated_at ?? conversation.UpdatedAt,
+      unread_count: conversation.unread_count ?? conversation.UnreadCount ?? 0,
+      last_message: conversation.last_message ?? conversation.LastMessage ?? null,
+      participants: conversation.participants ?? conversation.Participants ?? [],
+    };
+  };
+  
+  // Ref to track selected conversation ID for use in WebSocket handler
+  const selectedConversationRef = useRef(null);
+  
+  // Keep ref in sync with state
+  useEffect(() => {
+    selectedConversationRef.current = selectedConversation?.id || null;
+  }, [selectedConversation]);
+
+  // Load initial data
+  useEffect(() => {
+    if (user) {
+      loadConversations();
+      loadUsers();
+    }
+  }, [user]);
+
+  // Handle window focus to clear unread counts for active chat
+  useEffect(() => {
+    const handleFocus = async () => {
+      if (selectedConversationRef.current) {
+        // Clear local count
+        setUnreadCounts((prev) => ({
+          ...prev,
+          [selectedConversationRef.current]: 0
+        }));
+        
+        // Mark as read on backend
+        try {
+          await conversationsAPI.markAsRead(selectedConversationRef.current);
+        } catch (error) {
+          console.error('Failed to mark as read on focus:', error);
+        }
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, []);
+
+  // Setup WebSocket listeners
+  useEffect(() => {
+    if (!wsClient) return;
+
+    const handleMessage = (data) => {
+      appendMessageToState({
+        id: data.message_id,
+        content: data.content,
+        sender_id: data.sender_id,
+        sender_username: data.sender_username,
+        conversation_id: data.conversation_id,
+        created_at: data.timestamp,
+        file_path: data.file_path,
+        file_type: data.file_type,
+        is_deleted: data.is_deleted,
+        is_read: data.is_read,
+        reply_to_id: data.reply_to_id ?? null,
+        attachments: data.attachments ?? [],
+        reactions: data.reactions ?? [],
+      });
+
+      // Increment unread count only if message is not in currently selected conversation OR if window is not focused
+      // We check for window focus. If not focused, we increment even if it matches selectedConversation
+      const isChatActive = data.conversation_id === selectedConversationRef.current;
+      const isWindowFocused = document.hasFocus();
+
+      if (!isChatActive || !isWindowFocused) {
+        setUnreadCounts((prev) => ({
+          ...prev,
+          [data.conversation_id]: (prev[data.conversation_id] || 0) + 1,
+        }));
+
+        // Send push notification
+        if ('Notification' in window && Notification.permission === 'granted' && data.sender_id !== user.id) {
+          const notificationTitle = `New message from ${data.sender_username}`;
+          const notificationOptions = {
+            body: data.file_path ? (data.file_type === 'image' ? 'Sent an image' : 'Sent a file') : data.content,
+            icon: '/vite.svg', // Default vite icon, can be replaced with app logo
+            tag: `conversation-${data.conversation_id}` // Group notifications by conversation
+          };
+          
+          const notification = new Notification(notificationTitle, notificationOptions);
+          
+          notification.onclick = () => {
+            window.focus();
+            // Optional: Logic to select the conversation if we could access selectConversation here
+            // Since we're inside the effect, we might not want to close over too much state/dispatch
+          };
+        }
+      }
+    };
+
+    const updateParticipantStatus = (userId, isOnline) => {
+      setConversations((prev) =>
+        prev.map((conv) => ({
+          ...conv,
+          participants: conv.participants.map((p) =>
+            p.id === userId ? { ...p, is_online: isOnline } : p
+          ),
+        }))
+      );
+      setSelectedConversation((prev) => {
+        if (!prev) return prev;
+        if (!prev.participants.some((p) => p.id === userId)) return prev;
+        return {
+          ...prev,
+          participants: prev.participants.map((p) =>
+            p.id === userId ? { ...p, is_online: isOnline } : p
+          ),
+        };
+      });
+    };
+
+    const handleUserOnline = (data) => {
+      setOnlineUsers((prev) => {
+        if (!prev.some((u) => u.id === data.user_id)) {
+          return [...prev, { id: data.user_id, username: data.username }];
+        }
+        return prev;
+      });
+
+      setUsers((prev) =>
+        prev.map((u) =>
+          u.id === data.user_id ? { ...u, is_online: true } : u
+        )
+      );
+
+      updateParticipantStatus(data.user_id, true);
+    };
+
+    const handleUserOffline = (data) => {
+      setOnlineUsers((prev) => prev.filter((u) => u.id !== data.user_id));
+
+      setUsers((prev) =>
+        prev.map((u) =>
+          u.id === data.user_id ? { ...u, is_online: false } : u
+        )
+      );
+
+      updateParticipantStatus(data.user_id, false);
+    };
+
+    wsClient.on('message', handleMessage);
+    wsClient.on('user_online', handleUserOnline);
+    wsClient.on('user_offline', handleUserOffline);
+
+    const handleMessageEdited = (data) => {
+      setMessages((prev) => {
+        const convMessages = prev[data.conversation_id] || [];
+        return {
+          ...prev,
+          [data.conversation_id]: convMessages.map((msg) =>
+            msg.id === data.message_id
+              ? { ...msg, content: data.content, is_edited: true }
+              : msg
+          ),
+        };
+      });
+    };
+
+    const handleMessageDeleted = (data) => {
+      setMessages((prev) => {
+        const convMessages = prev[data.conversation_id] || [];
+        if (data.delete_type === 'for_everyone') {
+          return {
+            ...prev,
+            [data.conversation_id]: convMessages.map((msg) =>
+              msg.id === data.message_id ? { ...msg, is_deleted: true, content: '' } : msg
+            ),
+          };
+        } else {
+          // for_me: remove from local list entirely
+          return {
+            ...prev,
+            [data.conversation_id]: convMessages.filter((msg) => msg.id !== data.message_id),
+          };
+        }
+      });
+    };
+
+    wsClient.on('message_edited', handleMessageEdited);
+    wsClient.on('message_deleted', handleMessageDeleted);
+
+    const handleReactionUpdated = (data) => {
+      setMessages((prev) => {
+        const convMessages = prev[data.conversation_id] || [];
+        return {
+          ...prev,
+          [data.conversation_id]: convMessages.map((msg) =>
+            msg.id === data.message_id
+              ? { ...msg, reactions: data.reactions ?? [] }
+              : msg
+          ),
+        };
+      });
+    };
+
+    wsClient.on('reaction_updated', handleReactionUpdated);
+
+    return () => {
+      wsClient.off('message', handleMessage);
+      wsClient.off('user_online', handleUserOnline);
+      wsClient.off('user_offline', handleUserOffline);
+      wsClient.off('message_edited', handleMessageEdited);
+      wsClient.off('message_deleted', handleMessageDeleted);
+      wsClient.off('reaction_updated', handleReactionUpdated);
+    };
+  }, [wsClient]);
+
+  const loadConversations = async () => {
+    try {
+      setLoading(true);
+      const response = await conversationsAPI.getAll();
+      const normalized = (response.data || [])
+        .map(normalizeConversation)
+        .filter((conversation) => Number.isFinite(Number(conversation?.id)));
+
+      setConversations(normalized);
+      
+      // Initialize unread counts from backend data
+      const counts = {};
+      normalized.forEach((conv) => {
+        if (conv.unread_count > 0) {
+          counts[conv.id] = conv.unread_count;
+        }
+      });
+      setUnreadCounts(counts);
+    } catch (error) {
+      console.error('Failed to load conversations:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadUsers = async () => {
+    try {
+      const response = await usersAPI.getAll();
+      const allUsers = response.data;
+      setUsers(allUsers);
+      // Filter online users from the list
+      setOnlineUsers(allUsers.filter(u => u.is_online));
+    } catch (error) {
+      console.error('Failed to load users:', error);
+    }
+  };
+
+  const loadMessages = async (conversationId) => {
+    if (!conversationId || !Number.isFinite(Number(conversationId))) {
+      return;
+    }
+
+    if (messages[conversationId]) return; // Already loaded
+
+    try {
+      const response = await conversationsAPI.getMessages(conversationId, PAGE_SIZE);
+      setMessages((prev) => ({
+        ...prev,
+        [conversationId]: response.data,
+      }));
+      setHasMoreMessages((prev) => ({
+        ...prev,
+        [conversationId]: response.data.length >= PAGE_SIZE,
+      }));
+    } catch (error) {
+      console.error('Failed to load messages:', error);
+    }
+  };
+
+  const loadOlderMessages = async (conversationId) => {
+    if (!conversationId || !Number.isFinite(Number(conversationId))) return [];
+    if (!hasMoreMessages[conversationId]) return [];
+
+    const existing = messages[conversationId] || [];
+    if (existing.length === 0) return [];
+
+    const oldestId = existing[0].id;
+
+    try {
+      const response = await conversationsAPI.getMessages(conversationId, PAGE_SIZE, oldestId);
+      const olderMessages = response.data;
+
+      if (olderMessages.length > 0) {
+        setMessages((prev) => ({
+          ...prev,
+          [conversationId]: [...olderMessages, ...(prev[conversationId] || [])],
+        }));
+      }
+
+      setHasMoreMessages((prev) => ({
+        ...prev,
+        [conversationId]: olderMessages.length >= PAGE_SIZE,
+      }));
+
+      return olderMessages;
+    } catch (error) {
+      console.error('Failed to load older messages:', error);
+      return [];
+    }
+  };
+
+  const createConversation = async (participantIds, isGroup = false, name = null) => {
+    try {
+      const response = await conversationsAPI.create({
+        participant_ids: participantIds,
+        is_group: isGroup,
+        name,
+      });
+      
+      const newConversation = response.data;
+      setConversations((prev) => [...prev, newConversation]);
+      setSelectedConversation(newConversation);
+      
+      return newConversation;
+    } catch (error) {
+      console.error('Failed to create conversation:', error);
+      throw error;
+    }
+  };
+
+  const sendMessage = async (conversationId, content, fileData = null, replyToId = null) => {
+    if (!content && !fileData) return;
+
+    if (!conversationId || !Number.isFinite(Number(conversationId))) {
+      throw new Error('Invalid conversation id');
+    }
+
+    const message = {
+      type: 'message',
+      conversation_id: conversationId,
+      content: content ? content.trim() : (fileData ? 'File attachment' : ''),
+    };
+
+    if (fileData) {
+      message.file_path = fileData.file_path;
+      message.file_type = fileData.file_type;
+    }
+
+    if (replyToId) {
+      message.reply_to_id = replyToId;
+    }
+
+    if (wsClient?.ws?.readyState === WebSocket.OPEN) {
+      wsClient.send(message);
+      return;
+    }
+
+    const response = await conversationsAPI.sendMessage(conversationId, {
+      content: message.content,
+      file_path: message.file_path,
+      file_type: message.file_type,
+      reply_to_id: replyToId,
+    });
+
+    appendMessageToState(response.data);
+  };
+
+  const editMessage = (messageId, content) => {
+    if (!wsClient) return;
+    wsClient.send({ type: 'edit_message', message_id: messageId, content });
+  };
+
+  const deleteMessage = (messageId, deleteType) => {
+    if (!wsClient) return;
+    wsClient.send({ type: 'delete_message', message_id: messageId, delete_type: deleteType });
+  };
+
+  const reactToMessage = (messageId, emoji) => {
+    if (!wsClient) return;
+    wsClient.send({ type: 'react_message', message_id: messageId, emoji });
+  };
+
+  const selectConversation = async (conversation) => {
+    const normalizedConversation = normalizeConversation(conversation);
+    setSelectedConversation(normalizedConversation);
+    
+    if (!normalizedConversation || !Number.isFinite(Number(normalizedConversation.id))) return;
+
+    // Reset unread count for this conversation locally
+    setUnreadCounts((prev) => ({
+      ...prev,
+      [normalizedConversation.id]: 0,
+    }));
+    await loadMessages(normalizedConversation.id);
+    
+    // Mark conversation as read on the backend
+    try {
+      await conversationsAPI.markAsRead(normalizedConversation.id);
+    } catch (error) {
+      console.error('Failed to mark conversation as read:', error);
+    }
+  };
+
+  const value = {
+    conversations,
+    users,
+    onlineUsers,
+    selectedConversation,
+    messages,
+    loading,
+    unreadCounts,
+    hasMoreMessages,
+    loadConversations,
+    createConversation,
+    sendMessage,
+    editMessage,
+    deleteMessage,
+    reactToMessage,
+    selectConversation,
+    loadOlderMessages,
+    setMessages, 
+  };
+
+  return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;
+};

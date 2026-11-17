@@ -1,0 +1,28 @@
+# zChat frontend-lite (lite client)
+
+A minimal chat client for very slow connections: one HTML file and one JavaScript file, about 7.0 KB gzipped together. No framework, no build step, no dependencies. Live updates use Server-Sent Events. Agent and contributor conventions live in [AGENTS.md](AGENTS.md).
+
+The full React app lives in `frontend/`. This lite client in `frontend-lite/` is the companion client: it runs on its own port (3100 by default) against the same backend and database, so both clients see the same accounts and conversations.
+
+## What it does
+Sign in or register, see your conversations with unread counts, read and load older messages, send text, edit your own messages, delete a message for yourself or for everyone, and start a direct chat with any user. Messages from other people appear live.
+
+Not included: groups (you can read existing ones), files and images, reactions, presence, read receipts, typing indicators, calls, push notifications, themes, translations and offline support. The Android app keeps using the WebSocket API.
+
+## Files
+- `index.html` - all views, a few lines of inline CSS, system fonts, light/dark from the OS
+- `app.js` - the client
+
+The size budget is 8 KB gzipped for `index.html` + `app.js` together and nothing else is loaded:
+```bash
+echo $(( $(gzip -9 < index.html | wc -c) + $(gzip -9 < app.js | wc -c) ))
+```
+
+## Run it locally
+There is no dev server and no install step: the client is two static files. To try a change, rebuild the frontend image and run it through Docker with a backend, or use the disposable E2E stack (`bash e2e/run.sh up` from the repository root; see [the E2E README](tests/e2e/README.md)). Never use the real-data stack on port 3000 for development or tests.
+
+## How live updates work
+After signing in the client asks `POST /api/events/ticket` for a single-use ticket and opens `EventSource('/api/events?ticket=...')`. The server pushes `message`, `message_edited` and `message_deleted` events. If the stream drops, the client waits (1 s, 2 s, 4 s, up to 30 s), gets a new ticket, reconnects and reloads the conversation list and the open chat, because the server does not replay missed events. The "live" / "offline" indicator in the header shows the state.
+
+## Tests
+Playwright and axe tests are in `frontend-lite/tests/` and run against a disposable stack. See `tests/e2e/README.md` for setup and commands.

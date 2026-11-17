@@ -6,9 +6,10 @@ export const authFile = fileURLToPath(new URL('../../test-results/.auth/session.
 const cacheFile = new URL('../../playwright/.cache/session.json', import.meta.url);
 
 export default async function setup(config) {
-  // Cache the fixture session to stay below the 10/minute/IP auth limit.
+  // Theme bootstrap checks can run without authenticating. The screen suite
+  // requires these variables and fails explicitly in helpers if they are absent.
   const { E2E_USERNAME: username, E2E_PASSWORD: password } = process.env;
-  if (!username || !password) throw new Error('Export the lite stack credentials using e2e/run.sh env.');
+  if (!username || !password) return;
   const baseURL = config.projects[0].use.baseURL;
   const client = await request.newContext({ baseURL });
   try {
