@@ -6,7 +6,7 @@ import { apiSession, apiMessage, axe, credentials, fixtureSession, formLogin, lo
 
 test('login form sends remember_me, persists in the selected storage and logs out', async ({ browser }) => {
   for (const remember of [false, true]) {
-    const context = await browser.newContext({ baseURL: process.env.E2E_BASE_URL });
+    const context = await browser.newContext({ baseURL: process.env.E2E_LITE_URL });
     try {
       const page = await context.newPage();
       await formLogin(page, remember);
@@ -312,7 +312,7 @@ test('Android-style bearer WebSocket and browser SSE exchange messages in both d
   const events = await observeSSE(page);
   await login(page);
   const id = await openConversation(page);
-  const wsContext = await page.context().browser().newContext({ baseURL: process.env.E2E_BASE_URL,
+  const wsContext = await page.context().browser().newContext({ baseURL: process.env.E2E_LITE_URL,
     extraHTTPHeaders: { Authorization: `Bearer ${bob.access_token}` } });
   try {
     const android = await wsContext.newPage();

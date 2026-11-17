@@ -23,7 +23,7 @@ export async function fixtureSession(request, peer = false) {
   if (!peer) return JSON.parse(await readFile(authFile, 'utf8'));
   const { peer: username, peerPassword: password } = credentials();
   const cache = new URL('../../playwright/.cache/peer.json', import.meta.url);
-  const baseURL = process.env.E2E_BASE_URL;
+  const baseURL = process.env.E2E_LITE_URL;
   try {
     const saved = JSON.parse(await readFile(cache, 'utf8'));
     if (saved.baseURL === baseURL && saved.username === username) {
@@ -103,8 +103,8 @@ export async function apiMessage(request, conversationID, content, peer = false)
 }
 
 export async function pairedPages(browser, request) {
-  const aliceContext = await browser.newContext({ baseURL: process.env.E2E_BASE_URL });
-  const bobContext = await browser.newContext({ baseURL: process.env.E2E_BASE_URL });
+  const aliceContext = await browser.newContext({ baseURL: process.env.E2E_LITE_URL });
+  const bobContext = await browser.newContext({ baseURL: process.env.E2E_LITE_URL });
   try {
     const alice = await aliceContext.newPage();
     const bob = await bobContext.newPage();
@@ -140,7 +140,7 @@ export async function received(events, type, id) {
 // Chromium offline emulation leaves existing EventSource sockets alive. Forward
 // only the real SSE request through a disposable loopback socket we can sever.
 export async function sseFault(page) {
-  const origin = process.env.E2E_BASE_URL;
+  const origin = process.env.E2E_LITE_URL;
   const sockets = new Set(), upstreams = new Set();
   let paused = false;
   const server = http.createServer((req, res) => {
