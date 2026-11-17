@@ -29,30 +29,43 @@ fields="$("${compose[@]}" config --format json | python3 -c '
 import json, pathlib, subprocess, sys
 c = json.load(sys.stdin)
 mounts = c["services"]["postgres"]["volumes"]
-assert len(mounts) == 1 and mounts[0]["target"] == "/var/lib/postgresql"
+if len(mounts) != 1 or mounts[0]["target"] != "/var/lib/postgresql":
+    raise SystemExit("Expected exactly one PostgreSQL data mount")
 if c["name"] == "zchat-dualtest":
-    assert pathlib.Path(mounts[0]["source"]).resolve().is_relative_to("/tmp"), "Test data must be under /tmp"
+    if not pathlib.Path(mounts[0]["source"]).resolve().is_relative_to("/tmp"):
+        raise SystemExit("Test data must be under /tmp")
     for service, port in (("frontend", "38090"), ("frontend-lite", "38091")):
         p = c["services"][service]["ports"][0]
-        assert str(p["published"]) == port and p["host_ip"] == "127.0.0.1", "Unexpected smoke-test listener"
+        if str(p["published"]) != port or p["host_ip"] != "127.0.0.1":
+            raise SystemExit("Unexpected smoke-test listener")
 print(c["name"])
 print(mounts[0]["source"])
 for service in ("frontend", "frontend-lite"):
     p = c["services"][service]["ports"][0]
     print(str(p.get("host_ip", "0.0.0.0")) + ":" + str(p["published"]))
+if sys.argv[1] != "up":
+    print("-")
+    raise SystemExit(0)
 image = c["services"]["postgres"]["image"]
-image_env = json.loads(subprocess.check_output(["docker", "image", "inspect", image]))[0]["Config"]["Env"]
+inspected = subprocess.run(["docker", "image", "inspect", image], capture_output=True, text=True)
+if inspected.returncode:
+    raise SystemExit("Cannot inspect PostgreSQL image " + image + "; run docker pull " + image + " and retry up")
+image_env = json.loads(inspected.stdout)[0]["Config"]["Env"]
 effective = dict(item.split("=", 1) for item in image_env if "=" in item)
 effective.update(c["services"]["postgres"].get("environment", {}))
 pgdata = pathlib.PurePosixPath(effective["PGDATA"])
 relative = pgdata.relative_to(mounts[0]["target"])
-assert relative.parts and ".." not in relative.parts, "PGDATA must be inside the PostgreSQL mount"
+if not relative.parts or ".." in relative.parts:
+    raise SystemExit("PGDATA must be inside the PostgreSQL mount")
 print(pathlib.Path(mounts[0]["source"]) / str(relative))
-')"
+' "$action")"
 { IFS= read -r project; IFS= read -r data_dir; IFS= read -r full_port;
   IFS= read -r lite_port; IFS= read -r cluster_dir; } <<< "$fields"
-cluster=false
-if [[ -s "$cluster_dir/PG_VERSION" ]]; then
+cluster=unknown
+if [[ "$cluster_dir" != - ]]; then
+  cluster=false
+fi
+if [[ "$cluster_dir" != - && -s "$cluster_dir/PG_VERSION" ]]; then
   cluster=true
 fi
 printf 'Project: %s\nPostgreSQL data: %s\nCluster present: %s\nFull: %s\nLite: %s\n' \
