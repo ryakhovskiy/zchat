@@ -10,7 +10,7 @@ async function walk(suites) {
       const result = test.results.at(-1);
       rows.push({ project: test.projectName, status: result?.status || 'not run', title: spec.title });
       for (const attachment of result?.attachments || []) {
-        if (!/^axe-|^payload-budget$|^slow-network$/.test(attachment.name)) continue;
+        if (!/^axe-|^payload-budget$|^slow-network$|^interop-delivery$|^shared-login$|^lite-presence$/.test(attachment.name)) continue;
         const body = attachment.body ? Buffer.from(attachment.body, 'base64').toString()
           : await readFile(attachment.path, 'utf8');
         const data = JSON.parse(body);
