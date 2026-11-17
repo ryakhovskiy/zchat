@@ -49,3 +49,45 @@ jobs:
       
       - name: Run staticcheck
         run: cd backend && staticcheck ./...
+
+  lite:
+    name: Lite client and dual deployment
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - name: Check lite JavaScript and gzip budget
+        run: |
+          node --check frontend-lite/app.js
+          python3 - <<'PYBUDGET'
+          import gzip
+          from pathlib import Path
+          size = sum(len(gzip.compress(Path('frontend-lite', name).read_bytes(), compresslevel=9, mtime=0))
+                     for name in ('index.html', 'app.js'))
+          print(f'Lite client: {size}/8192 gzip bytes')
+          assert size <= 8192
+          PYBUDGET
+      - name: Check dual Compose topology
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: dummy
+          POSTGRES_DB: ci
+          JWT_SECRET: dummy
+          ENCRYPTION_KEY: dummy
+          POSTGRES_DATA_DIR: /tmp/zchat-ci-data
+        run: |
+          docker compose -p zchat-ci --env-file /dev/null -f docker-compose.yml -f docker-compose.dual.yml config --format json > "$RUNNER_TEMP/dual.json"
+          python3 - "$RUNNER_TEMP/dual.json" <<'PYCOMPOSE'
+          import json, sys
+          c = json.load(open(sys.argv[1]))
+          assert set(c['services']) == {'postgres', 'backend', 'frontend', 'frontend-lite'}
+          mounts = c['services']['postgres']['volumes']
+          assert len(mounts) == 1 and mounts[0]['source'] == '/tmp/zchat-ci-data'
+          assert mounts[0]['target'] == '/var/lib/postgresql'
+          for service, port in [('frontend', '3000'), ('frontend-lite', '3100')]:
+              assert str(c['services'][service]['ports'][0]['published']) == port
+          assert not c['services']['postgres'].get('ports')
+          assert not c['services']['backend'].get('ports')
+          PYCOMPOSE

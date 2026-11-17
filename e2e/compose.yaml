@@ -30,7 +30,7 @@ services:
       HTTP_HOST: 0.0.0.0
       HTTP_PORT: '8000'
       UPLOAD_DIR: /app/uploads
-      CORS_ORIGINS: http://127.0.0.1:${E2E_PORT:-38080},http://localhost:${E2E_PORT:-38080}
+      CORS_ORIGINS: http://127.0.0.1:${E2E_PORT:-38080},http://localhost:${E2E_PORT:-38080},http://127.0.0.1:${E2E_LITE_PORT:-38081},http://localhost:${E2E_LITE_PORT:-38081}
       MAX_USERS: '50'
       MAX_MESSAGES_PER_CONVERSATION: '1000'
       DEBUG: 'false'
@@ -44,7 +44,19 @@ services:
     image: ${E2E_PROJECT:-zchat-e2e}-frontend:local
     build:
       context: ../frontend
+      args:
+        VITE_API_URL: /api
+        VITE_WS_URL: /ws
+      secrets: [extra_ca]
     ports: ['127.0.0.1:${E2E_PORT:-38080}:8080']
+    depends_on: [backend]
+    networks: [web]
+
+  frontend-lite:
+    image: ${E2E_PROJECT:-zchat-e2e}-frontend-lite:local
+    build:
+      context: ../frontend-lite
+    ports: ['127.0.0.1:${E2E_LITE_PORT:-38081}:8080']
     depends_on: [backend]
     networks: [web]
 
