@@ -1,0 +1,16 @@
+# Overlay: docker compose -f docker-compose.yml -f docker-compose.dual.yml ...
+name: zchat
+
+services:
+  postgres:
+    # Compose merges volumes by container target, replacing the base bind mount.
+    volumes:
+      - ${POSTGRES_DATA_DIR:?set POSTGRES_DATA_DIR to the existing data directory}:/var/lib/postgresql
+
+  frontend-lite:
+    build: ./frontend-lite
+    restart: unless-stopped
+    depends_on: [backend]
+    networks: [web]
+    ports:
+      - "${FRONTEND_LITE_BIND:-${FRONTEND_BIND:-127.0.0.1}}:${FRONTEND_LITE_PORT:-3100}:8080"
